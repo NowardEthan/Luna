@@ -79,26 +79,26 @@ Em produção, a UI é servida a partir de `dist/` e o servidor continua local.
 
 ```mermaid
 flowchart TB
-  subgraph Desktop["Electron (main)"]
+  subgraph Desktop["Electron main"]
     WIN[Janela BrowserWindow]
-    IPC[IPC: janela, arquivos legados]
+    IPC[IPC legado]
   end
 
-  subgraph Renderer["React (Vite)"]
-    UI[App · Chat · IDE]
-    AGENT[runAgentTurn · executeTools]
+  subgraph Renderer["React Vite"]
+    UI[App Chat IDE]
+    AGENT[runAgentTurn]
     BRIDGE[lunaBridge]
   end
 
-  subgraph Server["Servidor Luna (FastAPI :39281)"]
-    LLM[llm/router · providers]
-    RAG[rag/service]
-    MEM[memory/service]
-    TOOLS[tools/agent]
-    TR[translation/service]
+  subgraph Server["Servidor Luna FastAPI"]
+    LLM[llm router]
+    RAG[rag service]
+    MEM[memory service]
+    TOOLS[tools agent]
+    TR[translation]
   end
 
-  subgraph External["Nuvem / local"]
+  subgraph External["Nuvem e local"]
     OR[OpenRouter]
     GQ[Groq]
     TG[Together]
@@ -109,9 +109,12 @@ flowchart TB
   WIN --> UI
   UI --> AGENT
   AGENT --> BRIDGE
-  BRIDGE -->|HTTP preferido| Server
-  BRIDGE -->|fallback| IPC
-  LLM --> OR & GQ & TG & OL
+  BRIDGE -->|HTTP| Server
+  BRIDGE -->|IPC| IPC
+  LLM --> OR
+  LLM --> GQ
+  LLM --> TG
+  LLM --> OL
   TOOLS --> TV
 ```
 
@@ -130,24 +133,25 @@ Dados persistentes (RAG, memória semântica): `%APPDATA%\Luna\userData` ou `LUN
 
 ```mermaid
 sequenceDiagram
-  participant U as Usuário
+  participant U as Usuario
   participant UI as React
   participant A as runAgentTurn
   participant B as lunaBridge
-  participant S as Servidor / IPC
+  participant S as Servidor
   participant M as Modelo LLM
 
   U->>UI: Enviar mensagem
-  UI->>A: runAgentTurn (max 8 ou 25 passos)
-  loop Até texto final ou limite
-    A->>B: chat / chatStream + tool schemas
-    B->>S: POST /v1/llm/chat/stream
+  UI->>A: Iniciar turno
+  loop Ate texto final ou limite
+    A->>B: chatStream e schemas
+    B->>S: POST llm chat stream
     S->>M: API do provedor
     M-->>S: tool_calls ou texto
     S-->>A: resposta
-  A->>A: executeTools (memória, RAG, IDE…)
-  A-->>UI: mensagem + agentSteps
-  UI-->>U: Markdown + timeline de ferramentas
+    A->>A: executeTools
+  end
+  A-->>UI: mensagem e agentSteps
+  UI-->>U: Markdown na UI
 ```
 
 **Arquivos centrais do agente:**
