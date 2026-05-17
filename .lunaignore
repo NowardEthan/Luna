@@ -1,0 +1,11 @@
+node_modules/
+dist/
+build/
+.git/
+.vscode/
+.cursor/
+*.min.js
+*.map
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
