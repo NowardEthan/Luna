@@ -84,6 +84,10 @@ declare global {
       maximizeToggle: () => Promise<void>
       close: () => Promise<void>
       setWorkbenchLayout?: (mode: 'chat' | 'ide') => Promise<void>
+      googleSignIn?: () => Promise<
+        | { ok: true; idToken: string; accessToken?: string }
+        | { ok: false; error?: string; cancelled?: boolean }
+      >
     }
     translation?: {
       translate: (payload: {
@@ -208,6 +212,52 @@ declare global {
         repoPath: string | undefined,
         message: string,
       ) => Promise<{ ok: boolean; error?: string; output?: string }>
+    }
+    plugins?: {
+      pickAndInstall: () => Promise<
+        | { ok: false; canceled: true }
+        | { ok: false; error: string }
+        | {
+            ok: true
+            manifest: {
+              id: string
+              name: string
+              version?: string
+              description?: string
+              entry?: string
+              permissions?: string[]
+              trusted?: boolean
+              lunaApiVersion?: string
+            }
+            rootPath: string
+            needsReload: boolean
+            installedAt: string
+          }
+      >
+      installBundled: (pluginId: string) => Promise<
+        | { ok: false; error: string }
+        | {
+            ok: true
+            manifest: {
+              id: string
+              name: string
+              version?: string
+              description?: string
+              entry?: string
+              permissions?: string[]
+              trusted?: boolean
+              lunaApiVersion?: string
+            }
+            rootPath: string
+            needsReload: boolean
+            installedAt: string
+          }
+      >
+      uninstall: (pluginId: string) => Promise<{ ok: boolean; error?: string }>
+      readEntry: (pluginId: string) => Promise<
+        | { ok: true; source: string; entry: string }
+        | { ok: false; error: string }
+      >
     }
     chatMemory?: {
       sync: (payload: {

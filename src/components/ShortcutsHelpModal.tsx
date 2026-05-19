@@ -3,8 +3,9 @@ type ShortcutRow = { keys: string; action: string }
 const ROWS: ShortcutRow[] = [
   { keys: 'Ctrl+Enter', action: 'Enviar mensagem' },
   { keys: 'Ctrl+N', action: 'Nova conversa' },
-  { keys: 'Ctrl+Shift+L', action: 'Abrir/fechar histórico' },
-  { keys: 'Ctrl+Shift+M', action: 'Abrir/fechar memórias' },
+  { keys: 'Ctrl+Shift+L', action: 'Abrir/fechar conversas (painel esquerdo)' },
+  { keys: 'Ctrl+Shift+M', action: 'Abrir/fechar memórias (painel esquerdo)' },
+  { keys: 'Ctrl+Shift+T', action: 'Alternar tema visual' },
   { keys: 'Ctrl+.', action: 'Alternar Chat / IDE' },
   { keys: 'Ctrl+K', action: 'Paleta de comandos' },
   { keys: '?', action: 'Esta ajuda' },

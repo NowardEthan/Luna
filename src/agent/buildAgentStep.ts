@@ -1,7 +1,7 @@
 import { fileBasename } from '../lib/pathUtils'
 import { hostnameFromUrl } from '../lib/urlUtils'
 import type { AgentStepRecord, RagCitation, WebSearchResultItem } from '../types/chat'
-import { TOOL_META, TOOL_UI_LABELS } from './toolSchemas'
+import { getToolMeta, getToolUiLabels } from './toolSchemas'
 
 const SNIPPET_MAX = 220
 const ANSWER_MAX = 500
@@ -13,7 +13,9 @@ function truncate(s: string, max: number): string {
 }
 
 function labelFor(tool: string): string {
-  return TOOL_META[tool]?.label ?? TOOL_UI_LABELS[tool] ?? tool
+  const meta = getToolMeta()
+  const labels = getToolUiLabels()
+  return meta[tool]?.label ?? labels[tool] ?? tool
 }
 
 export function buildAgentStep(

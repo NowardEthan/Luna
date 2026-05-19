@@ -17,13 +17,12 @@ export function CommandPalette({ open, onClose, commands }: Props) {
   const [query, setQuery] = useState('')
 
   useEffect(() => {
-    if (!open) setQuery('')
-  }, [open])
-
-  useEffect(() => {
     if (!open) return
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') {
+        setQuery('')
+        onClose()
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -41,11 +40,16 @@ export function CommandPalette({ open, onClose, commands }: Props) {
 
   if (!open) return null
 
+  const closeAndReset = () => {
+    setQuery('')
+    onClose()
+  }
+
   return (
     <div
       className="fixed inset-0 z-[88] flex items-start justify-center bg-black/50 pt-[12vh] p-4"
       role="presentation"
-      onClick={onClose}
+      onClick={closeAndReset}
     >
       <div
         role="dialog"
@@ -70,7 +74,7 @@ export function CommandPalette({ open, onClose, commands }: Props) {
                   className="w-full px-4 py-2.5 text-left text-ui text-fg hover:bg-white/[0.06]"
                   onClick={() => {
                     c.run()
-                    onClose()
+                    closeAndReset()
                   }}
                 >
                   {c.label}

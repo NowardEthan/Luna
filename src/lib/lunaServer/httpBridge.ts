@@ -4,19 +4,33 @@ import type {
   LlmSelection,
   LlmApiMessage,
 } from '../togetherClient'
+import { eventBus } from '../../core/events/EventBus'
+import { getLunarAuthHeaders } from '../lunarAuthHeaders'
 import { lunaServerBaseUrl } from './config'
 
+async function handleAuthResponse(res: Response): Promise<void> {
+  if (res.status === 401) {
+    eventBus.emit('lunar:auth-required', {
+      reason: 'Inicie sessão com a Conta Lunar para usar modelos online.',
+    })
+  }
+}
+
 async function postJson<T>(path: string, body: unknown): Promise<T> {
+  const headers = await getLunarAuthHeaders()
   const res = await fetch(`${lunaServerBaseUrl()}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify(body),
   })
+  await handleAuthResponse(res)
   return (await res.json()) as T
 }
 
 async function getJson<T>(path: string): Promise<T> {
-  const res = await fetch(`${lunaServerBaseUrl()}${path}`)
+  const headers = await getLunarAuthHeaders()
+  const res = await fetch(`${lunaServerBaseUrl()}${path}`, { headers })
+  await handleAuthResponse(res)
   return (await res.json()) as T
 }
 
@@ -58,13 +72,15 @@ export async function lunaServerChatStream(
   payload: Record<string, unknown>,
   callbacks: LlmStreamCallbacks,
 ): Promise<LlmChatResult> {
+  const headers = await getLunarAuthHeaders()
   const res = await fetch(`${lunaServerBaseUrl()}/v1/llm/chat/stream`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify(payload),
   })
 
   if (!res.ok || !res.body) {
+    await handleAuthResponse(res)
     let err = `HTTP ${res.status}`
     try {
       const j = (await res.json()) as { error?: string }

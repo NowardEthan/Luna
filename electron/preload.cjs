@@ -16,6 +16,8 @@ contextBridge.exposeInMainWorld('electron', {
   close: () => ipcRenderer.invoke('window:close'),
   setWorkbenchLayout: (mode) =>
     ipcRenderer.invoke('window:setWorkbenchLayout', mode),
+  /** OAuth Google no browser do sistema (Electron). */
+  googleSignIn: () => ipcRenderer.invoke('auth:googleSignIn'),
 })
 
 contextBridge.exposeInMainWorld('translation', {
@@ -117,4 +119,12 @@ contextBridge.exposeInMainWorld('agentTools', {
     ipcRenderer.invoke('agentTools:gitDiff', repoPath, staged),
   gitCommit: (repoPath, message) =>
     ipcRenderer.invoke('agentTools:gitCommit', repoPath, message),
+})
+
+contextBridge.exposeInMainWorld('plugins', {
+  pickAndInstall: () => ipcRenderer.invoke('plugins:pickAndInstall'),
+  installBundled: (pluginId) =>
+    ipcRenderer.invoke('plugins:installBundled', pluginId),
+  uninstall: (pluginId) => ipcRenderer.invoke('plugins:uninstall', pluginId),
+  readEntry: (pluginId) => ipcRenderer.invoke('plugins:readEntry', pluginId),
 })

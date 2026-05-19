@@ -20,22 +20,20 @@ export function TurnDiagnosticsPanel({ diagnostics, errorText }: Props) {
   const [serverLogError, setServerLogError] = useState<string | null>(null)
   const [loadingLogs, setLoadingLogs] = useState(!diagnostics?.serverLog)
 
-  const llmAttempts =
-    diagnostics?.llmAttempts?.length
-      ? diagnostics.llmAttempts
-      : errorText
-        ? parseBulletsFromError(errorText)
-        : []
+  const llmAttempts = useMemo(
+    () =>
+      diagnostics?.llmAttempts?.length
+        ? diagnostics.llmAttempts
+        : errorText
+          ? parseBulletsFromError(errorText)
+          : [],
+    [diagnostics?.llmAttempts, errorText],
+  )
 
   useEffect(() => {
-    if (diagnostics?.serverLog) {
-      setServerLog(diagnostics.serverLog)
-      setLoadingLogs(false)
-      return
-    }
+    if (diagnostics?.serverLog) return
     let cancelled = false
     void (async () => {
-      setLoadingLogs(true)
       const r = await fetchServerDiagnosticLogs(150)
       if (cancelled) return
       if (r.ok) {

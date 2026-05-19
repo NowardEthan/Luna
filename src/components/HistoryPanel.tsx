@@ -1,19 +1,14 @@
 import { useCallback, useMemo, useState } from 'react'
 import type { ChatFolder, Conversation } from '../types/chat'
 import { requestConfirm } from '../lib/confirm'
-import { Select } from './ui/Select'
-
-function formatUpdated(ts: number) {
-  return new Intl.DateTimeFormat('pt-BR', {
-    day: 'numeric',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(ts)
-}
+import { ConversationListRow } from '../features/history/ConversationListRow'
+import { matchesSearch, sortConversations } from '../features/history/utils'
+import { EmptyState } from '../ui/EmptyState'
 
 type Props = {
   open: boolean
+  /** Dentro de ResizableSplit — ocupa 100% da largura do painel. */
+  embedded?: boolean
   conversations: Conversation[]
   folders: ChatFolder[]
   activeId: string | null
@@ -30,34 +25,9 @@ type Props = {
   onClose?: () => void
 }
 
-function sortConversations(list: Conversation[]) {
-  return [...list].sort((a, b) => {
-    const ap = a.pinned ? 1 : 0
-    const bp = b.pinned ? 1 : 0
-    if (ap !== bp) return bp - ap
-    return b.updatedAt - a.updatedAt
-  })
-}
-
-function matchesSearch(c: Conversation, q: string): boolean {
-  if (!q) return true
-  const last = [...c.messages].reverse().find((m) => m.role === 'user' || m.role === 'assistant')
-  const preview = last?.text?.slice(0, 200) ?? ''
-  return (
-    c.title.toLowerCase().includes(q) ||
-    preview.toLowerCase().includes(q)
-  )
-}
-
-const rowShell = (selected: boolean) =>
-  `flex flex-col rounded-md ring-1 transition-colors ${
-    selected
-      ? 'bg-accent/10 ring-accent/30'
-      : 'ring-transparent hover:bg-white/[0.03] hover:ring-line'
-  }`
-
 export function HistoryPanel({
   open,
+  embedded = false,
   conversations,
   folders,
   activeId,
@@ -149,146 +119,26 @@ export function HistoryPanel({
   }, [editingFolderId, folderNameDraft, onRenameFolder])
 
   function renderConversationRow(c: Conversation) {
-    const sel = c.id === activeId
-    const editing = editingConvoId === c.id
     return (
-      <li key={c.id}>
-        <div className={rowShell(sel)}>
-          <div className="flex min-h-[3rem] items-stretch">
-            <button
-              type="button"
-              onClick={() => onSelect(c.id)}
-              aria-current={sel ? 'page' : undefined}
-              className="min-w-0 flex-1 px-2 py-1.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-inset"
-            >
-              {editing ? (
-                <input
-                  value={convoTitleDraft}
-                  onChange={(e) => setConvoTitleDraft(e.target.value)}
-                  onClick={(e) => e.stopPropagation()}
-                  onBlur={() => commitRenameConvo()}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault()
-                      commitRenameConvo()
-                    }
-                    if (e.key === 'Escape') {
-                      e.preventDefault()
-                      cancelRenameConvo()
-                    }
-                  }}
-                  className="mb-0.5 w-full rounded border border-line bg-canvas px-1.5 py-0.5 text-[12px] text-fg focus:outline-none focus:ring-1 focus:ring-focus"
-                  autoFocus
-                  maxLength={120}
-                  aria-label="Novo título da conversa"
-                />
-              ) : (
-                <span className="block truncate text-[12px] font-medium leading-tight text-fg">
-                  {c.title}
-                </span>
-              )}
-              <span className="mt-0.5 block truncate text-[10px] text-fg-muted">
-                {formatUpdated(c.updatedAt)}
-              </span>
-            </button>
-            <div className="flex shrink-0 items-center gap-px border-l border-line/60 pr-0.5">
-              {onTogglePin ? (
-                <button
-                  type="button"
-                  className={`rounded p-1.5 transition-colors hover:bg-white/[0.07] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
-                    c.pinned ? 'text-accent' : 'text-fg-muted hover:text-fg'
-                  }`}
-                  title={c.pinned ? 'Desafixar' : 'Fixar no topo'}
-                  aria-label={c.pinned ? 'Desafixar conversa' : 'Fixar conversa'}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onTogglePin(c.id)
-                  }}
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill={c.pinned ? 'currentColor' : 'none'} className="stroke-current" strokeWidth="2" aria-hidden>
-                    <path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7-6.3-4.6L5.7 21l2.3-7-6-4.6h7.6Z" strokeLinejoin="round" />
-                  </svg>
-                </button>
-              ) : null}
-              <button
-                type="button"
-                className="rounded p-1.5 text-fg-muted transition-colors hover:bg-white/[0.07] hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
-                title={editing ? 'Salvar nome' : 'Renomear conversa'}
-                aria-label={editing ? 'Salvar nome da conversa' : 'Renomear conversa'}
-                onMouseDown={(e) => {
-                  if (editing) e.preventDefault()
-                }}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  if (editing) commitRenameConvo()
-                  else startRenameConvo(c)
-                }}
-              >
-                {editing ? (
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="stroke-current" strokeWidth="2" aria-hidden>
-                    <path d="M20 6 9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                ) : (
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="stroke-current" strokeWidth="2" aria-hidden>
-                    <path d="M12 20h9" strokeLinecap="round" />
-                    <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                )}
-              </button>
-              <button
-                type="button"
-                className="rounded p-1.5 text-fg-muted transition-colors hover:bg-white/[0.07] hover:text-red-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
-                title="Apagar conversa"
-                aria-label={`Apagar conversa: ${c.title}`}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  void (async () => {
-                    const ok = await requestConfirm({
-                      title: 'Apagar conversa',
-                      message: `Apagar «${c.title}»? Esta acção não pode ser desfeita.`,
-                      confirmLabel: 'Apagar',
-                      destructive: true,
-                    })
-                    if (ok) onDelete(c.id)
-                  })()
-                }}
-              >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" className="stroke-current" strokeWidth="2" aria-hidden>
-                  <path d="M3 6h18" strokeLinecap="round" />
-                  <path d="M8 6V4h8v2" strokeLinecap="round" />
-                  <path d="M19 6l-1 14H6L5 6" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </button>
-            </div>
-          </div>
-          <label className="flex items-center gap-1.5 border-t border-line/50 px-2 py-1">
-            <span className="shrink-0 text-[9px] uppercase tracking-wide text-fg-muted">
-              Pasta
-            </span>
-            <div
-              className="min-w-0 flex-1"
-              onClick={(e) => e.stopPropagation()}
-              onKeyDown={(e) => e.stopPropagation()}
-            >
-              <Select
-                value={c.folderId ?? ''}
-                onChange={(v) => onMoveConversation(c.id, v === '' ? null : v)}
-                options={[
-                  { value: '', label: 'Sem pasta' },
-                  ...folders.map((f) => ({ value: f.id, label: f.name })),
-                ]}
-                size="sm"
-                variant="ghost"
-                className="w-full"
-                align="end"
-                aria-label={`Mover conversa para pasta: ${c.title}`}
-              />
-            </div>
-          </label>
-        </div>
-      </li>
+      <ConversationListRow
+        key={c.id}
+        conversation={c}
+        folders={folders}
+        activeId={activeId}
+        editing={editingConvoId === c.id}
+        titleDraft={convoTitleDraft}
+        onTitleDraftChange={setConvoTitleDraft}
+        onSelect={onSelect}
+        onDelete={onDelete}
+        onRenameCommit={commitRenameConvo}
+        onRenameCancel={cancelRenameConvo}
+        onStartRename={startRenameConvo}
+        onMoveConversation={onMoveConversation}
+        onTogglePin={onTogglePin}
+      />
     )
   }
+
 
   return (
     <>
@@ -301,17 +151,29 @@ export function HistoryPanel({
         />
       ) : null}
     <aside
-      className={`relative flex shrink-0 flex-col overflow-hidden border-r border-line bg-sidebar transition-[width] duration-200 ease-out max-md:fixed max-md:inset-y-0 max-md:left-11 max-md:z-40 max-md:shadow-xl ${
-        open
-          ? 'w-[288px]'
-          : 'w-0 border-r-0 pointer-events-none max-md:translate-x-[-100%]'
-      }`}
+      className={
+        embedded
+          ? `relative flex h-full w-full flex-col overflow-hidden bg-sidebar ${
+              open ? 'luna-sidebar-panel-enter' : 'pointer-events-none opacity-0'
+            }`
+          : `relative flex shrink-0 flex-col overflow-hidden border-r border-line bg-sidebar transition-[width] duration-200 ease-out max-md:fixed max-md:inset-y-0 max-md:left-11 max-md:z-40 max-md:shadow-xl ${
+              open
+                ? 'w-[288px]'
+                : 'w-0 border-r-0 pointer-events-none max-md:translate-x-[-100%]'
+            }`
+      }
       aria-hidden={!open}
       aria-label="Conversas anteriores"
     >
       <div
         className={`flex size-full flex-col transition-opacity duration-150 ${
-          open ? 'min-w-[288px] opacity-100' : 'min-w-0 opacity-0'
+          embedded
+            ? open
+              ? 'opacity-100'
+              : 'opacity-0'
+            : open
+              ? 'min-w-[288px] opacity-100'
+              : 'min-w-0 opacity-0'
         }`}
       >
         <div className="flex shrink-0 flex-col gap-1.5 border-b border-line px-2.5 py-2">
@@ -530,13 +392,24 @@ export function HistoryPanel({
           </div>
 
           {!conversations.length ? (
-            <p className="mt-8 px-2 text-center text-[11px] text-fg-muted">
-              Ainda não há conversas salvas.
-            </p>
+            <EmptyState
+              title="Ainda não há conversas"
+              description="Comece uma nova conversa com a Luna. As conversas ficam guardadas neste computador."
+              action={
+                <button
+                  type="button"
+                  className="luna-btn-primary mt-1 px-3 py-1.5 text-ui"
+                  onClick={() => onNewConversation()}
+                >
+                  Nova conversa
+                </button>
+              }
+            />
           ) : q && !anyVisible ? (
-            <p className="mt-8 px-2 text-center text-[11px] text-fg-muted">
-              Nenhuma conversa encontrada.
-            </p>
+            <EmptyState
+              title="Nenhum resultado"
+              description="Tente outro termo na pesquisa ou limpe o filtro."
+            />
           ) : null}
         </div>
       </div>

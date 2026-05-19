@@ -59,6 +59,8 @@ export type AgentTurnInput = {
   ideContextBlock?: string
   ideMentions?: IdeAttachedContext[]
   convIdForCheckpoints?: string
+  /** Cancelar turno (botão Parar na UI). */
+  signal?: AbortSignal
 }
 
 export type AgentTurnResult = {
@@ -74,6 +76,7 @@ export type AgentTurnResult = {
   /** Preenchido se describe_images corre neste turno */
   visionDescription?: string
   turnDiagnostics?: import('../types/chat').TurnDiagnostics
+  cancelled?: boolean
 }
 
 export type ToolExecuteResult = {

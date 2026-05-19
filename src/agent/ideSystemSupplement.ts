@@ -47,4 +47,6 @@ export const IDE_EXPLORE_HINT =
 export const MAX_AGENT_STEPS_IDE = 25
 
 export const IDE_ORCHESTRATION_HINT =
-  '[Orquestração IDE] Mantém o loop: explora → edita → testa. Resposta final só quando a tarefa estiver feita ou houver erro claro a reportar.'
+  '[Orquestração IDE] Mantém o loop: explora → lê → edita → testa → reporta. ' +
+  'Não respondas só com «deixa eu verificar» / «vou ler» — chama `read_file` e segue. ' +
+  'Se o terminal falhar (exit ≠ 0), corrige e tenta de novo. Resposta final só quando a tarefa estiver feita ou houver erro claro.'

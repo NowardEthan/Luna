@@ -15,7 +15,15 @@
     "build": "tsc -b && vite build",
     "electron:run": "npm run build && electron .",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "ci": "npm run lint && npm run build && npm test",
+    "preview": "vite preview",
+    "firebase:deploy-rules": "firebase deploy --only firestore:rules,storage",
+    "firebase:write-init": "node scripts/write-firebase-hosting-init.cjs",
+    "firebase:deploy-catalog": "npm run firebase:write-init && firebase deploy --only hosting",
+    "firebase:deploy": "npm run firebase:write-init && firebase deploy --only firestore:rules,storage,hosting",
+    "firebase:sync-env": "node scripts/sync-firebase-env.cjs"
   },
   "dependencies": {
     "@codemirror/commands": "^6.10.3",
@@ -42,6 +50,7 @@
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
     "dotenv": "^17.4.2",
+    "firebase": "^11.10.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "react-markdown": "^10.1.0",
@@ -51,6 +60,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.55.0",
     "@tailwindcss/vite": "^4.2.4",
     "@types/node": "^24.12.2",
     "@types/react": "^19.2.14",
@@ -67,6 +77,7 @@
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.58.2",
     "vite": "^8.0.10",
+    "vitest": "^3.2.4",
     "wait-on": "^9.0.3"
   }
 }

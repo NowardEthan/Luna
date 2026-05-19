@@ -160,7 +160,7 @@ function pushSegmentsForConversation(
   const sum = c.memory?.rollingSummary?.trim()
   if (sum && sum.length > 0) {
     const nb = normalizeForMatch(sum)
-    let sc = scoreMatch(nb, tokens) + scoreMatch(normTitle, tokens) * 0.35
+    const sc = scoreMatch(nb, tokens) + scoreMatch(normTitle, tokens) * 0.35
     if (sc >= VERTICAL_RECALL_MIN_SCORE) {
       const excerpt =
         sum.length > 1400 ? `${sum.slice(0, 1398)}…` : sum
@@ -180,7 +180,7 @@ function pushSegmentsForConversation(
     const flat = raw.replace(/\s+/g, ' ').trim()
     if (!flat.length || flat === 'Pensando…') continue
     const nb = normalizeForMatch(flat)
-    let sc = scoreMatch(nb, tokens) + scoreMatch(normTitle, tokens) * 0.25
+    const sc = scoreMatch(nb, tokens) + scoreMatch(normTitle, tokens) * 0.25
     if (sc < VERTICAL_RECALL_MIN_SCORE) continue
     const role = m.role === 'user' ? 'Pessoa' : 'Luna'
     const excerpt =

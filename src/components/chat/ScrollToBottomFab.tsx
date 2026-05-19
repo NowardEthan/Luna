@@ -40,7 +40,7 @@ export function ScrollToBottomFab({ listRef, forceVisible }: Props) {
       type="button"
       aria-label="Ir para mensagens recentes"
       title="Ir para o fim"
-      className="absolute bottom-3 right-3 z-10 flex size-9 items-center justify-center rounded-full border border-line bg-surface/95 text-fg shadow-lg backdrop-blur-sm transition-colors hover:border-accent/40 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+      className="pointer-events-auto absolute bottom-3 right-3 z-10 flex size-9 items-center justify-center rounded-full border border-line bg-surface text-fg shadow-lg backdrop-blur-sm transition-colors hover:border-accent/40 hover:bg-raised-hover hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
       onClick={() => {
         const el = listRef.current
         if (!el) return

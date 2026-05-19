@@ -1,5 +1,7 @@
 import { useLunaBadgeNav } from '../../context/LunaBadgeNavigation'
-import { TOOL_META } from '../../agent/toolSchemas'
+import { getToolMeta } from '../../agent/toolSchemas'
+import { useThemeRevision } from '../../hooks/useThemeRevision'
+import { resolveToolBadgeClass } from '../../lib/badgeTone'
 
 type Props = {
   toolId: string
@@ -14,11 +16,11 @@ export function ToolMentionBadge({
   className = '',
   messageId,
 }: Props) {
+  useThemeRevision()
   const nav = useLunaBadgeNav()
-  const meta = TOOL_META[toolId]
+  const meta = getToolMeta()[toolId]
   const label = meta?.label ?? toolId.replace(/_/g, ' ')
-  const color =
-    meta?.badgeClass ?? 'bg-raised text-fg-dim ring-1 ring-line-subtle'
+  const color = resolveToolBadgeClass(meta?.badgeClass)
   const hint = `Ver passo «${label}» neste turno`
 
   const inner = <span className="truncate">{label}</span>
@@ -28,7 +30,7 @@ export function ToolMentionBadge({
       <button
         type="button"
         onClick={() => nav.focusToolStep(messageId, toolId)}
-        className={`inline-flex max-w-full cursor-pointer items-center rounded-full px-2 py-0.5 align-middle text-[10px] font-medium leading-tight tracking-wide transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${color} ${className}`.trim()}
+        className={`inline-flex max-w-full cursor-pointer items-center rounded-full px-2 py-0.5 align-middle text-[10px] font-medium leading-tight tracking-wide transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${color} ${className}`.trim()}
         title={hint}
         aria-label={hint}
       >
@@ -50,6 +52,6 @@ export function ToolMentionBadge({
 export function toolIdFromInlineCode(raw: string): string | null {
   const id = raw.trim()
   if (!id || /\s/.test(id)) return null
-  if (TOOL_META[id]) return id
+  if (getToolMeta()[id]) return id
   return null
 }

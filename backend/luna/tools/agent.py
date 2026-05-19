@@ -55,21 +55,42 @@ class AgentTools:
     def _safe_path(self, requested: str) -> Path | None:
         if not requested or not isinstance(requested, str):
             return None
+        req = requested.strip()
+        if ".." in req:
+            return None
+
+        def _check(candidate: Path) -> Path | None:
+            try:
+                normalized = candidate.resolve()
+            except OSError:
+                return None
+            low = str(normalized).lower()
+            if "\\windows\\" in low or "/etc/" in low or "system32" in low:
+                return None
+            for root in self._allow_roots():
+                try:
+                    normalized.relative_to(root)
+                    return normalized
+                except ValueError:
+                    if normalized == root:
+                        return normalized
+            return None
+
+        direct = _check(Path(req))
+        if direct:
+            return direct
+
+        ws = self.workspace_root
+        if not ws:
+            return None
         try:
-            normalized = Path(requested.strip()).resolve()
+            ws_path = Path(ws).resolve()
         except OSError:
             return None
-        low = str(normalized).lower()
-        if ".." in requested or "\\windows\\" in low or "/etc/" in low or "system32" in low:
+        rel = req.lstrip("/\\")
+        if not rel:
             return None
-        for root in self._allow_roots():
-            try:
-                normalized.relative_to(root)
-                return normalized
-            except ValueError:
-                if normalized == root:
-                    return normalized
-        return None
+        return _check(ws_path / rel)
 
     def list_directory(self, path: str) -> dict:
         safe = self._safe_path(path) if path.strip() else self._allow_roots()[0]
@@ -83,7 +104,8 @@ class AgentTools:
                 entries.append(
                     {
                         "name": ent.name,
-                        "type": "dir" if ent.is_dir() else "file",
+                        "path": str(ent.resolve()),
+                        "type": "directory" if ent.is_dir() else "file",
                     }
                 )
         except OSError as e:

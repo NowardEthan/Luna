@@ -43,3 +43,20 @@ export function restoreCheckpoint(
 ): LunaCheckpoint | null {
   return listCheckpoints(convId).find((c) => c.id === checkpointId) ?? null
 }
+
+export function deleteCheckpoint(convId: string, checkpointId: string): void {
+  try {
+    const key = storageKey(convId)
+    const list = listCheckpoints(convId).filter((c) => c.id !== checkpointId)
+    if (!list.length) {
+      globalThis.localStorage?.removeItem(key)
+      return
+    }
+    globalThis.localStorage?.setItem(key, JSON.stringify(list))
+  } catch {
+    /* ignore */
+  }
+}
+
+/** ID usado ao gravar checkpoints antes de aplicar patches no workspace. */
+export const WORKSPACE_CHECKPOINT_CONV_ID = 'workspace'

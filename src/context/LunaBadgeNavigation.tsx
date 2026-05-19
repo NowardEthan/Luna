@@ -54,7 +54,6 @@ export function LunaBadgeNavigationProvider({
 
   const focusMemoryNote = useCallback(
     (noteId: string) => {
-      onCloseSidePanels()
       onOpenMemories()
       setHighlight({ type: 'memory', noteId })
       window.setTimeout(() => {

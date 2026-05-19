@@ -11,7 +11,8 @@ from .bootstrap import LunaServices, create_services
 from .catalog import list_luna_models
 from .config import HOST, PORT, resolve_data_dir
 from .log_buffer import append_log, get_recent_logs, get_recent_logs_text
-from .llm.router import llm_chat, llm_chat_stream, llm_vision_describe
+from .auth.deps import lunar_auth_context, optional_lunar_account, require_lunar_account
+from .llm.router import llm_chat, llm_chat_stream, llm_embed, llm_vision_describe
 from .translation.service import translate_text
 
 _services: LunaServices | None = None
@@ -59,24 +60,37 @@ def create_app() -> FastAPI:
         return {"ok": True, "lines": entries, "text": get_recent_logs_text(lim)}
 
     @app.get("/v1/models")
-    async def models() -> dict:
-        return list_luna_models()
+    async def models(request: Request) -> dict:
+        uid = optional_lunar_account(request)
+        return list_luna_models(lunar_cloud=bool(uid))
 
     @app.post("/v1/llm/chat")
-    async def chat(body: dict) -> JSONResponse:
-        result = await llm_chat(body)
+    async def chat(request: Request, body: dict) -> JSONResponse:
+        auth = lunar_auth_context(request, body)
+        if auth["mode"] == "unauthenticated":
+            sel_provider = str(body.get("llm_provider") or "").lower()
+            if sel_provider and sel_provider != "ollama":
+                return JSONResponse(
+                    {"ok": False, "error": "Conta Lunar necessária."},
+                    status_code=401,
+                )
+        result = await llm_chat(body, auth["mode"])
         status = 200 if result.get("ok") else 502
+        if not result.get("ok") and "Conta Lunar" in str(result.get("error", "")):
+            status = 401
         return JSONResponse(result, status_code=status)
 
     @app.post("/v1/llm/chat/stream")
-    async def chat_stream(body: dict) -> StreamingResponse:
+    async def chat_stream(request: Request, body: dict) -> StreamingResponse:
+        auth = lunar_auth_context(request, body)
+
         async def generate():
             events: list[dict] = []
 
             def emit(msg: dict) -> None:
                 events.append(msg)
 
-            result = await llm_chat_stream(body, emit)
+            result = await llm_chat_stream(body, emit, auth["mode"])
             for evt in events:
                 yield f"data: {json.dumps(evt, ensure_ascii=False)}\n\n"
             yield f"data: {json.dumps({'type': 'done', 'result': result}, ensure_ascii=False)}\n\n"
@@ -84,8 +98,14 @@ def create_app() -> FastAPI:
         return StreamingResponse(generate(), media_type="text/event-stream")
 
     @app.post("/v1/llm/vision")
-    async def vision(body: dict) -> JSONResponse:
-        result = await llm_vision_describe(body)
+    async def vision(request: Request, body: dict) -> JSONResponse:
+        auth = lunar_auth_context(request, body)
+        if auth["mode"] != "cloud":
+            return JSONResponse(
+                {"ok": False, "error": "Conta Lunar necessária."},
+                status_code=401,
+            )
+        result = await llm_vision_describe(body, auth["mode"])
         return JSONResponse(result, status_code=200 if result.get("ok") else 502)
 
     @app.post("/v1/translate")
@@ -142,6 +162,15 @@ def create_app() -> FastAPI:
     async def memory_clear() -> dict:
         return get_services().memory.clear_index()
 
+    @app.post("/v1/tools/invoke")
+    async def tools_invoke(body: dict) -> JSONResponse:
+        from .tools.router import invoke_tool
+
+        name = str(body.get("name") or body.get("tool") or "")
+        result = invoke_tool(get_services().agent_tools, name, body)
+        status = 200 if result.get("ok", True) is not False else 400
+        return JSONResponse(result, status_code=status)
+
     @app.post("/v1/tools/list-directory")
     async def tool_list_dir(body: dict) -> dict:
         return get_services().agent_tools.list_directory(str(body.get("path") or ""))
@@ -154,7 +183,8 @@ def create_app() -> FastAPI:
         )
 
     @app.post("/v1/tools/web-search")
-    async def tool_web(body: dict) -> dict:
+    async def tool_web(request: Request, body: dict) -> dict:
+        require_lunar_account(request, body)
         return await get_services().agent_tools.web_search(str(body.get("query") or ""))
 
     @app.post("/v1/tools/set-workspace-root")

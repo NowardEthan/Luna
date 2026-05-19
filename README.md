@@ -25,6 +25,7 @@ Interface em português brasileiro · Electron + React + servidor Python (FastAP
 - [API do servidor](#api-do-servidor)
 - [Atalhos e dicas](#atalhos-e-dicas)
 - [Documentação adicional](#documentação-adicional)
+- [Changelog](#changelog)
 - [Roadmap](#roadmap)
 - [Licença](#licença)
 
@@ -162,7 +163,7 @@ sequenceDiagram
 | `src/agent/executeTools.ts` | Execução de cada ferramenta |
 | `src/agent/toolSchemas.ts` | Schemas OpenAI + labels de UI |
 | `src/agent/buildAgentSystemPrompt.ts` | System prompt do agente |
-| `src/hooks/useConversations.ts` | Persistência de mensagens e turnos |
+| `src/hooks/useConversations.ts` | Fachada React; estado em `src/features/chat/state/` |
 
 Especificação detalhada: [`docs/luna-brain-v1-spec.md`](docs/luna-brain-v1-spec.md).
 
@@ -443,18 +444,54 @@ Base: `http://127.0.0.1:39281` (configurável via `LUNA_SERVER_HOST` / `LUNA_SER
 
 | Documento | Conteúdo |
 |-----------|----------|
+| [`docs/architecture.md`](docs/architecture.md) | Camadas, registries e fluxo |
+| [`docs/luna-plugin-api.md`](docs/luna-plugin-api.md) | API de plugins e tutorial |
+| [`docs/contributing.md`](docs/contributing.md) | Como contribuir |
 | [`docs/luna-brain-v1-spec.md`](docs/luna-brain-v1-spec.md) | Especificação do agente v1 |
 | [`docs/luna-ide-tools.md`](docs/luna-ide-tools.md) | Ferramentas e contexto do modo IDE |
+
+> **Obsoleto:** o servidor Node em `server/app.cjs` / `server/index.cjs` foi substituído por `backend/run_server.py` (FastAPI). Use `npm run server` apenas para o backend Python.
+
+---
+
+## Changelog
+
+Alterações por commit e por versão: **[CHANGELOG.md](CHANGELOG.md)**.
 
 ---
 
 ## Roadmap
 
+Concluído recentemente na interface:
+
+- Temas (9 variantes), terminal e editor alinhados ao tema activo
+- Persistência dos separadores (splits) e atalho `Ctrl+Shift+T` para alternar tema
+- MCP com invocação HTTP real; plugins não confiáveis em Web Worker
+- Testes E2E de fumo (`npm run test:e2e`)
+
 Itens planejados (pós v1 do agente):
 
-- [ ] Streaming completo da resposta principal
+- [ ] Streaming completo da resposta principal (texto token-a-token na UI)
 - [ ] Proatividade leve com opt-in
 - [ ] Voz (TTS / STT)
+
+---
+
+## Aviso de segurança (plugins)
+
+Plugins em `.luna/plugins/` estendem a Luna conforme `plugin.json`:
+
+| `trusted` | Onde corre |
+|-----------|------------|
+| `true` (predefinição nos exemplos) | Thread principal — painéis React, comandos, atalhos |
+| `false` ou omitido | **Web Worker** — ferramentas e hooks isolados; UI no worker é ignorada |
+
+Em ambos os casos, reveja o código antes de activar em máquinas com dados sensíveis. Plugins podem usar `storage` e reagir a eventos do agente.
+
+- Active apenas add-ons de **fontes em que confia**
+- O servidor Python (`/v1/tools/invoke`) usa **allowlist** — nem todas as ferramentas do cliente passam pelo endpoint unificado
+
+Mais detalhes: [docs/luna-plugin-api.md](docs/luna-plugin-api.md) e [docs/architecture.md](docs/architecture.md).
 
 ---
 

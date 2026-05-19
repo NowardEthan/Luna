@@ -50,7 +50,7 @@ export function RedoTurnButton({
         onClick={onRedo}
         title="Apaga esta troca e tudo o que veio depois (inclui memórias gravadas nesses turnos) e gera uma nova resposta"
         aria-label="Refazer a partir desta mensagem"
-        className="inline-flex items-center gap-1.5 rounded-lg border border-line-subtle bg-surface/90 px-2.5 py-1.5 text-[11px] font-medium text-fg-muted shadow-sm transition-colors hover:border-accent/45 hover:bg-white/[0.05] hover:text-accent disabled:pointer-events-none disabled:opacity-35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+        className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 py-1.5 text-[11px] font-medium text-fg-dim shadow-sm transition-colors hover:border-accent/45 hover:bg-raised-hover hover:text-accent disabled:pointer-events-none disabled:opacity-35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
       >
         <RedoIcon className="shrink-0 text-accent/90 opacity-90" />
         <span className="tracking-tight">Refazer</span>

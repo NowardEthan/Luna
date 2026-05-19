@@ -24,6 +24,17 @@
   --text-ui: 0.6875rem;
   --text-body: 0.8125rem;
   --text-title: 0.9375rem;
+  --luna-space-1: 0.25rem;
+  --luna-space-2: 0.5rem;
+  --luna-space-3: 0.75rem;
+  --luna-space-4: 1rem;
+  --luna-space-5: 1.25rem;
+  --luna-space-6: 1.5rem;
+  --luna-radius-sm: 0.375rem;
+  --luna-radius-md: 0.5rem;
+  --luna-radius-lg: 0.75rem;
+  --luna-z-overlay: 50;
+  --luna-z-modal: 88;
 }
 
 @layer base {
@@ -99,6 +110,22 @@
   .chat-scroll-region {
     scroll-behavior: smooth;
   }
+
+  .chat-scroll-shell {
+    /* Âncora do botão «ir ao fim» — fora da área com scroll */
+  }
+
+  html[data-luna-theme='luna-light'] .luna-marketplace-search,
+  html[data-luna-theme='luna-solar'] .luna-marketplace-search,
+  html[data-luna-theme='luna-rose'] .luna-marketplace-search {
+    box-shadow:
+      0 0 0 1px color-mix(in oklab, var(--color-accent) 25%, transparent),
+      0 8px 28px rgba(0, 0, 0, 0.08);
+  }
+
+  .luna-marketplace-drawer {
+    animation: luna-slide-in-right 0.22s ease-out both;
+  }
 }
 
 @layer components {
@@ -142,6 +169,34 @@
     @apply text-fg-dim;
   }
 
+  .luna-surface-panel {
+    @apply bg-raised/70 text-fg-dim;
+  }
+
+  html[data-luna-theme='luna-light'] .luna-surface-panel,
+  html[data-luna-theme='luna-solar'] .luna-surface-panel,
+  html[data-luna-theme='luna-rose'] .luna-surface-panel {
+    @apply border-line bg-surface text-fg;
+  }
+
+  html[data-luna-theme='luna-light'] .assistant-markdown--reasoning,
+  html[data-luna-theme='luna-solar'] .assistant-markdown--reasoning,
+  html[data-luna-theme='luna-rose'] .assistant-markdown--reasoning {
+    @apply text-fg;
+  }
+
+  html[data-luna-theme='luna-light'] .chat-bubble,
+  html[data-luna-theme='luna-solar'] .chat-bubble,
+  html[data-luna-theme='luna-rose'] .chat-bubble {
+    @apply border-line shadow-soft;
+  }
+
+  html[data-luna-theme='luna-light'] .chat-bubble--assistant,
+  html[data-luna-theme='luna-solar'] .chat-bubble--assistant,
+  html[data-luna-theme='luna-rose'] .chat-bubble--assistant {
+    @apply bg-surface;
+  }
+
   .assistant-markdown--reasoning p:last-child,
   .assistant-markdown--reasoning ul:last-child,
   .assistant-markdown--reasoning ol:last-child {
@@ -175,6 +230,92 @@
   .luna-welcome-card {
     @apply rounded-2xl border border-line-subtle bg-gradient-to-b from-surface/80 to-surface/40 px-5 py-5 shadow-soft;
   }
+
+  .luna-resize-handle {
+    @apply relative z-10 shrink-0 bg-line-subtle/80 transition-colors;
+  }
+
+  .luna-resize-handle--horizontal {
+    @apply w-1 cursor-col-resize;
+  }
+
+  .luna-resize-handle--horizontal:hover,
+  .luna-resize-handle--horizontal:focus-visible {
+    @apply w-1 bg-accent/45;
+  }
+
+  .luna-resize-handle--vertical {
+    @apply h-1 cursor-row-resize;
+  }
+
+  .luna-resize-handle--vertical:hover,
+  .luna-resize-handle--vertical:focus-visible {
+    @apply h-1 bg-accent/45;
+  }
+}
+
+@keyframes luna-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes luna-slide-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes luna-slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes luna-overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.luna-fade-in {
+  animation: luna-fade-in 0.22s ease-out both;
+}
+
+.luna-sidebar-panel-enter {
+  animation: luna-slide-in-left 0.22s ease-out both;
+}
+
+.luna-overlay-enter {
+  animation: luna-overlay-in 0.2s ease-out both;
+}
+
+/* Terminal xterm — fundo vem do tema Luna, não do xterm.css fixo */
+.luna-terminal-host .xterm,
+.luna-terminal-host .xterm-viewport {
+  background-color: transparent !important;
+}
+
+.luna-terminal-host .xterm-screen {
+  background-color: var(--color-composer-well) !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -187,6 +328,12 @@
   }
 
   .timeline-row__body {
+    animation: none;
+  }
+
+  .luna-fade-in,
+  .luna-sidebar-panel-enter,
+  .luna-overlay-enter {
     animation: none;
   }
 }

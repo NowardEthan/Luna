@@ -12,7 +12,8 @@ import {
   memoryNoteTitleForId,
 } from '../lib/memoryNoteMentions'
 import type { MemoryNote } from '../types/memory'
-import { MarkdownPre } from './chat/MarkdownPre'
+import { MarkdownCodeBlock } from './chat/MarkdownCodeBlock'
+import { normalizeAssistantMarkdown } from '../lib/normalizeAssistantMarkdown'
 
 export type AssistantMarkdownVariant = 'default' | 'compact' | 'reasoning'
 
@@ -158,30 +159,25 @@ function buildMdComponents(
     td: ({ children }) => (
       <td className="px-2 py-1.5 text-fg-dim">{children}</td>
     ),
-    pre: ({ children }) => (
-      <MarkdownPre
-        className={reasoning ? 'text-[11px]' : ''}
-      >
-        {children}
-      </MarkdownPre>
-    ),
+    pre: ({ children }) => <>{children}</>,
     code: ({ className, children, ...props }) => {
-      const isBlock = /\blanguage-/.test(className ?? '')
+      const raw = inlineCodeText(children).replace(/\n$/, '')
+      const isBlock =
+        /\blanguage-/.test(className ?? '') ||
+        (raw.includes('\n') && raw.length > 0)
+
       if (isBlock) {
         return (
-          <code
-            className={`block font-mono leading-relaxed text-fg-dim ${className ?? ''} ${
-              reasoning ? 'text-[11px]' : 'text-[12.5px]'
-            }`}
-            {...props}
-          >
-            {children}
-          </code>
+          <MarkdownCodeBlock
+            code={raw}
+            className={className}
+            compact={reasoning || compact}
+          />
         )
       }
 
-      const raw = inlineCodeText(children)
-      const toolId = toolIdFromInlineCode(raw)
+      const inlineRaw = inlineCodeText(children)
+      const toolId = toolIdFromInlineCode(inlineRaw)
       if (toolId) {
         return (
           <ToolMentionBadge
@@ -192,7 +188,7 @@ function buildMdComponents(
         )
       }
 
-      const noteId = memoryNoteIdFromInlineCode(raw)
+      const noteId = memoryNoteIdFromInlineCode(inlineRaw)
       if (noteId) {
         return (
           <MemoryNoteMentionBadge
@@ -249,7 +245,7 @@ const VARIANT_WRAP: Record<AssistantMarkdownVariant, string> = {
   default: 'assistant-markdown min-w-0',
   compact: 'assistant-markdown assistant-markdown--compact min-w-0 text-[13px]',
   reasoning:
-    'assistant-markdown assistant-markdown--reasoning min-w-0 rounded-lg border border-line-subtle/80 bg-canvas/40 px-2.5 py-2',
+    'assistant-markdown assistant-markdown--reasoning luna-surface-panel min-w-0 rounded-lg border border-line px-2.5 py-2',
 }
 
 export function AssistantMarkdown({
@@ -259,6 +255,8 @@ export function AssistantMarkdown({
   messageId,
 }: Props) {
   if (!content.trim()) return null
+
+  const normalized = normalizeAssistantMarkdown(content)
 
   const memoryNotesById = new Map(
     (memoryNotes ?? []).map((n) => [n.id, n] as const),
@@ -270,7 +268,7 @@ export function AssistantMarkdown({
         remarkPlugins={[remarkGfm]}
         components={buildMdComponents(variant, memoryNotesById, messageId)}
       >
-        {content}
+        {normalized}
       </ReactMarkdown>
     </div>
   )

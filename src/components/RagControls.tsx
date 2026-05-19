@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import {
   ragClear,
   ragIndexFiles,
@@ -10,6 +10,7 @@ import {
 } from '../lib/ragClient'
 import { fileBasename } from '../lib/pathUtils'
 import { useLunaWorkspaceOptional } from '../context/LunaWorkspaceContext'
+import { EmptyState } from '../ui/EmptyState'
 
 type Props = {
   ragEnabled: boolean
@@ -34,9 +35,13 @@ export function RagControls({ ragEnabled, onRagEnabledChange }: Props) {
     setStatus(s)
   }, [])
 
-  useEffect(() => {
-    if (expanded) void refresh()
-  }, [expanded, refresh])
+  function toggleExpanded() {
+    setExpanded((prev) => {
+      const next = !prev
+      if (next) void refresh()
+      return next
+    })
+  }
 
   async function handlePickAndIndex() {
     setBusy(true)
@@ -130,7 +135,7 @@ export function RagControls({ ragEnabled, onRagEnabledChange }: Props) {
     <div className="shrink-0 border-b border-line bg-sidebar/30">
       <button
         type="button"
-        onClick={() => setExpanded((e) => !e)}
+        onClick={toggleExpanded}
         className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left transition-colors hover:bg-white/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-inset"
         aria-expanded={expanded}
       >
@@ -150,13 +155,42 @@ export function RagControls({ ragEnabled, onRagEnabledChange }: Props) {
       {expanded ? (
         <div className="border-t border-line/80 px-3 pb-3 pt-2">
           <div className="mx-auto flex max-w-3xl flex-col gap-3">
-            <p className="text-[11px] leading-relaxed text-fg-muted">
-              {statusLine}. Os trechos ficam salvos neste computador; embeddings usam Together ou Groq (fallback) —
-              chaves <code className="rounded bg-raised px-0.5 text-[10px]">TOGETHER_API_KEY</code> /{' '}
-              <code className="rounded bg-raised px-0.5 text-[10px]">GROQ_API_KEY</code> no{' '}
-              <code className="rounded bg-raised px-0.5 text-[10px]">.env</code>). Formatos de texto/código: .md, .txt,
-              .ts, .js, .html, .json, .csv e outros — não inclui PDF.
-            </p>
+            {status?.ok && status.chunkCount === 0 ? (
+              <EmptyState
+                title="Nenhum documento indexado"
+                description="Adicione uma pasta ou ficheiros para a Luna pesquisar no seu código e documentação. Os dados ficam neste computador."
+                action={
+                  <div className="mt-2 flex flex-wrap justify-center gap-2">
+                    <button
+                      type="button"
+                      disabled={busy}
+                      className="luna-btn-primary px-3 py-1.5 text-ui"
+                      onClick={() => void handlePickAndIndex()}
+                    >
+                      Adicionar pasta…
+                    </button>
+                    {workspace?.workspaceRoot ? (
+                      <button
+                        type="button"
+                        disabled={busy}
+                        className="luna-btn-secondary px-3 py-1.5 text-ui"
+                        onClick={() => void handleIndexWorkspace()}
+                      >
+                        Indexar workspace
+                      </button>
+                    ) : null}
+                  </div>
+                }
+              />
+            ) : (
+              <p className="text-[11px] leading-relaxed text-fg-muted">
+                {statusLine}. Os trechos ficam salvos neste computador; embeddings usam Together ou Groq (fallback) —
+                chaves <code className="rounded bg-raised px-0.5 text-[10px]">TOGETHER_API_KEY</code> /{' '}
+                <code className="rounded bg-raised px-0.5 text-[10px]">GROQ_API_KEY</code> no{' '}
+                <code className="rounded bg-raised px-0.5 text-[10px]">.env</code>). Formatos de texto/código: .md,
+                .txt, .ts, .js, .html, .json, .csv e outros — não inclui PDF.
+              </p>
+            )}
 
             <label className="flex cursor-pointer items-start gap-2.5 text-[12px] text-fg">
               <input
@@ -170,6 +204,10 @@ export function RagControls({ ragEnabled, onRagEnabledChange }: Props) {
                 Usar meus arquivos para enriquecer as respostas quando fizer sentido
               </span>
             </label>
+            <p className="text-[11px] text-fg-muted">
+              Embeddings cloud exigem Conta Lunar; em modo offline use Ollama com{' '}
+              <code className="text-fg-dim">nomic-embed-text</code>.
+            </p>
 
             <div className="flex flex-wrap items-center gap-2">
               <button

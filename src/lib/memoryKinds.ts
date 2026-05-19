@@ -1,3 +1,5 @@
+import { toolBadgeClass, type BadgeToneId } from './badgeTone'
+
 /** Tipos de memória — escolhidos pela Luna em `save_memory` ou inferidos do título. */
 export const MEMORY_KIND_IDS = [
   'identity',
@@ -15,8 +17,24 @@ export type MemoryKindMeta = {
   id: MemoryKindId
   label: string
   description: string
+  badgeTone: BadgeToneId
   badgeClass: string
   sectionClass: string
+}
+
+const KIND_BADGE_TONE: Record<MemoryKindId, BadgeToneId> = {
+  identity: 'sky',
+  preference: 'amber',
+  project: 'violet',
+  constraint: 'rose',
+  health: 'teal',
+  context: 'slate',
+  other: 'slate',
+}
+
+/** Classes do badge por tipo — adaptadas ao tema claro/escuro. */
+export function memoryKindBadgeClass(kind: MemoryKindId): string {
+  return toolBadgeClass(KIND_BADGE_TONE[kind] ?? 'slate')
 }
 
 export const MEMORY_KIND_META: Record<MemoryKindId, MemoryKindMeta> = {
@@ -24,6 +42,7 @@ export const MEMORY_KIND_META: Record<MemoryKindId, MemoryKindMeta> = {
     id: 'identity',
     label: 'Identidade',
     description: 'Nome, tratamento, papel, quem é a pessoa',
+    badgeTone: 'sky',
     badgeClass: 'bg-sky-500/15 text-sky-200 ring-sky-400/25',
     sectionClass: 'border-sky-500/20',
   },
@@ -31,6 +50,7 @@ export const MEMORY_KIND_META: Record<MemoryKindId, MemoryKindMeta> = {
     id: 'preference',
     label: 'Preferências',
     description: 'Tom, idioma, gostos e hábitos estáveis',
+    badgeTone: 'amber',
     badgeClass: 'bg-amber-500/15 text-amber-200 ring-amber-400/25',
     sectionClass: 'border-amber-500/20',
   },
@@ -38,6 +58,7 @@ export const MEMORY_KIND_META: Record<MemoryKindId, MemoryKindMeta> = {
     id: 'project',
     label: 'Projectos',
     description: 'Apps, stacks, objectivos e trabalho em curso',
+    badgeTone: 'violet',
     badgeClass: 'bg-violet-500/15 text-violet-200 ring-violet-400/25',
     sectionClass: 'border-violet-500/20',
   },
@@ -45,6 +66,7 @@ export const MEMORY_KIND_META: Record<MemoryKindId, MemoryKindMeta> = {
     id: 'constraint',
     label: 'Limites',
     description: 'Restrições, «não quero», limites claros',
+    badgeTone: 'rose',
     badgeClass: 'bg-rose-500/15 text-rose-200 ring-rose-400/25',
     sectionClass: 'border-rose-500/20',
   },
@@ -52,6 +74,7 @@ export const MEMORY_KIND_META: Record<MemoryKindId, MemoryKindMeta> = {
     id: 'health',
     label: 'Saúde & acessibilidade',
     description: 'Condições relevantes para como apoiar a pessoa',
+    badgeTone: 'teal',
     badgeClass: 'bg-teal-500/15 text-teal-200 ring-teal-400/25',
     sectionClass: 'border-teal-500/20',
   },
@@ -59,6 +82,7 @@ export const MEMORY_KIND_META: Record<MemoryKindId, MemoryKindMeta> = {
     id: 'context',
     label: 'Contexto',
     description: 'Local, rotina, factos situacionais úteis',
+    badgeTone: 'slate',
     badgeClass: 'bg-slate-500/15 text-slate-200 ring-slate-400/25',
     sectionClass: 'border-slate-500/20',
   },
@@ -66,6 +90,7 @@ export const MEMORY_KIND_META: Record<MemoryKindId, MemoryKindMeta> = {
     id: 'other',
     label: 'Outros',
     description: 'Factos úteis que não encaixam nas outras categorias',
+    badgeTone: 'slate',
     badgeClass: 'bg-white/8 text-fg-dim ring-white/10',
     sectionClass: 'border-line-subtle',
   },

@@ -32,10 +32,7 @@ export function shouldRequestReasoningFromApi(userToggle: boolean): boolean {
 }
 
 /** Mostrar badge, streaming e tradução do pensamento (só com toggle ligado). */
-export function shouldShowReasoningInUi(
-  userToggle: boolean,
-  _selection?: LlmSelection | null,
-): boolean {
+export function shouldShowReasoningInUi(userToggle: boolean): boolean {
   return userToggle
 }
 

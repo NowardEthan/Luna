@@ -24,6 +24,8 @@ export type LunaTurnPlan = {
   avoid: string[]
   /** Opcional: short | normal | long */
   reply_length?: 'short' | 'normal' | 'long'
+  /** Modo IDE: passos até concluir (explorar → ler → editar → testar). */
+  task_steps?: string[]
 }
 
 export const PLANNING_SYSTEM_PROMPT =
@@ -36,6 +38,11 @@ export const PLANNING_SYSTEM_PROMPT =
   '- `avoid`: array de 2 a 5 strings curtas em snake_case (ex.: "tom_FAQ", "validacao_vazia", "lista_bullets", "arquivo_sem_empatia").\n' +
   '- `reply_length` (opcional): "short", "normal" ou "long". **Por defeito use "normal"**; use "short" só se a mensagem da pessoa pedir brevidade explícita ou for um sim/não trivial; use "long" quando o assunto claramente pede desenvolvimento (história, explicação longa, desabafo).\n\n' +
   'Regras: não inventes factos sobre a pessoa; baseia-te só no bloco que recebes. Alinha com a política da Luna: memória consentida (perguntar no texto quando fizer sentido), anti-CRM existencial, honestidade situada. Se tiveres dúvida, `turn_kind` = "mixed", `memory_consent_prompt` = false e `reply_length` = "normal".'
+
+export const IDE_PLANNING_SYSTEM_PROMPT =
+  PLANNING_SYSTEM_PROMPT +
+  '\n\nModo **IDE** (pair programming): acrescenta a chave `task_steps`: array de 3 a 7 strings curtas em português com o plano até **concluir** (ex.: explorar pasta, ler ficheiro, editar, correr teste, resumir). ' +
+  'Inclui verificação no terminal quando o pedido implicar executar ou testar. A Luna principal deve seguir estes passos com tools antes de responder só em texto.'
 
 const TURN_KIND_SET = new Set<string>(TURN_KINDS)
 
@@ -96,6 +103,16 @@ export function parsePlanningJson(raw: string): LunaTurnPlan | null {
   const reply_length =
     rl === 'short' || rl === 'normal' || rl === 'long' ? rl : undefined
 
+  let task_steps: string[] | undefined
+  if (Array.isArray(rec.task_steps)) {
+    const steps = rec.task_steps
+      .filter((x): x is string => typeof x === 'string')
+      .map((x) => x.trim().slice(0, 120))
+      .filter(Boolean)
+      .slice(0, 7)
+    if (steps.length >= 2) task_steps = steps
+  }
+
   return {
     turn_kind,
     user_goal_guess,
@@ -103,6 +120,7 @@ export function parsePlanningJson(raw: string): LunaTurnPlan | null {
     memory_consent_prompt,
     avoid: normalizeAvoid(rec.avoid),
     reply_length,
+    ...(task_steps ? { task_steps } : {}),
   }
 }
 
@@ -135,14 +153,21 @@ export function formatPlanningHintForMainSystem(plan: LunaTurnPlan): string {
         ? 'Podes **alongar**: vários parágrafos se o assunto pedir; não tenhas pressa de fechar.'
         : 'Extensão **normal**: preferir **dois a quatro parágrafos** com ritmo natural; evitar resposta rasa de só duas frases; pode incluir um detalhe ou exemplo concreto quando couber.'
 
+  const steps =
+    plan.task_steps?.length
+      ? `Plano até concluir (usa tools em cada passo; não pares no meio):\n${plan.task_steps.map((s, i) => `${i + 1}. ${s}`).join('\n')}\n`
+      : ''
+
   return (
     '\n\n--- Orientação interna deste turno (não cites este bloco; integra só no tom e nas escolhas) ---\n' +
     `Tipo de turno: ${plan.turn_kind}.\n` +
     `O que a pessoa parece querer: ${plan.user_goal_guess}\n` +
     `Como estar nesta resposta: ${plan.luna_stance}\n` +
+    steps +
     `${mem}\n` +
     `Evitar: ${avoidToPortuguese(plan.avoid)}.\n` +
-    `${len}\n`
+    `${len}\n` +
+    'Não respondas ao utilizador com «vou verificar» ou «deixa eu ver» sem usar tools no mesmo turno — executa o plano até ao fim ou reporta erro concreto.\n'
   )
 }
 

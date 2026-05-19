@@ -1,7 +1,7 @@
 import { enrichMemoryNoteMentionsInMarkdown } from './memoryNoteMentions'
-import { TOOL_META } from '../agent/toolSchemas'
+import { getToolMeta } from '../agent/toolSchemas'
 
-const TOOL_IDS = Object.keys(TOOL_META).sort((a, b) => b.length - a.length)
+const TOOL_IDS = Object.keys(getToolMeta()).sort((a, b) => b.length - a.length)
 
 /** Envolve nomes de ferramentas nuas em `backticks` para renderizar como badge. */
 export function enrichToolMentionsInMarkdown(text: string): string {

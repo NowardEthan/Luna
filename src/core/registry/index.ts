@@ -1,0 +1,5 @@
+export * from './types'
+export { toolRegistry } from './ToolRegistry'
+export { panelRegistry } from './PanelRegistry'
+export { commandRegistry } from './CommandRegistry'
+export { themeRegistry } from './ThemeRegistry'

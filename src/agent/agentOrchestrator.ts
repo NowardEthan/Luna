@@ -41,16 +41,16 @@ const ACTING_TOOLS = new Set(['write_file', 'apply_patch'])
 const VERIFYING_TOOLS = new Set(['run_terminal_command'])
 
 export const DEFAULT_IDE_BUDGET: AgentTurnBudget = {
-  maxLlmRounds: 25,
-  maxToolCalls: 60,
-  maxContinuationNudges: 4,
-  maxSameToolRepeats: 3,
+  maxLlmRounds: 28,
+  maxToolCalls: 72,
+  maxContinuationNudges: 8,
+  maxSameToolRepeats: 4,
 }
 
 export const DEFAULT_CHAT_BUDGET: AgentTurnBudget = {
-  maxLlmRounds: 8,
-  maxToolCalls: 20,
-  maxContinuationNudges: 0,
+  maxLlmRounds: 12,
+  maxToolCalls: 24,
+  maxContinuationNudges: 4,
   maxSameToolRepeats: 3,
 }
 
@@ -182,34 +182,42 @@ export function shouldExitLoop(input: ShouldExitLoopInput): LoopExitDecision {
     return 'exit_ok'
   }
 
-  if (workbenchMode !== 'ide') {
-    if (lastText.trim()) return 'exit_ok'
-    return 'continue'
-  }
-
   const continuity = assessIdeContinuity(
     userCaption,
     agentSteps,
     lastText,
   )
 
+  const usedToolsThisTurn = agentSteps.length > 0
+  const shouldNudge =
+    shouldNudgeIdeContinuation(continuity) &&
+    (workbenchMode === 'ide' || usedToolsThisTurn)
+
   if (!lastText.trim()) {
-    if (shouldNudgeIdeContinuation(continuity)) {
+    if (shouldNudge) {
       return continuationNudges < budget.maxContinuationNudges
         ? 'continue'
         : 'exit_budget'
     }
-    return 'continue'
+    return usedToolsThisTurn ? 'continue' : 'continue'
   }
 
-  if (shouldNudgeIdeContinuation(continuity)) {
+  if (shouldNudge) {
     if (continuationNudges < budget.maxContinuationNudges) {
       return 'continue'
     }
     return 'exit_budget'
   }
 
-  return 'exit_ok'
+  if (workbenchMode !== 'ide' && lastText.trim()) {
+    return 'exit_ok'
+  }
+
+  if (workbenchMode === 'ide' && lastText.trim()) {
+    return 'exit_ok'
+  }
+
+  return 'continue'
 }
 
 export function buildContinuationNudge(
@@ -244,7 +252,7 @@ export function buildBudgetExitMessage(
   const hints: string[] = [
     'Usei o limite de passos deste turno sem concluir tudo.',
   ]
-  if (continuity.missingWriteForCreate) {
+  if (continuity.missingWriteForEdit) {
     hints.push('Faltou criar/alterar o ficheiro (`write_file` / `apply_patch`).')
   }
   if (continuity.missingRunForExecute) {

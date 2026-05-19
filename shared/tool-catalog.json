@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "tools": [
+    "list_directory",
+    "read_file",
+    "write_file",
+    "grep",
+    "glob",
+    "web_search",
+    "run_terminal_command",
+    "git_status",
+    "git_diff",
+    "git_commit",
+    "save_memory",
+    "recall_memory",
+    "search_documents",
+    "search_conversations"
+  ]
+}

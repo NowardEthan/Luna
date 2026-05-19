@@ -8,7 +8,9 @@ type Handlers = {
   onToggleMemories: () => void
   onToggleWorkbench: () => void
   onOpenCommandPalette: () => void
+  onOpenPreferences?: () => void
   onOpenShortcutsHelp: () => void
+  onCycleTheme?: () => void
   onCloseOverlays: () => void
   composerBusy?: boolean
   workbenchMode: LunaWorkbenchMode
@@ -44,6 +46,12 @@ export function useAppKeyboardShortcuts(handlers: Handlers) {
         return
       }
 
+      if (e.key === ',' && handlers.onOpenPreferences) {
+        e.preventDefault()
+        handlers.onOpenPreferences()
+        return
+      }
+
       if (e.key === 'Enter' && handlers.onSend && !handlers.composerBusy) {
         e.preventDefault()
         handlers.onSend()
@@ -64,7 +72,13 @@ export function useAppKeyboardShortcuts(handlers: Handlers) {
 
       if (e.shiftKey && (e.key === 'm' || e.key === 'M')) {
         e.preventDefault()
-        if (handlers.workbenchMode === 'chat') handlers.onToggleMemories()
+        handlers.onToggleMemories()
+        return
+      }
+
+      if (e.shiftKey && (e.key === 't' || e.key === 'T') && handlers.onCycleTheme) {
+        e.preventDefault()
+        handlers.onCycleTheme()
         return
       }
 

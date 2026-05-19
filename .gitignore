@@ -24,6 +24,19 @@ __pycache__/
 .env.*
 !.env.example
 
+# Chaves Firebase / APIs — nunca versionar (só README de exemplo)
+chaves/*
+!chaves/README.md
+!chaves/.gitkeep
+
+# Firebase CLI cache e artefactos locais
+.firebase/
+
+# Testes
+test-results/
+playwright-report/
+coverage/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

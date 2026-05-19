@@ -1,0 +1,50 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function isLunarAccount() {
+      return signedIn()
+        && request.auth.token.firebase.sign_in_provider != 'anonymous';
+    }
+
+    match /users/{userId} {
+      allow read, write: if isOwner(userId) && isLunarAccount();
+
+      match /conversations/{conversationId} {
+        allow read, write: if isOwner(userId) && isLunarAccount();
+
+        match /messages/{messageId} {
+          allow read, write: if isOwner(userId) && isLunarAccount();
+        }
+      }
+
+      match /memoryNotes/{noteId} {
+        allow read, write: if isOwner(userId) && isLunarAccount();
+      }
+
+      match /settings/{docId} {
+        allow read, write: if isOwner(userId) && isLunarAccount();
+      }
+
+      match /pluginInstalls/{pluginId} {
+        allow read, write: if isOwner(userId) && isLunarAccount();
+      }
+    }
+
+    match /marketplaceCatalog/listings/{listingId} {
+      allow read: if resource.data.published == true;
+      allow write: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

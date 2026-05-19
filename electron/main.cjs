@@ -19,6 +19,7 @@ require('dotenv').config({
 
 const { app, BrowserWindow, ipcMain, Menu, dialog } = require('electron')
 const { createLunaServices } = require('./bootstrap.cjs')
+const { registerGoogleOAuth } = require('./googleOAuth.cjs')
 
 const isDev = process.env.NODE_ENV === 'development'
 const USE_HTTP_SERVER = process.env.LUNA_USE_SERVER !== '0'
@@ -27,7 +28,6 @@ Menu.setApplicationMenu(null)
 
 const CHAT_WINDOW = { width: 560, height: 780, minWidth: 400, minHeight: 480 }
 const IDE_WINDOW = { width: 1280, height: 800, minWidth: 900, minHeight: 560 }
-
 function applyWorkbenchBounds(win, mode) {
   const b = mode === 'ide' ? IDE_WINDOW : CHAT_WINDOW
   win.setMinimumSize(b.minWidth, b.minHeight)
@@ -110,6 +110,8 @@ function registerIpc(services) {
     listLunaModels,
     translateText,
   } = services
+
+  registerGoogleOAuth(ipcMain)
 
   ipcMain.handle('window:minimize', (event) => {
     const win = BrowserWindow.fromWebContents(event.sender)
@@ -353,7 +355,157 @@ function registerIpc(services) {
   })
 }
 
+function userPluginsDir() {
+  return path.join(app.getPath('userData'), 'luna', 'plugins')
+}
+
+function copyDirRecursive(src, dest) {
+  fs.mkdirSync(dest, { recursive: true })
+  for (const ent of fs.readdirSync(src, { withFileTypes: true })) {
+    const s = path.join(src, ent.name)
+    const d = path.join(dest, ent.name)
+    if (ent.isDirectory()) copyDirRecursive(s, d)
+    else fs.copyFileSync(s, d)
+  }
+}
+
+function resolvePluginEntryFile(dir, manifest) {
+  const candidates = []
+  const entry = manifest.entry?.trim()
+  if (entry) candidates.push(entry)
+  candidates.push('index.js', 'index.mjs', 'index.cjs')
+  for (const file of candidates) {
+    const full = path.join(dir, file)
+    if (fs.existsSync(full)) return full
+    if (file.endsWith('.ts')) {
+      const js = full.replace(/\.ts$/, '.js')
+      if (fs.existsSync(js)) return js
+    }
+  }
+  return null
+}
+
+function bundledPluginsDir() {
+  return path.join(__dirname, '..', '.luna', 'plugins')
+}
+
+function installPluginFromDirectory(src) {
+  const manifestPath = path.join(src, 'plugin.json')
+  if (!fs.existsSync(manifestPath)) {
+    return { ok: false, error: 'plugin.json não encontrado na pasta seleccionada.' }
+  }
+  let manifest
+  try {
+    manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
+  } catch {
+    return { ok: false, error: 'plugin.json inválido.' }
+  }
+  if (!manifest.id || !manifest.name) {
+    return { ok: false, error: 'plugin.json deve incluir id e name.' }
+  }
+  const dest = path.join(userPluginsDir(), manifest.id)
+  fs.mkdirSync(userPluginsDir(), { recursive: true })
+  if (fs.existsSync(dest)) {
+    fs.rmSync(dest, { recursive: true, force: true })
+  }
+  copyDirRecursive(src, dest)
+
+  let needsReload = false
+  if (isDev) {
+    const projectDest = path.join(bundledPluginsDir(), manifest.id)
+    fs.mkdirSync(path.dirname(projectDest), { recursive: true })
+    if (fs.existsSync(projectDest)) {
+      fs.rmSync(projectDest, { recursive: true, force: true })
+    }
+    copyDirRecursive(src, projectDest)
+    needsReload = true
+  }
+
+  return {
+    ok: true,
+    manifest,
+    rootPath: dest,
+    needsReload,
+    installedAt: new Date().toISOString(),
+  }
+}
+
+function registerPluginIpcHandlers() {
+  if (ipcMain.listenerCount('plugins:pickAndInstall') > 0) return
+
+  ipcMain.handle('plugins:pickAndInstall', async (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    const r = await dialog.showOpenDialog(win ?? undefined, {
+      properties: ['openDirectory'],
+      title: 'Seleccionar pasta do add-on',
+    })
+    if (r.canceled || !r.filePaths[0]) {
+      return { ok: false, canceled: true }
+    }
+    return installPluginFromDirectory(r.filePaths[0])
+  })
+
+  ipcMain.handle('plugins:installBundled', async (_event, pluginId) => {
+    if (!pluginId || typeof pluginId !== 'string') {
+      return { ok: false, error: 'ID do add-on inválido.' }
+    }
+    const src = path.join(bundledPluginsDir(), pluginId)
+    if (!fs.existsSync(src)) {
+      return {
+        ok: false,
+        error: `Add-on «${pluginId}» não está incluído nesta instalação da Luna.`,
+      }
+    }
+    return installPluginFromDirectory(src)
+  })
+
+  ipcMain.handle('plugins:uninstall', async (_event, pluginId) => {
+    if (!pluginId || typeof pluginId !== 'string') {
+      return { ok: false, error: 'ID inválido.' }
+    }
+    const dest = path.join(userPluginsDir(), pluginId)
+    if (fs.existsSync(dest)) {
+      fs.rmSync(dest, { recursive: true, force: true })
+    }
+    if (isDev) {
+      const projectDest = path.join(__dirname, '..', '.luna', 'plugins', pluginId)
+      if (fs.existsSync(projectDest)) {
+        fs.rmSync(projectDest, { recursive: true, force: true })
+      }
+    }
+    return { ok: true }
+  })
+
+  ipcMain.handle('plugins:readEntry', async (_event, pluginId) => {
+    if (!pluginId || typeof pluginId !== 'string') {
+      return { ok: false, error: 'ID inválido.' }
+    }
+    const dir = path.join(userPluginsDir(), pluginId)
+    const manifestPath = path.join(dir, 'plugin.json')
+    if (!fs.existsSync(manifestPath)) {
+      return { ok: false, error: 'Add-on não encontrado.' }
+    }
+    let manifest
+    try {
+      manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
+    } catch {
+      return { ok: false, error: 'plugin.json inválido.' }
+    }
+    const entryFile = resolvePluginEntryFile(dir, manifest)
+    if (!entryFile) {
+      return {
+        ok: false,
+        error:
+          'Ficheiro de entrada não encontrado. Use index.js ou compile TypeScript para JavaScript.',
+      }
+    }
+    const source = fs.readFileSync(entryFile, 'utf8')
+    return { ok: true, source, entry: path.basename(entryFile) }
+  })
+}
+
 app.whenReady().then(async () => {
+  registerPluginIpcHandlers()
   if (!USE_HTTP_SERVER) {
     const services = await createLunaServices()
     registerIpc(services)

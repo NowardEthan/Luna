@@ -1,0 +1,23 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`ToolRegistry > snapshot estável de nomes de tools 1`] = `
+[
+  "apply_patch",
+  "configure_memories",
+  "describe_images",
+  "git_commit",
+  "git_diff",
+  "git_status",
+  "glob",
+  "grep",
+  "list_directory",
+  "read_file",
+  "run_terminal_command",
+  "save_memory",
+  "search_codebase",
+  "search_documents",
+  "search_past_conversations",
+  "web_search",
+  "write_file",
+]
+`;

@@ -31,7 +31,9 @@ def _primary_provider() -> str:
     return "together"
 
 
-def _provider_order() -> list[str]:
+def _provider_order(auth_mode: str = "cloud") -> list[str]:
+    if auth_mode in ("offline", "unauthenticated"):
+        return ["ollama"]
     primary = _primary_provider()
     if not env_bool("LLM_CLOUD_ENABLED", "1") or env_bool("LLM_LOCAL_ONLY", "0"):
         return ["ollama"]
@@ -85,9 +87,9 @@ _STREAMERS = {
 }
 
 
-async def _run_chain(raw: dict) -> dict:
+async def _run_chain(raw: dict, auth_mode: str = "cloud") -> dict:
     last: dict = {"ok": False, "error": "Nenhum provedor LLM disponível."}
-    for i, pid in enumerate(_provider_order()):
+    for i, pid in enumerate(_provider_order(auth_mode)):
         run = _RUNNERS.get(pid)
         if not run:
             continue
@@ -102,10 +104,15 @@ async def _run_chain(raw: dict) -> dict:
     return last
 
 
-async def llm_chat(raw: dict) -> dict:
+async def llm_chat(raw: dict, auth_mode: str = "cloud") -> dict:
     if not isinstance(raw, dict):
         return {"ok": False, "error": "Pedido inválido."}
     sel = parse_llm_selection(raw)
+    if sel and auth_mode != "cloud" and sel["provider"] != "ollama":
+        return {
+            "ok": False,
+            "error": "Conta Lunar necessária para modelos cloud.",
+        }
     if sel:
         payload = with_llm_selection(sel, raw)
         run = _RUNNERS.get(sel["provider"])
@@ -114,7 +121,7 @@ async def llm_chat(raw: dict) -> dict:
         res = await run(payload)
         if res.get("ok") or not env_bool("LLM_FALLBACK_ENABLED", "1") or not _should_try_fallback(res):
             return _tag(res, sel["provider"], False)
-    return await _run_chain(raw)
+    return await _run_chain(raw, auth_mode)
 
 
 def _emit_buffered(res: dict, emit: EmitFn) -> None:
@@ -149,13 +156,15 @@ def _models_for_provider(provider: str, skip: str = "") -> list[str]:
     return out
 
 
-def _build_stream_attempts(sel: dict | None) -> list[dict]:
+def _build_stream_attempts(sel: dict | None, auth_mode: str = "cloud") -> list[dict]:
     attempts: list[dict] = []
     if sel:
+        if auth_mode != "cloud" and sel["provider"] != "ollama":
+            return []
         attempts.append(sel)
         for m in _models_for_provider(sel["provider"], skip=sel["model"]):
             attempts.append({"provider": sel["provider"], "model": m})
-    for pid in _provider_order():
+    for pid in _provider_order(auth_mode):
         for m in _models_for_provider(pid):
             attempts.append({"provider": pid, "model": m})
     # dedupe
@@ -170,18 +179,25 @@ def _build_stream_attempts(sel: dict | None) -> list[dict]:
     return uniq
 
 
-async def llm_chat_stream(raw: dict, emit: EmitFn) -> dict:
+async def llm_chat_stream(
+    raw: dict, emit: EmitFn, auth_mode: str = "cloud"
+) -> dict:
     if not isinstance(raw, dict):
         return {"ok": False, "error": "Pedido inválido."}
     sel = parse_llm_selection(raw)
+    if sel and auth_mode != "cloud" and sel["provider"] != "ollama":
+        return {
+            "ok": False,
+            "error": "Conta Lunar necessária para modelos cloud.",
+        }
 
     if not env_bool("LLM_STREAMING_ENABLED", "1"):
-        res = await llm_chat(raw)
+        res = await llm_chat(raw, auth_mode)
         _emit_buffered(res, emit)
         return res
 
     errors: list[str] = []
-    for attempt in _build_stream_attempts(sel):
+    for attempt in _build_stream_attempts(sel, auth_mode):
         payload = with_llm_selection(attempt, raw)
         streamer = _STREAMERS.get(attempt["provider"])
         if not streamer:
@@ -202,10 +218,14 @@ async def llm_chat_stream(raw: dict, emit: EmitFn) -> dict:
     }
 
 
-async def llm_embed(texts: list[str]) -> dict:
+async def llm_embed(texts: list[str], auth_mode: str = "cloud") -> dict:
     if not texts:
         return {"ok": False, "error": "Nenhum texto para embed."}
-    order = ["openrouter", "groq", "together", "ollama"]
+    order = (
+        ["openrouter", "groq", "together", "ollama"]
+        if auth_mode == "cloud"
+        else ["ollama"]
+    )
     embedders = {
         "openrouter": p.openrouter_embed,
         "groq": p.groq_embed,
@@ -224,7 +244,12 @@ async def llm_embed(texts: list[str]) -> dict:
     return last
 
 
-async def llm_vision_describe(raw: dict) -> dict:
+async def llm_vision_describe(raw: dict, auth_mode: str = "cloud") -> dict:
+    if auth_mode != "cloud":
+        return {
+            "ok": False,
+            "error": "Conta Lunar necessária para visão multimodal.",
+        }
     for pid in ["openrouter", "groq", "together"]:
         res = await p.vision_describe(pid, raw)
         if res.get("ok"):

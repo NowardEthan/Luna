@@ -118,14 +118,23 @@ def build_auto_catalog() -> list[LunaModelEntry]:
     return out
 
 
-def list_luna_models() -> dict:
+def list_luna_models(*, lunar_cloud: bool = False) -> dict:
     configured = parse_luna_models_env(os.getenv("LUNA_MODELS", ""))
     source = configured if configured else build_auto_catalog()
     models = [e.to_dict() for e in source if _is_provider_available(e)]
+    if lunar_cloud:
+        models = [m for m in models if m.get("provider") != "ollama"]
+    else:
+        models = [m for m in models if m.get("provider") == "ollama"]
     if not models:
+        if lunar_cloud:
+            return {
+                "ok": False,
+                "error": "Nenhum modelo cloud disponível no servidor.",
+            }
         return {
             "ok": False,
-            "error": "Nenhum modelo disponível. Defina LUNA_MODELS no `.env` ou chaves API.",
+            "error": "Ollama indisponível. Active OLLAMA_ENABLED ou inicie sessão Lunar para modelos cloud.",
         }
     return {"ok": True, "models": models}
 

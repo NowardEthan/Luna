@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { bridgeAgentListDirectory } from '../../lib/lunaBridge'
+import { joinPath } from '../../lib/pathJoin'
 import { useLunaWorkspace } from '../../context/LunaWorkspaceContext'
+import { WorkspaceCheckpointsPanel } from './WorkspaceCheckpointsPanel'
 
 const SKIP = new Set([
   'node_modules',
@@ -20,6 +22,10 @@ type TreeNode = {
   expanded?: boolean
 }
 
+function isDirectoryEntry(type: string): boolean {
+  return type === 'directory' || type === 'dir'
+}
+
 function basename(p: string): string {
   const parts = p.replace(/\\/g, '/').split('/')
   return parts[parts.length - 1] || p
@@ -35,14 +41,19 @@ export function FileExplorer() {
     return r.entries
       .filter((e) => !SKIP.has(e.name))
       .sort((a, b) => {
-        if (a.type !== b.type) return a.type === 'directory' ? -1 : 1
+        const aDir = isDirectoryEntry(a.type)
+        const bDir = isDirectoryEntry(b.type)
+        if (aDir !== bDir) return aDir ? -1 : 1
         return a.name.localeCompare(b.name)
       })
-      .map((e) => ({
-        name: e.name,
-        path: e.path,
-        type: e.type === 'directory' ? 'directory' : 'file',
-      }))
+      .map((e) => {
+        const isDir = isDirectoryEntry(e.type)
+        return {
+          name: e.name,
+          path: e.path ?? joinPath(dirPath, e.name),
+          type: isDir ? ('directory' as const) : ('file' as const),
+        }
+      })
   }, [])
 
   useEffect(() => {
@@ -114,6 +125,7 @@ export function FileExplorer() {
           <p className="px-2 text-fg-muted">A carregar…</p>
         )}
       </div>
+      <WorkspaceCheckpointsPanel />
     </div>
   )
 }

@@ -62,7 +62,7 @@ export function ReasoningTimelineContent({
   return (
     <div className="space-y-2">
       {showTranslated ? (
-        <p className="text-[10px] text-fg-muted">
+        <p className="text-[10px] font-medium text-fg-dim">
           Traduzido para {localeLabel(traceLocale(trace))}.
         </p>
       ) : null}
@@ -73,8 +73,8 @@ export function ReasoningTimelineContent({
         messageId={messageId}
       />
       {textOriginal && textOriginal !== displayText ? (
-        <details className="rounded-md border border-line-subtle/70 bg-canvas/30 px-2 py-1">
-          <summary className="cursor-pointer text-[10px] text-fg-muted">
+        <details className="luna-surface-panel rounded-md border border-line px-2 py-1">
+          <summary className="cursor-pointer text-[10px] font-medium text-fg-dim">
             Ver original
           </summary>
           <div className="mt-1.5">

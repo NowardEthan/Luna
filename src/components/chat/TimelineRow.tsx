@@ -63,7 +63,7 @@ function StatusDot({ status }: { status: TimelineRowStatus }) {
   if (status === 'error') {
     return (
       <span
-        className="timeline-row__dot inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-red-500/15 text-[9px] font-semibold text-red-300"
+        className="timeline-row__dot inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-red-500/15 text-[9px] font-semibold text-red-700 dark:text-red-300"
         aria-hidden
       >
         !

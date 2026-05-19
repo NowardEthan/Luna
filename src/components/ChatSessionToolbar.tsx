@@ -1,3 +1,4 @@
+import { LunarAccountChip } from './lunar/LunarAccountChip'
 import { PersonalityControls } from './PersonalityControls'
 import { LocaleSelect } from './translation/LocaleSelect'
 import { ReasoningToggle } from './ReasoningToggle'
@@ -10,6 +11,7 @@ type Props = {
   onPersonalityChange: (id: ChatPersonalityId) => void
   onNewConversation: () => void
   onOpenSettings?: () => void
+  onOpenLunarAccount?: () => void
   disabled?: boolean
 }
 
@@ -53,6 +55,7 @@ export function ChatSessionToolbar({
   onPersonalityChange,
   onNewConversation,
   onOpenSettings,
+  onOpenLunarAccount,
   disabled,
 }: Props) {
   return (
@@ -61,6 +64,12 @@ export function ChatSessionToolbar({
       role="toolbar"
       aria-label="Opções da conversa"
     >
+      <LunarAccountChip
+        variant="compact"
+        onOpenAccount={onOpenLunarAccount}
+        className="order-first sm:order-none"
+      />
+
       <details className="relative max-sm:block sm:hidden">
         <summary className="luna-btn-secondary cursor-pointer list-none marker:content-none [&::-webkit-details-marker]:hidden">
           Preferências
@@ -85,6 +94,12 @@ export function ChatSessionToolbar({
           disabled={disabled}
         />
       </div>
+
+      <LunarAccountChip
+        variant="toolbar"
+        onOpenAccount={onOpenLunarAccount}
+        className="hidden lg:flex"
+      />
 
       {onOpenSettings ? (
         <button

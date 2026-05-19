@@ -11,7 +11,7 @@ import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
 import { bracketMatching, indentOnInput } from '@codemirror/language'
 import { useLunaWorkspace } from '../../context/LunaWorkspaceContext'
 import { codemirrorLanguageExtension } from '../../lib/codemirrorLanguages'
-import { lunaCodeMirrorTheme } from '../../lib/codemirrorTheme'
+import { useLunaCodeMirrorExtensions } from '../../hooks/useCodeMirrorTheme'
 
 function basename(p: string): string {
   const parts = p.replace(/\\/g, '/').split('/')
@@ -23,6 +23,7 @@ export function EditorPanel() {
   const hostRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
   const active = ws.openFiles.find((f) => f.path === ws.activeFilePath)
+  const cmTheme = useLunaCodeMirrorExtensions()
 
   useEffect(() => {
     if (!hostRef.current || !active) return
@@ -42,7 +43,7 @@ export function EditorPanel() {
           indentOnInput(),
           bracketMatching(),
           keymap.of([...defaultKeymap, ...historyKeymap]),
-          ...lunaCodeMirrorTheme,
+          ...cmTheme,
           codemirrorLanguageExtension(active.languageId),
           EditorView.updateListener.of((u) => {
             if (u.docChanged) {
@@ -58,7 +59,7 @@ export function EditorPanel() {
       view.destroy()
       viewRef.current = null
     }
-  }, [active?.path, active?.languageId])
+  }, [active?.path, active?.languageId, cmTheme, ws])
 
   return (
     <div className="flex min-w-0 flex-1 flex-col bg-canvas">

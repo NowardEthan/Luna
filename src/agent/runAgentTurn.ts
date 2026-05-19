@@ -10,8 +10,10 @@ import {
   buildPlanningUserBlock,
   formatPlanningHintForMainSystem,
   parsePlanningJson,
+  IDE_PLANNING_SYSTEM_PROMPT,
   PLANNING_SYSTEM_PROMPT,
 } from '../lib/lunaPlanningPrompt'
+import { isAssistantErrorText } from '../lib/assistantMessageUi'
 import { formatMemorySaveBadgePreview } from '../lib/saveMemoryTool'
 import { trimMessagesForAgent, userContentForLlm } from '../lib/lunaMemory'
 import type {
@@ -21,7 +23,9 @@ import type {
   ReasoningTrace,
 } from '../types/chat'
 import type { AgentTurnInput, AgentTurnResult } from './types'
-import { AGENT_TOOL_SCHEMAS } from './toolSchemas'
+import { assertBuiltinToolsRegistered } from '../core/tools/registerBuiltin'
+import { toolRegistry } from '../core/registry/ToolRegistry'
+import { eventBus } from '../core/events/EventBus'
 import { executeToolCall, type ToolSideEffects } from './executeTools'
 import {
   buildLunaTemporalResearchReminder,
@@ -68,6 +72,7 @@ import {
   compileIdeContextBlock,
   compileIdeContextRefreshNote,
 } from '../lib/ideContextCompiler'
+import { throwIfAgentTurnAborted } from '../lib/agentTurnCancel'
 
 export const MAX_AGENT_STEPS = 8
 const AGENT_MAX_COMPLETION_TOKENS = 2048
@@ -82,6 +87,13 @@ export function isPlanningEnabled(): boolean {
   } catch {
     return false
   }
+}
+
+function shouldRunPlanning(ctx: AgentTurnInput): boolean {
+  if (ctx.usePlanning === true) return true
+  if (ctx.usePlanning === false) return false
+  if (ctx.workbenchMode === 'ide') return true
+  return isPlanningEnabled()
 }
 
 function imageHintForUserContent(ctx: AgentTurnInput, pending: string): string {
@@ -180,6 +192,10 @@ export async function runAgentTurn(
   ctx: AgentTurnInput,
   rollingSummary: string,
 ): Promise<AgentTurnResult> {
+  eventBus.emit('agent:turn:start', {
+    convId: ctx.convId,
+    assistantMsgId: ctx.assistantMsgId,
+  })
   const budget = readAgentTurnBudget(ctx.workbenchMode ?? 'chat')
   const stepLimit = budget.maxLlmRounds
   const systemCore = buildSystemCore(ctx.personalityId, ctx.workbenchMode ?? 'chat')
@@ -196,15 +212,21 @@ export async function runAgentTurn(
     userContentForLlm(ctx.userMsg),
   )
 
-  if (ctx.usePlanning ?? isPlanningEnabled()) {
+  throwIfAgentTurnAborted(ctx.signal)
+
+  if (shouldRunPlanning(ctx)) {
     ctx.onStatusHint?.('A planear…')
     const planningUserBlock = buildPlanningUserBlock(
       ctx.verbatimWorking,
       pendingContent,
     )
+    const plannerSystem =
+      ctx.workbenchMode === 'ide'
+        ? IDE_PLANNING_SYSTEM_PROMPT
+        : PLANNING_SYSTEM_PROMPT
     const planRes = await completeLlmChat(
       [
-        { role: 'system', content: PLANNING_SYSTEM_PROMPT },
+        { role: 'system', content: plannerSystem },
         { role: 'user', content: planningUserBlock },
       ],
       {
@@ -218,7 +240,7 @@ export async function runAgentTurn(
     if (!parsedPlan && planRes.ok && planRes.text.trim()) {
       const retry = await completeLlmChat(
         [
-          { role: 'system', content: PLANNING_SYSTEM_PROMPT },
+          { role: 'system', content: plannerSystem },
           {
             role: 'user',
             content: `${planningUserBlock}\n\nReforço: devolve **somente** o objecto JSON pedido, sem markdown.`,
@@ -269,10 +291,7 @@ export async function runAgentTurn(
   const agentSteps: AgentStepRecord[] = []
   const temperature = agentTemperature(ctx.personalityId)
   const userReasoningToggle = ctx.reasoningEnabled === true
-  const showReasoningUi = shouldShowReasoningInUi(
-    userReasoningToggle,
-    ctx.llmSelection,
-  )
+  const showReasoningUi = shouldShowReasoningInUi(userReasoningToggle)
   const requestReasoningApi = shouldRequestReasoningFromApi(userReasoningToggle)
   const streamOn =
     ctx.streamingEnabled !== false && readStreamingEnabled()
@@ -295,6 +314,7 @@ export async function runAgentTurn(
   let loopExited = false
 
   while (!loopExited && llmRound < stepLimit) {
+    throwIfAgentTurnAborted(ctx.signal)
     llmRound++
     const synthesisPass = pendingSynthesis
     const phase = inferAgentPhase(agentSteps, pendingSynthesis)
@@ -370,7 +390,7 @@ export async function runAgentTurn(
       ...(synthesisPass
         ? {}
         : {
-            tools: AGENT_TOOL_SCHEMAS,
+            tools: (assertBuiltinToolsRegistered(), toolRegistry.getSchemas()),
             tool_choice: 'auto' as const,
           }),
       reasoningEnabled: requestReasoningApi && !synthesisPass,
@@ -404,6 +424,8 @@ export async function runAgentTurn(
           llmOpts,
         )
       : await completeLlmChat(messagesForLlm, llmOpts)
+
+    throwIfAgentTurnAborted(ctx.signal)
 
     if (!res.ok) {
       const canRetrySynthesis =
@@ -445,7 +467,6 @@ export async function runAgentTurn(
     if (roundReasoning) {
       ctx.onReasoningSegmentComplete?.(llmRound, roundReasoning)
     }
-    streamedReasoningFull = ''
 
     lastAssistantText = res.text.trim()
 
@@ -499,7 +520,7 @@ export async function runAgentTurn(
         continue
       }
 
-      if (exitDecision === 'continue' && ctx.workbenchMode === 'ide') {
+      if (exitDecision === 'continue') {
         continuationNudges++
         const host = getIdeTurnHost()
         const continuity = assessIdeContinuity(
@@ -552,15 +573,32 @@ export async function runAgentTurn(
     toolCallsTotal += res.toolCalls.length
 
     for (const call of res.toolCalls) {
+      throwIfAgentTurnAborted(ctx.signal)
       const toolName = call.function?.name ?? 'tool'
       ctx.onToolStart?.(toolName)
+      eventBus.emit('agent:tool:start', {
+        convId: ctx.convId,
+        tool: toolName,
+      })
       const result = await executeToolCall(call, ctx, effects)
+      eventBus.emit('agent:tool:complete', {
+        convId: ctx.convId,
+        tool: toolName,
+        ok: result.ok,
+      })
       if (!result.ok) {
         recordToolFailure(
           toolFailureMap,
           toolName,
           call.function?.arguments ?? '{}',
         )
+        const errSnippet = result.content.slice(0, 600)
+        loopMessages.push({
+          role: 'system',
+          content:
+            `[Falha em ${toolName}] Não encerres o turno. Erro: ${errSnippet}\n` +
+            'Corrige caminho/argumentos ou tenta outra tool (grep, read_file, outro comando). Continua até concluir a tarefa ou reportar o bloqueio.',
+        })
       }
       const step = {
         ...result.step,
@@ -685,7 +723,7 @@ export async function runAgentTurn(
     void finalizeReasoningForDisplay(ctx, reasoningParts, reasoningMeta)
   }
 
-  return {
+  const turnResult = {
     assistantText: lastAssistantText,
     memoryBadge,
     memoryNoteIds: memoryNoteIds.length ? memoryNoteIds : undefined,
@@ -701,6 +739,12 @@ export async function runAgentTurn(
     usedLlmFallback,
     visionDescription: effects.visionDescription,
   }
+  eventBus.emit('agent:turn:complete', {
+    convId: ctx.convId,
+    assistantMsgId: ctx.assistantMsgId,
+    ok: !isAssistantErrorText(lastAssistantText),
+  })
+  return turnResult
 }
 
 function buildTurnDiagnosticsFromLlmError(res: {

@@ -4,6 +4,10 @@ import {
   readIdeAutoApply,
   writeIdeAutoApply,
 } from '../../lib/ideContextConfig'
+import {
+  readWorkspaceRagSyncEnabled,
+  writeWorkspaceRagSyncEnabled,
+} from '../../lib/workspaceRagSync'
 import { useIdeAgentProgress } from '../../lib/ideAgentProgress'
 
 /** Faixa do modo IDE + toggle aplicar patches automaticamente. */
@@ -11,6 +15,7 @@ export function IdeSessionBanner() {
   const ws = useLunaWorkspace()
   const agentProgress = useIdeAgentProgress()
   const [autoApply, setAutoApply] = useState(readIdeAutoApply)
+  const [ragSync, setRagSync] = useState(readWorkspaceRagSyncEnabled)
   const folder = ws.workspaceRoot
     ? ws.workspaceRoot.replace(/\\/g, '/').split('/').pop()
     : null
@@ -44,6 +49,18 @@ export function IdeSessionBanner() {
           className="size-3 rounded border-line accent-accent"
         />
         Aplicar patches auto
+      </label>
+      <label className="flex shrink-0 cursor-pointer items-center gap-1.5 text-caption text-fg-muted">
+        <input
+          type="checkbox"
+          checked={ragSync}
+          onChange={(e) => {
+            setRagSync(e.target.checked)
+            writeWorkspaceRagSyncEnabled(e.target.checked)
+          }}
+          className="size-3 rounded border-line accent-accent"
+        />
+        Sincronizar índice RAG
       </label>
     </div>
   )

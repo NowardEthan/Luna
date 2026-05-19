@@ -14,7 +14,7 @@ export function WebSearchDetail({
         </p>
       ) : null}
       {detail.answer ? (
-        <p className="rounded-lg border border-line-subtle bg-canvas/60 px-2.5 py-2 text-[12px] leading-relaxed text-fg-dim">
+        <p className="rounded-lg luna-surface-panel border border-line px-2.5 py-2 text-[12px] leading-relaxed text-fg-dim">
           {detail.answer}
         </p>
       ) : null}
@@ -23,7 +23,7 @@ export function WebSearchDetail({
           {detail.results.map((r, i) => (
             <li
               key={`${r.url ?? r.hostname ?? i}`}
-              className="rounded-lg border border-line-subtle bg-canvas/50 px-2.5 py-2"
+              className="rounded-lg luna-surface-panel border border-line px-2.5 py-2"
             >
               <div className="flex flex-wrap items-center gap-1.5">
                 {r.hostname ? (
@@ -73,7 +73,7 @@ export function DocumentsDetail({
       {detail.citations.map((c, i) => (
         <li
           key={`${c.path}-${i}`}
-          className="rounded-md border border-line-subtle bg-canvas/50 px-2 py-1.5"
+          className="rounded-md luna-surface-panel border border-line px-2 py-1.5"
           title={c.path}
         >
           <span className="text-[11px] font-medium text-fg">
@@ -131,7 +131,7 @@ function GrepMatchesDetail({
       {matches.map((m, i) => (
         <li
           key={`${m.path}-${m.line}-${i}`}
-          className="rounded-md border border-line-subtle bg-canvas/50 px-2 py-1.5"
+          className="rounded-md luna-surface-panel border border-line px-2 py-1.5"
         >
           <p className="font-mono text-[10px] text-accent">
             {fileBasename(m.path)}
@@ -170,7 +170,7 @@ function TerminalDetail({
         </p>
       ) : null}
       {detail.stdoutPreview ? (
-        <pre className="max-h-32 overflow-auto rounded-md border border-line-subtle bg-canvas/80 p-2 font-mono text-[10px] leading-relaxed text-fg-dim whitespace-pre-wrap">
+        <pre className="max-h-32 overflow-auto rounded-md luna-surface-panel border border-line p-2 font-mono text-[10px] leading-relaxed text-fg-dim whitespace-pre-wrap">
           {detail.stdoutPreview}
         </pre>
       ) : null}
@@ -305,7 +305,7 @@ export function ToolStepDetailBody({ step }: { step: AgentStepRecord }) {
         <div className="space-y-1">
           <p className="text-[11px] text-fg-muted">{d.summary}</p>
           {d.preview ? (
-            <pre className="max-h-36 overflow-auto rounded-md border border-line-subtle bg-canvas/80 p-2 font-mono text-[10px] leading-relaxed text-fg-dim whitespace-pre-wrap">
+            <pre className="max-h-36 overflow-auto rounded-md luna-surface-panel border border-line p-2 font-mono text-[10px] leading-relaxed text-fg-dim whitespace-pre-wrap">
               {d.preview}
             </pre>
           ) : null}
