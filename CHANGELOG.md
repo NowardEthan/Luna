@@ -8,7 +8,7 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/), e o
 
 ## [0.2.0] â€” 2026-05-19
 
-### Commit `feat: arquitetura modular, Lunar/Firebase, marketplace e plugins`
+### Commit `34e8504` — `feat: arquitetura modular, Lunar/Firebase, marketplace e plugins`
 
 Grande atualizaÃ§Ã£o apÃ³s o commit inicial pÃºblico: reorganizaÃ§Ã£o do frontend, conta **Lunar**, nuvem Firebase e sistema de extensÃµes.
 
@@ -107,7 +107,7 @@ Grande atualizaÃ§Ã£o apÃ³s o commit inicial pÃºblico: reorganizaÃ§Ã£
 
 | Hash | Data | Mensagem |
 |------|------|----------|
-| `e153e1c` | 2026-05-19 | feat: arquitetura modular, Lunar/Firebase, marketplace e plugins |
+| `34e8504` | 2026-05-19 | feat: arquitetura modular, Lunar/Firebase, marketplace e plugins |
 | `b099b05` | 2026-05-19 | fix: corrigir sintaxe dos diagramas Mermaid no README |
 | `7925b5a` | 2026-05-19 | docs: README completo em pt-BR com arquitetura e guias |
 | `b61a86f` | 2026-05-19 | merge: integrar histÃ³rico remoto e README completo |
@@ -118,5 +118,5 @@ Grande atualizaÃ§Ã£o apÃ³s o commit inicial pÃºblico: reorganizaÃ§Ã£
 
 ---
 
-[0.2.0]: https://github.com/NowardEthan/Luna/compare/b099b05...HEAD
+[0.2.0]: https://github.com/NowardEthan/Luna/compare/b099b05...34e8504
 [0.1.0]: https://github.com/NowardEthan/Luna/compare/b886bea...b099b05
