@@ -107,6 +107,7 @@ Grande atualizaÃ§Ã£o apÃ³s o commit inicial pÃºblico: reorganizaÃ§Ã£
 
 | Hash | Data | Mensagem |
 |------|------|----------|
+| `3f38775` | 2026-05-19 | docs: corrigir hash do commit no CHANGELOG |
 | `34e8504` | 2026-05-19 | feat: arquitetura modular, Lunar/Firebase, marketplace e plugins |
 | `b099b05` | 2026-05-19 | fix: corrigir sintaxe dos diagramas Mermaid no README |
 | `7925b5a` | 2026-05-19 | docs: README completo em pt-BR com arquitetura e guias |
