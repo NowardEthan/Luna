@@ -123,6 +123,7 @@ Grande atualização após o commit inicial público: reorganização do fronten
 
 | Hash | Data | Mensagem |
 |------|------|----------|
+| `6657ee9` | 2026-05-19 | chore: remover co-autor Cursor do histórico e atualizar CHANGELOG |
 | `c5a6534` | 2026-05-19 | docs: corrigir encoding UTF-8 do CHANGELOG |
 | `7bb60e7` | 2026-05-19 | docs: registrar commit de correção no CHANGELOG |
 | `d2c9283` | 2026-05-19 | docs: corrigir hash do commit no CHANGELOG |
@@ -137,5 +138,5 @@ Grande atualização após o commit inicial público: reorganização do fronten
 
 ---
 
-[0.2.0]: https://github.com/NowardEthan/Luna/compare/bf4a929...c5a6534
+[0.2.0]: https://github.com/NowardEthan/Luna/compare/bf4a929...6657ee9
 [0.1.0]: https://github.com/NowardEthan/Luna/compare/c983c7d...bf4a929

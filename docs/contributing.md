@@ -23,6 +23,18 @@ Obrigado por considerar contribuir. Este guia resume convenções do monorepo.
 - Ferramentas do agente: registe em `src/core/tools/handlers/` e inclua em `registerBuiltin.ts`.
 - UI por domínio: prefira `src/features/<domínio>/`.
 
+## Git e contribuidores no GitHub
+
+O Cursor pode acrescentar `Co-authored-by: Cursor <cursoragent@cursor.com>` aos commits, o que faz o **cursoragent** aparecer na barra lateral de contribuidores.
+
+Para evitar isso neste repositório (uma vez por clone):
+
+```bash
+git config core.hooksPath scripts/git-hooks
+```
+
+O hook `commit-msg` remove essa linha automaticamente antes de cada commit.
+
 ## Pull requests
 
 1. Uma alteração lógica por PR quando possível.
