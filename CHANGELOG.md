@@ -8,23 +8,23 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/), e o
 
 ## [0.2.0] — 2026-05-19
 
-### Commit `8004acd` — `docs: registrar commit de correção no CHANGELOG`
+### Commit `7bb60e7` — `docs: registrar commit de correção no CHANGELOG`
 
 #### Alterado
 
-- Entrada na tabela de registro para o commit `3f38775`
+- Entrada na tabela de registro para o commit `d2c9283`
 
 ---
 
-### Commit `3f38775` — `docs: corrigir hash do commit no CHANGELOG`
+### Commit `d2c9283` — `docs: corrigir hash do commit no CHANGELOG`
 
 #### Corrigido
 
-- Hash `34e8504` na tabela de registro e link de comparação no GitHub
+- Hash `c59821a` na tabela de registro e link de comparação no GitHub
 
 ---
 
-### Commit `34e8504` — `feat: arquitetura modular, Lunar/Firebase, marketplace e plugins`
+### Commit `c59821a` — `feat: arquitetura modular, Lunar/Firebase, marketplace e plugins`
 
 Grande atualização após o commit inicial público: reorganização do frontend, conta **Lunar**, nuvem Firebase e sistema de extensões.
 
@@ -68,7 +68,7 @@ Grande atualização após o commit inicial público: reorganização do fronten
 
 ## [0.1.0] — 2026-05-19
 
-### Commit `b099b05` — `fix: corrigir sintaxe dos diagramas Mermaid no README`
+### Commit `bf4a929` — `fix: corrigir sintaxe dos diagramas Mermaid no README`
 
 #### Corrigido
 
@@ -77,7 +77,7 @@ Grande atualização após o commit inicial público: reorganização do fronten
 
 ---
 
-### Commit `7925b5a` — `docs: README completo em pt-BR com arquitetura e guias`
+### Commit `55c5a5b` — `docs: README completo em pt-BR com arquitetura e guias`
 
 #### Adicionado
 
@@ -87,7 +87,7 @@ Grande atualização após o commit inicial público: reorganização do fronten
 
 ---
 
-### Commit `b61a86f` — `merge: integrar histórico remoto e README completo`
+### Commit `2b64e8c` — `merge: integrar histórico remoto e README completo`
 
 #### Alterado
 
@@ -111,7 +111,7 @@ Grande atualização após o commit inicial público: reorganização do fronten
 
 ---
 
-### Commit `b886bea` — `Initial commit`
+### Commit `c983c7d` — `Initial commit`
 
 #### Adicionado
 
@@ -123,18 +123,19 @@ Grande atualização após o commit inicial público: reorganização do fronten
 
 | Hash | Data | Mensagem |
 |------|------|----------|
-| `8004acd` | 2026-05-19 | docs: registrar commit de correção no CHANGELOG |
-| `3f38775` | 2026-05-19 | docs: corrigir hash do commit no CHANGELOG |
-| `34e8504` | 2026-05-19 | feat: arquitetura modular, Lunar/Firebase, marketplace e plugins |
-| `b099b05` | 2026-05-19 | fix: corrigir sintaxe dos diagramas Mermaid no README |
-| `7925b5a` | 2026-05-19 | docs: README completo em pt-BR com arquitetura e guias |
-| `b61a86f` | 2026-05-19 | merge: integrar histórico remoto e README completo |
+| `c5a6534` | 2026-05-19 | docs: corrigir encoding UTF-8 do CHANGELOG |
+| `7bb60e7` | 2026-05-19 | docs: registrar commit de correção no CHANGELOG |
+| `d2c9283` | 2026-05-19 | docs: corrigir hash do commit no CHANGELOG |
+| `c59821a` | 2026-05-19 | feat: arquitetura modular, Lunar/Firebase, marketplace e plugins |
+| `bf4a929` | 2026-05-19 | fix: corrigir sintaxe dos diagramas Mermaid no README |
+| `55c5a5b` | 2026-05-19 | docs: README completo em pt-BR com arquitetura e guias |
+| `2b64e8c` | 2026-05-19 | merge: integrar histórico remoto e README completo |
 | `2c5389a` | 2026-05-19 | feat: commit inicial da Luna v1 (Electron, React e servidor Python) |
-| `b886bea` | 2026-05-19 | Initial commit |
+| `c983c7d` | 2026-05-19 | Initial commit |
 
 > Para commits mais recentes: `git log --oneline`
 
 ---
 
-[0.2.0]: https://github.com/NowardEthan/Luna/compare/b099b05...8004acd
-[0.1.0]: https://github.com/NowardEthan/Luna/compare/b886bea...b099b05
+[0.2.0]: https://github.com/NowardEthan/Luna/compare/bf4a929...c5a6534
+[0.1.0]: https://github.com/NowardEthan/Luna/compare/c983c7d...bf4a929
