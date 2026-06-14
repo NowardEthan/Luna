@@ -22,7 +22,8 @@ describe('ToolRegistry', () => {
     const names = schemas.map((s) => s.function.name)
     expect(names).toContain('save_memory')
     expect(names).toContain('read_file')
-    expect(names).toContain('grep')
+    expect(names).toContain('web_search')
+    expect(names).toContain('luna-finances__add_transaction')
     for (const s of schemas) {
       expect(s.type).toBe('function')
       expect(s.function.name.length).toBeGreaterThan(0)

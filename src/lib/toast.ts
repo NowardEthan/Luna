@@ -1,3 +1,5 @@
+import i18n from '../i18n'
+
 export type ToastKind = 'info' | 'success' | 'error'
 
 export type ToastItem = {
@@ -38,13 +40,16 @@ export function showToast(
   }, durationMs)
 }
 
-export async function copyWithToast(text: string, successMessage = 'Copiado para a área de transferência'): Promise<boolean> {
+export async function copyWithToast(
+  text: string,
+  successMessage = i18n.t('toast.copied'),
+): Promise<boolean> {
   try {
     await navigator.clipboard.writeText(text)
     showToast(successMessage, 'success')
     return true
   } catch {
-    showToast('Não foi possível copiar', 'error')
+    showToast(i18n.t('toast.copy_failed'), 'error')
     return false
   }
 }

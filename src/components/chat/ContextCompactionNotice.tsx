@@ -25,11 +25,11 @@ export function ContextCompactionNotice({
 
   return (
     <div
-      className="luna-fade-in mx-auto mb-2 flex max-w-3xl items-start gap-2 rounded-lg border border-violet-500/25 bg-violet-500/10 px-3 py-2 text-ui text-fg-dim"
+      className="luna-fade-in luna-callout-warning mx-auto mb-2 flex max-w-3xl items-start gap-2 px-3 py-2 text-ui"
       role="status"
     >
-      <span className="mt-0.5 shrink-0 text-violet-300/90" aria-hidden>
-        ◈
+      <span className="mt-0.5 shrink-0 text-accent" aria-hidden>
+        *
       </span>
       <div className="min-w-0 flex-1">
         <p className="font-medium text-fg">
@@ -42,7 +42,7 @@ export function ContextCompactionNotice({
         {onClearConversationMemory ? (
           <button
             type="button"
-            className="mt-1.5 text-[11px] text-accent hover:underline"
+            className="luna-btn-ghost mt-1.5 px-0 py-0 text-[11px] text-accent hover:underline"
             onClick={() => onClearConversationMemory()}
           >
             Limpar resumo desta conversa
@@ -51,14 +51,14 @@ export function ContextCompactionNotice({
       </div>
       <button
         type="button"
-        className="shrink-0 rounded p-0.5 text-fg-muted hover:bg-white/[0.06] hover:text-fg"
+        className="luna-modal-close shrink-0"
         aria-label="Ocultar aviso"
         onClick={() => {
           sessionStorage.setItem(dismissKey(conversationId), '1')
           setDismissed(true)
         }}
       >
-        ×
+        x
       </button>
     </div>
   )

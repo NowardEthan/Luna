@@ -3,7 +3,8 @@ import {
   personalitySystemPrefix,
   type ChatPersonalityId,
 } from '../lib/chatPersonality'
-import { MODEL_SYSTEM_PROMPT } from '../lib/lunaModelSystemPrompt'
+import { readUiLocale } from '../translation/preferences'
+import { buildModelSystemPrompt } from '../lib/lunaModelSystemPrompt'
 import { LUNA_MANIFESTO_SUPPLEMENT } from '../lib/lunaManifesto'
 import { MEMORY_TOOL_SYSTEM_SUPPLEMENT } from '../lib/lunaMemoryTools'
 import {
@@ -16,24 +17,39 @@ import type { UserMemoryState } from '../types/memory'
 import { buildLunaTemporalSystemBlock } from '../lib/lunaTemporalContext'
 import { CHAT_WORKBENCH_SUPPLEMENT } from './chatWorkbenchSupplement'
 import { IDE_SYSTEM_SUPPLEMENT } from './ideSystemSupplement'
+import { FINANCES_SYSTEM_SUPPLEMENT } from './financesSystemSupplement'
 import { AGENT_SYSTEM_SUPPLEMENT } from './agentSystemSupplement'
+import type { LunaPrimaryView } from '../lib/primaryView'
 import type { LunaWorkbenchMode } from '../lib/workbenchMode'
+
 export function buildSystemCore(
   personalityId: ChatPersonalityId,
   workbenchMode: LunaWorkbenchMode = 'chat',
   ideContextBlock?: string,
+  financesContextBlock?: string,
+  financesAddonActive = false,
+  primaryView: LunaPrimaryView = 'conversation',
 ): string {
+  const financesMode = primaryView === 'finances' || financesAddonActive
+  const uiLocale = readUiLocale()
+
   let s =
-    MODEL_SYSTEM_PROMPT +
+    buildModelSystemPrompt(uiLocale) +
     LUNA_MANIFESTO_SUPPLEMENT +
     personalitySystemPrefix(personalityId) +
     buildLunaTemporalSystemBlock() +
     AGENT_SYSTEM_SUPPLEMENT +
     MEMORY_TOOL_SYSTEM_SUPPLEMENT
-  if (workbenchMode === 'chat') {
+  if (financesMode) {
+    s += FINANCES_SYSTEM_SUPPLEMENT
+    if (financesContextBlock?.trim()) {
+      s += '\n\n---\n\n' + financesContextBlock.trim()
+    }
+  }
+  if (primaryView !== 'finances' && workbenchMode === 'chat') {
     s += CHAT_WORKBENCH_SUPPLEMENT
   }
-  if (workbenchMode === 'ide') {
+  if (primaryView !== 'finances' && workbenchMode === 'ide') {
     s += IDE_SYSTEM_SUPPLEMENT
     if (ideContextBlock?.trim()) {
       s += '\n\n---\n\n' + ideContextBlock.trim()

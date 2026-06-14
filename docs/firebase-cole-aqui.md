@@ -100,7 +100,7 @@ Em **produção**, com `projectId` no `.env`, a Luna usa automaticamente:
 
 `https://{PROJECT_ID}.web.app/marketplace-catalog.json`
 
-Em **dev** (`npm run dev`) usa o catálogo **local** para evitar 404/CORS até publicares o Hosting. Para testar remoto no dev: `VITE_LUNA_MARKETPLACE_REMOTE=1` no `.env`.
+Com `VITE_FIREBASE_PROJECT_ID` no `.env`, a loja carrega o catálogo de `https://{PROJECT_ID}.web.app/marketplace-catalog.json` (após `npm run firebase:deploy-catalog`).
 
 Para publicar:
 

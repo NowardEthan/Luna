@@ -20,46 +20,16 @@ export type PreferencesSectionId =
 
 export type PreferencesSectionDef = {
   id: PreferencesSectionId
-  label: string
-  description: string
 }
 
 export const PREFERENCES_SECTIONS: PreferencesSectionDef[] = [
-  {
-    id: 'conversation',
-    label: 'Conversa',
-    description: 'Pensamento, idioma e personalidade',
-  },
-  {
-    id: 'appearance',
-    label: 'Aparência',
-    description: 'Tema claro ou escuro',
-  },
-  {
-    id: 'documents',
-    label: 'Documentos',
-    description: 'RAG e ficheiros locais',
-  },
-  {
-    id: 'memory',
-    label: 'Memória',
-    description: 'Memória entre conversas',
-  },
-  {
-    id: 'addons',
-    label: 'Add-ons',
-    description: 'Plugins instalados',
-  },
-  {
-    id: 'mcp',
-    label: 'Servidores MCP',
-    description: 'Ferramentas externas',
-  },
-  {
-    id: 'cloud',
-    label: 'Conta Lunar',
-    description: 'Sessão, sync e plano na nuvem',
-  },
+  { id: 'conversation' },
+  { id: 'appearance' },
+  { id: 'documents' },
+  { id: 'memory' },
+  { id: 'addons' },
+  { id: 'mcp' },
+  { id: 'cloud' },
 ]
 
 export type PreferencesSharedProps = {

@@ -1,4 +1,5 @@
 import type { LlmStreamCallbacks } from '../llmStreamClient'
+import { yieldToMain } from '../streamingUiPatch'
 import type {
   LlmChatResult,
   LlmSelection,
@@ -54,8 +55,19 @@ export async function lunaServerListModels() {
   >('/v1/models')
 }
 
-export async function lunaServerChat(payload: Record<string, unknown>) {
-  return postJson<LlmChatResult>('/v1/llm/chat', payload)
+export async function lunaServerChat(
+  payload: Record<string, unknown>,
+  signal?: AbortSignal
+) {
+  const headers = await getLunarAuthHeaders()
+  const res = await fetch(`${lunaServerBaseUrl()}/v1/llm/chat`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(payload),
+    signal,
+  })
+  await handleAuthResponse(res)
+  return (await res.json()) as LlmChatResult
 }
 
 export async function lunaServerVisionDescribe(payload: {
@@ -71,12 +83,14 @@ export async function lunaServerVisionDescribe(payload: {
 export async function lunaServerChatStream(
   payload: Record<string, unknown>,
   callbacks: LlmStreamCallbacks,
+  signal?: AbortSignal
 ): Promise<LlmChatResult> {
   const headers = await getLunarAuthHeaders()
   const res = await fetch(`${lunaServerBaseUrl()}/v1/llm/chat/stream`, {
     method: 'POST',
     headers,
     body: JSON.stringify(payload),
+    signal,
   })
 
   if (!res.ok || !res.body) {
@@ -120,13 +134,16 @@ export async function lunaServerChatStream(
           String(evt.delta ?? ''),
           String(evt.full ?? ''),
         )
+        await yieldToMain()
       } else if (evt.type === 'reasoning') {
         callbacks.onReasoning?.(
           String(evt.delta ?? ''),
           String(evt.full ?? ''),
         )
+        await yieldToMain()
       } else if (evt.type === 'tools_pending') {
         callbacks.onToolsPending?.()
+        await yieldToMain()
       } else if (evt.type === 'done' && evt.result) {
         finalResult = evt.result as LlmChatResult
       } else if (evt.type === 'error') {

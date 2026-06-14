@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { AddonListItem } from './addonFilters'
 import { AddonSchemaForm } from './AddonSchemaForm'
 import { pluginHost } from '../../core/plugin/PluginHost'
@@ -23,6 +24,7 @@ export function AddonDetailPanel({
   onToggleEnabled,
   riskAck,
 }: Props) {
+  const { t } = useTranslation()
   const [settingsTick, setSettingsTick] = useState(0)
 
   useEffect(() => {
@@ -39,9 +41,8 @@ export function AddonDetailPanel({
 
   if (!item) {
     return (
-      <div className="flex h-full min-h-[280px] items-center justify-center rounded-lg border border-dashed border-line p-6 text-center text-ui text-fg-muted">
-        Seleccione um add-on na lista para ver propriedades, atalhos e opções de
-        desinstalação.
+      <div className="flex h-full min-h-[280px] items-center justify-center rounded-lg border border-dashed border-line bg-surface p-6 text-center text-ui text-fg-muted">
+        {t('settings.addons.detail_empty')}
       </div>
     )
   }
@@ -53,7 +54,7 @@ export function AddonDetailPanel({
   void settingsTick
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-line bg-surface/40">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-line bg-surface">
       <header className="shrink-0 border-b border-line px-4 py-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -70,28 +71,29 @@ export function AddonDetailPanel({
           <label className="flex shrink-0 items-center gap-2 text-ui text-fg-dim">
             <input
               type="checkbox"
+              className="size-3.5 rounded border-line"
               checked={item.enabled}
               disabled={!canToggle}
               onChange={() =>
                 onToggleEnabled(item.manifest.id, !item.enabled)
               }
             />
-            Activo
+            {t('settings.addons.active')}
           </label>
         </div>
         <div className="mt-3 flex flex-wrap gap-2">
           {canUninstall ? (
             <button
               type="button"
-              className="rounded-lg border border-red-500/50 bg-red-500/10 px-3 py-1.5 text-ui text-red-200 hover:bg-red-500/20 disabled:opacity-40"
+              className="rounded-lg border border-line bg-danger-muted px-3 py-1.5 text-ui text-danger hover:bg-raised-hover disabled:opacity-40"
               disabled={disabled || busy}
               onClick={() => onUninstall(item)}
             >
-              Desinstalar add-on
+              {t('settings.addons.uninstall_btn')}
             </button>
           ) : (
             <span className="rounded-lg border border-line px-3 py-1.5 text-[10px] text-fg-muted">
-              Incluído na aplicação — não desinstalável
+              {t('settings.addons.bundled')}
             </span>
           )}
         </div>
@@ -99,7 +101,7 @@ export function AddonDetailPanel({
 
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
         {item.loadError ? (
-          <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-ui text-red-200/90">
+          <p className="luna-callout-danger text-ui">
             {item.loadError}
           </p>
         ) : null}
@@ -116,14 +118,14 @@ export function AddonDetailPanel({
         {customPanel ? (
           <div className="space-y-2">
             <p className="text-caption font-medium uppercase tracking-wide text-fg-muted">
-              {customPanel.title ?? 'Painel do add-on'}
+              {customPanel.title ?? t('settings.addons.custom_panel')}
             </p>
             {!item.enabled ? (
-              <p className="text-[11px] text-amber-200/80">
-                Active o add-on para aplicar alterações do painel personalizado.
+              <p className="text-[11px] text-warning">
+                {t('settings.addons.custom_panel_enable')}
               </p>
             ) : null}
-            <div className="rounded-lg border border-line bg-black/10 p-3">
+            <div className="rounded-lg border border-line bg-canvas p-3">
               {customPanel.render()}
             </div>
           </div>
@@ -132,7 +134,7 @@ export function AddonDetailPanel({
         {shortcuts.length > 0 ? (
           <div className="space-y-2">
             <p className="text-caption font-medium uppercase tracking-wide text-fg-muted">
-              Atalhos
+              {t('settings.addons.shortcuts')}
             </p>
             <ul className="divide-y divide-line rounded-lg border border-line">
               {shortcuts.map((s) => (
@@ -149,7 +151,7 @@ export function AddonDetailPanel({
             </ul>
             {!item.enabled ? (
               <p className="text-[10px] text-fg-muted">
-                Atalhos só funcionam com o add-on activo.
+                {t('settings.addons.shortcuts_disabled')}
               </p>
             ) : null}
           </div>
@@ -157,25 +159,25 @@ export function AddonDetailPanel({
 
         <details className="rounded-lg border border-line px-3 py-2 text-[11px] text-fg-dim">
           <summary className="cursor-pointer text-ui text-fg-muted">
-            Informação técnica
+            {t('settings.addons.tech_info')}
           </summary>
           <p className="mt-2">
-            <strong>ID:</strong> {item.manifest.id}
+            <strong>{t('settings.addons.id_label')}</strong> {item.manifest.id}
           </p>
           <p className="mt-1">
-            <strong>Origem:</strong>{' '}
+            <strong>{t('settings.addons.origin_label')}</strong>{' '}
             {item.origin === 'project'
-              ? 'Incluído na aplicação'
-              : 'Instalado do disco'}
+              ? t('settings.addons.origin_bundled')
+              : t('settings.addons.origin_disk')}
           </p>
           {item.installPath ? (
             <p className="mt-1 break-all">
-              <strong>Pasta:</strong> {item.installPath}
+              <strong>{t('settings.addons.folder_label')}</strong> {item.installPath}
             </p>
           ) : null}
           {item.manifest.permissions?.length ? (
             <p className="mt-1">
-              <strong>Permissões:</strong>{' '}
+              <strong>{t('settings.addons.permissions_label')}</strong>{' '}
               {item.manifest.permissions.join(', ')}
             </p>
           ) : null}

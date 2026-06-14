@@ -1,22 +1,20 @@
 import type { RefObject } from 'react'
 import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { isNearChatBottom, scrollChatToBottom } from '../../lib/chatScroll'
 
 type Props = {
   listRef: RefObject<HTMLDivElement | null>
-  /** Mostrar quando há geração ou scroll acima do fundo */
-  forceVisible?: boolean
 }
 
-const THRESHOLD_PX = 80
-
-export function ScrollToBottomFab({ listRef, forceVisible }: Props) {
+export function ScrollToBottomFab({ listRef }: Props) {
+  const { t } = useTranslation()
   const [awayFromBottom, setAwayFromBottom] = useState(false)
 
   const check = useCallback(() => {
     const el = listRef.current
     if (!el) return
-    const dist = el.scrollHeight - el.scrollTop - el.clientHeight
-    setAwayFromBottom(dist > THRESHOLD_PX)
+    setAwayFromBottom(!isNearChatBottom(el))
   }, [listRef])
 
   useEffect(() => {
@@ -32,19 +30,18 @@ export function ScrollToBottomFab({ listRef, forceVisible }: Props) {
     }
   }, [listRef, check])
 
-  const visible = forceVisible || awayFromBottom
-  if (!visible) return null
+  if (!awayFromBottom) return null
 
   return (
     <button
       type="button"
-      aria-label="Ir para mensagens recentes"
-      title="Ir para o fim"
-      className="pointer-events-auto absolute bottom-3 right-3 z-10 flex size-9 items-center justify-center rounded-full border border-line bg-surface text-fg shadow-lg backdrop-blur-sm transition-colors hover:border-accent/40 hover:bg-raised-hover hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+      aria-label={t('chatTurn.scroll_recent')}
+      title={t('chatTurn.scroll_end')}
+      className="luna-btn-secondary pointer-events-auto absolute bottom-3 right-3 z-10 flex size-9 items-center justify-center rounded-full shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
       onClick={() => {
         const el = listRef.current
         if (!el) return
-        el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
+        scrollChatToBottom(el, 'smooth')
       }}
     >
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" className="stroke-current" strokeWidth="2" aria-hidden>

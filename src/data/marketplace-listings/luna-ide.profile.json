@@ -1,0 +1,77 @@
+{
+  "longDescription": "O **Luna IDE** transforma a Luna em um ambiente de desenvolvimento completo: editor com destaque de sintaxe, explorador de arquivos, terminal integrado e agente com ferramentas de workspace.\n\nIdeal para editar seu projeto com ajuda do modelo — ler arquivos, aplicar patches, executar comandos e revisar alterações antes de aceitá-las.",
+  "publisher": {
+    "name": "Equipe Luna",
+    "handle": "@luna",
+    "url": "https://luna-8787d.web.app"
+  },
+  "highlights": [
+    "Editor, terminal e chat lateral na mesma tela",
+    "Ferramentas do agente: read_file, write_file, apply_patch e run_command",
+    "Menções @arquivo no compositor para contexto preciso",
+    "Painel de alterações pendentes com diff antes de aplicar"
+  ],
+  "features": [
+    {
+      "title": "Editor de código",
+      "description": "Abas, syntax highlight e atalhos para navegar no projeto."
+    },
+    {
+      "title": "Explorador de arquivos",
+      "description": "Árvore de pastas na barra lateral do modo IDE."
+    },
+    {
+      "title": "Terminal integrado",
+      "description": "Shell no projeto atual; o agente pode sugerir e executar comandos."
+    },
+    {
+      "title": "Agente com workspace",
+      "description": "O modelo vê arquivos abertos, diff do Git e contexto compilado do IDE."
+    }
+  ],
+  "examples": [
+    {
+      "title": "Pedir uma refatoração",
+      "description": "Mencione os arquivos relevantes e descreva o objetivo.",
+      "code": "Refatore @src/lib/auth.ts para extrair a validação de token em um módulo separado. Mantenha os testes passando."
+    },
+    {
+      "title": "Corrigir um bug com contexto",
+      "description": "Use @caminho para incluir o arquivo no contexto do agente.",
+      "code": "O erro está em @src/features/marketplace/useMarketplace.ts — analise e corrija o fetch do catálogo remoto."
+    },
+    {
+      "title": "Alternar entre Chat e IDE",
+      "description": "Atalho global com o add-on ativo.",
+      "code": "Ctrl+. — alterna entre Modo conversa e Modo IDE"
+    }
+  ],
+  "screenshots": [
+    {
+      "url": "__HOSTING__/marketplace/luna-ide-screenshot.png?v=1.0.0",
+      "caption": "Modo IDE — editor, explorador de arquivos, terminal e chat com o agente"
+    }
+  ],
+  "documentationUrl": "https://luna-8787d.web.app",
+  "docs": [
+    {
+      "label": "Ferramentas do agente no IDE",
+      "url": "https://luna-8787d.web.app"
+    }
+  ],
+  "changelog": [
+    {
+      "version": "1.0.0",
+      "date": "2026-05-19",
+      "notes": "Lançamento na Luna Store com instalação remota, banner e perfil na marketplace."
+    }
+  ],
+  "requirements": [
+    "Aplicativo desktop Luna (Electron)",
+    "Aceitar o aviso de segurança dos add-ons antes de ativar",
+    "Projeto com pasta de trabalho aberta no IDE"
+  ],
+  "minLunaVersion": "1.0",
+  "releasedAt": "2026-05-19",
+  "profileUpdatedAt": "2026-05-19"
+}

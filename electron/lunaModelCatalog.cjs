@@ -130,17 +130,33 @@ function filterAvailable(entries) {
   return entries.filter(isProviderAvailable)
 }
 
-/** @returns {{ ok: true; models: LunaModelEntry[] } | { ok: false; error: string }} */
-function listLunaModels() {
+/**
+ * @param {{ lunarCloud?: boolean }} [opts]
+ * @returns {{ ok: true; models: LunaModelEntry[] } | { ok: false; error: string }}
+ */
+function listLunaModels(opts = {}) {
+  const lunarCloud = Boolean(opts.lunarCloud)
   const configured = parseLunaModelsEnv(process.env.LUNA_MODELS || '')
-  const models = filterAvailable(
+  let models = filterAvailable(
     configured.length > 0 ? configured : buildAutoCatalog(),
   )
+  if (lunarCloud) {
+    models = models.filter((m) => m.provider !== 'ollama')
+  } else {
+    models = models.filter((m) => m.provider === 'ollama')
+  }
   if (!models.length) {
+    if (lunarCloud) {
+      return {
+        ok: false,
+        error:
+          'Nenhum modelo cloud no servidor. Defina OPENROUTER_API_KEY (ou GROQ/TOGETHER) no `.env`.',
+      }
+    }
     return {
       ok: false,
       error:
-        'Nenhum modelo disponível. Defina LUNA_MODELS no `.env` ou chaves API (ex.: OPENROUTER_API_KEY).',
+        'Ollama indisponível. Active OLLAMA_ENABLED ou inicie sessão Lunar para modelos cloud.',
     }
   }
   return { ok: true, models }

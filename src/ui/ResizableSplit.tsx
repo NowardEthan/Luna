@@ -6,6 +6,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   readPanelLayout,
   writePanelLayout,
@@ -45,6 +46,7 @@ export function ResizableSplit({
   className = '',
   resizable = true,
 }: ResizableSplitProps) {
+  const { t } = useTranslation()
   const containerRef = useRef<HTMLDivElement>(null)
   const isHorizontal = direction === 'horizontal'
   const [internalSize, setInternalSize] = useState(defaultLeadingSize)
@@ -250,7 +252,7 @@ export function ResizableSplit({
         <div
           role="separator"
           aria-orientation={isHorizontal ? 'vertical' : 'horizontal'}
-          aria-label="Redimensionar painéis"
+          aria-label={t('ui.resize_panels')}
           tabIndex={0}
           onPointerDown={onPointerDown}
           onKeyDown={(e) => {

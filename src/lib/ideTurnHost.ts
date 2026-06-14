@@ -2,6 +2,7 @@ import type { OpenFileTab, PatchProposal, TerminalLine } from '../context/LunaWo
 
 export type WorkspaceSnapshot = {
   workspaceRoot: string | null
+  workspaceFolders?: string[]
   activeFilePath: string | null
   openFiles: OpenFileTab[]
   pendingPatches: PatchProposal[]

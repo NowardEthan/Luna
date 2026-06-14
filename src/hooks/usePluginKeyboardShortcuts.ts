@@ -1,13 +1,8 @@
 import { useEffect, useState } from 'react'
 import { eventBus } from '../core/events/EventBus'
 import { pluginShortcutRegistry } from '../core/registry/PluginShortcutRegistry'
+import { isEditableTarget } from '../lib/keyboard'
 import { matchShortcut } from '../lib/matchShortcut'
-
-function isTypingTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false
-  const tag = target.tagName
-  return tag === 'INPUT' || tag === 'TEXTAREA' || target.isContentEditable
-}
 
 export function usePluginKeyboardShortcuts(enabled = true): void {
   const [revision, setRevision] = useState(0)
@@ -26,7 +21,7 @@ export function usePluginKeyboardShortcuts(enabled = true): void {
     if (!enabled) return
 
     function onKeyDown(e: KeyboardEvent) {
-      if (isTypingTarget(e.target)) return
+      if (isEditableTarget(e.target)) return
       const shortcuts = pluginShortcutRegistry.list()
       for (const s of shortcuts) {
         if (matchShortcut(e, s.keys)) {

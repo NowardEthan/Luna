@@ -1,0 +1,10 @@
+{
+  "id": "luna-finances",
+  "name": "Luna Finanças",
+  "version": "2.0.0",
+  "description": "Gestão financeira completa: contas, transações, orçamentos, metas, contas a pagar, cartões, caixinhas, analytics e assistente Luna Gestora com sync na Conta Lunar.",
+  "entry": "index.js",
+  "lunaApiVersion": "1",
+  "trusted": true,
+  "permissions": ["tools", "commands", "hooks", "storage", "settings"]
+}

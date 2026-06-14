@@ -1,12 +1,21 @@
+import { useMemo, type PointerEvent as ReactPointerEvent } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { ChatFolder, Conversation } from '../../types/chat'
 import { requestConfirm } from '../../lib/confirm'
-import { Select } from '../../ui/Select'
+import { CloudSyncToggleButton } from './CloudSyncToggleButton'
+import { ConversationTags } from './ConversationTags'
+import { HistoryOverflowMenu, type HistoryMenuItem } from './HistoryOverflowMenu'
+import { isCloudSyncEnabled } from '../../types/cloudSync'
+import { buildFolderTree, flattenFoldersForSelect } from './folderTree'
 import { formatUpdated, rowShell } from './utils'
 
 type Props = {
   conversation: Conversation
   folders: ChatFolder[]
   activeId: string | null
+  selectionMode?: boolean
+  selected?: boolean
+  onToggleSelect?: () => void
   editing: boolean
   titleDraft: string
   onTitleDraftChange: (v: string) => void
@@ -16,13 +25,22 @@ type Props = {
   onRenameCancel: () => void
   onStartRename: (c: Conversation) => void
   onMoveConversation: (id: string, folderId: string | null) => void
+  onSetConversationTags?: (id: string, tags: string[]) => void
   onTogglePin?: (id: string) => void
+  cloudSyncAvailable?: boolean
+  onSetConversationCloudEnabled?: (id: string, enabled: boolean) => void
+  isDragging?: boolean
+  dragSessionActive?: boolean
+  onGripPointerDown?: (e: ReactPointerEvent<Element>) => void
 }
 
 export function ConversationListRow({
   conversation: c,
   folders,
   activeId,
+  selectionMode = false,
+  selected = false,
+  onToggleSelect,
   editing,
   titleDraft,
   onTitleDraftChange,
@@ -32,144 +50,181 @@ export function ConversationListRow({
   onRenameCancel,
   onStartRename,
   onMoveConversation,
+  onSetConversationTags,
   onTogglePin,
+  cloudSyncAvailable = false,
+  onSetConversationCloudEnabled,
+  isDragging = false,
+  dragSessionActive = false,
+  onGripPointerDown,
 }: Props) {
+  const { t } = useTranslation()
   const sel = c.id === activeId
+  const canDrag = Boolean(onGripPointerDown) && !editing && !selectionMode
+  const tags = c.tags ?? []
+
+  const folderOptions = useMemo(() => {
+    const tree = buildFolderTree(folders)
+    return flattenFoldersForSelect(tree)
+  }, [folders])
+
+  const confirmDelete = () => {
+    void (async () => {
+      const ok = await requestConfirm({
+        title: t('history.deleteConversationTitle'),
+        message: t('history.deleteConversationMessage', { title: c.title }),
+        confirmLabel: t('history.delete'),
+        destructive: true,
+      })
+      if (ok) onDelete(c.id)
+    })()
+  }
+
+  const moveItems: HistoryMenuItem[] = [
+    { id: 'root', label: t('history.noFolder'), onClick: () => onMoveConversation(c.id, null) },
+    ...folderOptions.map((f) => ({
+      id: `folder-${f.value}`,
+      label: f.label,
+      onClick: () => onMoveConversation(c.id, f.value),
+    })),
+  ]
+
+  const cloudEnabled = isCloudSyncEnabled(c.cloudSync)
+
+  const menuItems: HistoryMenuItem[] = [
+    ...(cloudSyncAvailable && onSetConversationCloudEnabled
+      ? [
+          {
+            id: 'cloud',
+            label: cloudEnabled ? t('history.removeFromCloud') : t('history.saveToCloud'),
+            onClick: () => onSetConversationCloudEnabled(c.id, !cloudEnabled),
+          },
+        ]
+      : []),
+    ...(onTogglePin
+      ? [
+          {
+            id: 'pin',
+            label: c.pinned ? t('history.unpin') : t('history.pinTop'),
+            onClick: () => onTogglePin(c.id),
+          },
+        ]
+      : []),
+    {
+      id: 'rename',
+      label: editing ? t('history.saveName') : t('history.rename'),
+      onClick: () => (editing ? onRenameCommit() : onStartRename(c)),
+    },
+    ...moveItems,
+    { id: 'delete', label: t('history.delete'), onClick: confirmDelete, destructive: true },
+  ]
+
+  const showTags = Boolean(onSetConversationTags) && tags.length > 0
 
   return (
-    <li>
-      <div className={rowShell(sel)}>
-        <div className="flex min-h-[3rem] items-stretch">
-          <button
-            type="button"
-            onClick={() => onSelect(c.id)}
-            aria-current={sel ? 'page' : undefined}
-            className="min-w-0 flex-1 px-2 py-1.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-inset"
-          >
-            {editing ? (
-              <input
-                value={titleDraft}
-                onChange={(e) => onTitleDraftChange(e.target.value)}
-                onClick={(e) => e.stopPropagation()}
-                onBlur={() => onRenameCommit()}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault()
-                    onRenameCommit()
-                  }
-                  if (e.key === 'Escape') {
-                    e.preventDefault()
-                    onRenameCancel()
-                  }
-                }}
-                className="mb-0.5 w-full rounded border border-line bg-canvas px-1.5 py-0.5 text-[12px] text-fg focus:outline-none focus:ring-1 focus:ring-focus"
-                autoFocus
-                maxLength={120}
-                aria-label="Novo título da conversa"
-              />
-            ) : (
-              <span className="block truncate text-[12px] font-medium leading-tight text-fg">
-                {c.title}
-              </span>
-            )}
-            <span className="mt-0.5 block truncate text-[10px] text-fg-muted">
-              {formatUpdated(c.updatedAt)}
-            </span>
-          </button>
-          <div className="flex shrink-0 items-center gap-px border-l border-line/60 pr-0.5">
-            {onTogglePin ? (
-              <button
-                type="button"
-                className={`rounded p-1.5 transition-colors hover:bg-white/[0.07] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
-                  c.pinned ? 'text-accent' : 'text-fg-muted hover:text-fg'
-                }`}
-                title={c.pinned ? 'Desafixar' : 'Fixar no topo'}
-                aria-label={c.pinned ? 'Desafixar conversa' : 'Fixar conversa'}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onTogglePin(c.id)
-                }}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill={c.pinned ? 'currentColor' : 'none'} className="stroke-current" strokeWidth="2" aria-hidden>
-                  <path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7-6.3-4.6L5.7 21l2.3-7-6-4.6h7.6Z" strokeLinejoin="round" />
-                </svg>
-              </button>
-            ) : null}
+    <li className="min-w-0">
+      <div
+        className={`${rowShell(sel || selected)} min-w-0 transition-opacity ${isDragging ? 'opacity-45' : ''} ${dragSessionActive ? 'pointer-events-none' : ''}`}
+      >
+        <div className="flex min-h-[2rem] min-w-0 items-center gap-0.5 px-0.5">
+          {selectionMode ? (
+            <input
+              type="checkbox"
+              checked={selected}
+              onChange={onToggleSelect}
+              className="ml-0.5 size-3.5 shrink-0 rounded border-line accent-accent"
+              aria-label={t('history.selectConversation', { title: c.title })}
+              onClick={(e) => e.stopPropagation()}
+            />
+          ) : null}
+
+          {canDrag ? (
             <button
               type="button"
-              className="rounded p-1.5 text-fg-muted transition-colors hover:bg-white/[0.07] hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
-              title={editing ? 'Salvar nome' : 'Renomear conversa'}
-              aria-label={editing ? 'Salvar nome da conversa' : 'Renomear conversa'}
-              onMouseDown={(e) => {
-                if (editing) e.preventDefault()
-              }}
-              onClick={(e) => {
-                e.stopPropagation()
-                if (editing) onRenameCommit()
-                else onStartRename(c)
-              }}
+              onPointerDown={onGripPointerDown}
+              title={t('history.drag')}
+              aria-label={t('history.dragItem', { title: c.title })}
+              className="flex w-5 shrink-0 touch-none cursor-grab items-center justify-center rounded bg-transparent opacity-70 hover:opacity-100 hover:bg-white/15 active:scale-95 active:cursor-grabbing transition-all"
+              onClick={(e) => e.preventDefault()}
             >
-              {editing ? (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="stroke-current" strokeWidth="2" aria-hidden>
-                  <path d="M20 6 9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              ) : (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="stroke-current" strokeWidth="2" aria-hidden>
-                  <path d="M12 20h9" strokeLinecap="round" />
-                  <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              )}
-            </button>
-            <button
-              type="button"
-              className="rounded p-1.5 text-fg-muted transition-colors hover:bg-white/[0.07] hover:text-red-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
-              title="Apagar conversa"
-              aria-label={`Apagar conversa: ${c.title}`}
-              onClick={(e) => {
-                e.stopPropagation()
-                void (async () => {
-                  const ok = await requestConfirm({
-                    title: 'Apagar conversa',
-                    message: `Apagar «${c.title}»? Esta acção não pode ser desfeita.`,
-                    confirmLabel: 'Apagar',
-                    destructive: true,
-                  })
-                  if (ok) onDelete(c.id)
-                })()
-              }}
-            >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" className="stroke-current" strokeWidth="2" aria-hidden>
-                <path d="M3 6h18" strokeLinecap="round" />
-                <path d="M8 6V4h8v2" strokeLinecap="round" />
-                <path d="M19 6l-1 14H6L5 6" strokeLinecap="round" strokeLinejoin="round" />
+              <svg width="8" height="12" viewBox="0 0 10 14" fill="currentColor" aria-hidden>
+                <circle cx="2.5" cy="2.5" r="1" />
+                <circle cx="7.5" cy="2.5" r="1" />
+                <circle cx="2.5" cy="7" r="1" />
+                <circle cx="7.5" cy="7" r="1" />
               </svg>
             </button>
-          </div>
-        </div>
-        <label className="flex items-center gap-1.5 border-t border-line/50 px-2 py-1">
-          <span className="shrink-0 text-[9px] uppercase tracking-wide text-fg-muted">
-            Pasta
-          </span>
-          <div
-            className="min-w-0 flex-1"
-            onClick={(e) => e.stopPropagation()}
-            onKeyDown={(e) => e.stopPropagation()}
-          >
-            <Select
-              value={c.folderId ?? ''}
-              onChange={(v) => onMoveConversation(c.id, v === '' ? null : v)}
-              options={[
-                { value: '', label: 'Sem pasta' },
-                ...folders.map((f) => ({ value: f.id, label: f.name })),
-              ]}
-              size="sm"
-              variant="ghost"
-              className="w-full"
-              align="end"
-              aria-label={`Mover conversa para pasta: ${c.title}`}
+          ) : null}
+
+          {editing ? (
+            <input
+              value={titleDraft}
+              onChange={(e) => onTitleDraftChange(e.target.value)}
+              onBlur={() => onRenameCommit()}
+              onKeyDown={(e) => {
+                e.stopPropagation()
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  onRenameCommit()
+                }
+                if (e.key === 'Escape') {
+                  e.preventDefault()
+                  onRenameCancel()
+                }
+              }}
+              className="min-w-0 flex-1 rounded border border-line bg-canvas px-1.5 py-0.5 text-[11px] text-fg focus:outline-none focus:ring-1 focus:ring-focus"
+              autoFocus
+              maxLength={120}
+              aria-label={t('history.newTitle')}
             />
-          </div>
-        </label>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                if (selectionMode) onToggleSelect?.()
+                else onSelect(c.id)
+              }}
+              aria-current={sel ? 'page' : undefined}
+              className="min-w-0 flex-1 overflow-hidden py-1 pl-0.5 pr-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-inset active:scale-[0.98] transition-transform"
+            >
+              <span className="flex items-center gap-1">
+                {c.pinned ? (
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" className="shrink-0 text-accent" aria-hidden>
+                    <path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7-6.3-4.6L5.7 21l2.3-7-6-4.6h7.6Z" />
+                  </svg>
+                ) : null}
+                <span className="truncate text-[11px] font-medium text-current">{c.title}</span>
+              </span>
+              <span className="block truncate text-[9px] opacity-70">
+                {formatUpdated(c.updatedAt)}
+              </span>
+            </button>
+          )}
+
+          {!selectionMode ? (
+            <>
+              <CloudSyncToggleButton
+                id={c.id}
+                meta={c.cloudSync}
+                available={Boolean(cloudSyncAvailable && onSetConversationCloudEnabled)}
+                itemLabel={c.title}
+                onToggle={(enabled) => onSetConversationCloudEnabled!(c.id, enabled)}
+              />
+              <HistoryOverflowMenu
+                items={menuItems}
+                ariaLabel={t('history.actions', { title: c.title })}
+              />
+            </>
+          ) : null}
+        </div>
+
+        {showTags ? (
+          <ConversationTags
+            tags={tags}
+            compact
+            onChange={(next) => onSetConversationTags!(c.id, next)}
+          />
+        ) : null}
       </div>
     </li>
   )

@@ -35,7 +35,7 @@ export function WorkspaceCheckpointsPanel() {
   const handleRestore = async (cp: LunaCheckpoint) => {
     const ok = await requestConfirm({
       title: 'Restaurar checkpoint',
-      message: `Repor ${cp.files.length} ficheiro(s) ao estado anterior a «${cp.label}»? Alterações não guardadas no editor podem ser perdidas.`,
+      message: `Repor ${cp.files.length} ficheiro(s) ao estado anterior a "${cp.label}"? Alteracoes nao guardadas no editor podem ser perdidas.`,
       confirmLabel: 'Restaurar',
       destructive: true,
     })
@@ -52,7 +52,7 @@ export function WorkspaceCheckpointsPanel() {
   const handleDelete = async (cp: LunaCheckpoint) => {
     const ok = await requestConfirm({
       title: 'Apagar checkpoint',
-      message: `Remover o ponto de restauro «${cp.label}»?`,
+      message: `Remover o ponto de restauro "${cp.label}"?`,
       confirmLabel: 'Apagar',
       destructive: true,
     })
@@ -64,7 +64,7 @@ export function WorkspaceCheckpointsPanel() {
   if (!ws.workspaceRoot) return null
 
   return (
-    <div className="shrink-0 border-t border-line bg-sidebar/80 px-2 py-1.5">
+    <div className="shrink-0 border-t border-line bg-sidebar px-2 py-1.5">
       <button
         type="button"
         className="flex w-full items-center justify-between gap-2 text-left"
@@ -83,7 +83,7 @@ export function WorkspaceCheckpointsPanel() {
           className={`text-fg-muted transition-transform ${expanded ? 'rotate-180' : ''}`}
           aria-hidden
         >
-          ▾
+          v
         </span>
       </button>
 
@@ -104,27 +104,27 @@ export function WorkspaceCheckpointsPanel() {
               return (
                 <div
                   key={`${cp.id}-${revision}`}
-                  className="rounded-lg border border-line-subtle bg-surface/40 px-2 py-1.5"
+                  className="luna-card px-2 py-1.5"
                 >
                   <p className="truncate text-[11px] font-medium text-fg">
                     {cp.label || fileLabel}
                   </p>
                   <p className="text-[9px] text-fg-muted">
-                    {formatWhen(cp.createdAt)} · {fileLabel}
+                    {formatWhen(cp.createdAt)} - {fileLabel}
                   </p>
                   <div className="mt-1.5 flex flex-wrap gap-1">
                     <button
                       type="button"
                       disabled={busy || busyId !== null}
-                      className="rounded-md border border-line px-2 py-0.5 text-[10px] text-fg-dim hover:bg-white/[0.05] disabled:opacity-40"
+                      className="luna-btn-secondary px-2 py-0.5 text-[10px] disabled:opacity-40"
                       onClick={() => void handleRestore(cp)}
                     >
-                      {busy ? 'A restaurar…' : 'Restaurar'}
+                      {busy ? 'A restaurar...' : 'Restaurar'}
                     </button>
                     <button
                       type="button"
                       disabled={busy || busyId !== null}
-                      className="rounded-md px-2 py-0.5 text-[10px] text-fg-muted hover:text-red-300 disabled:opacity-40"
+                      className="luna-btn-ghost px-2 py-0.5 text-[10px] text-danger disabled:opacity-40"
                       onClick={() => void handleDelete(cp)}
                     >
                       Apagar

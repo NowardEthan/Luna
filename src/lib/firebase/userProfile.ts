@@ -1,6 +1,7 @@
 import {
   doc,
   getDoc,
+  getDocFromServer,
   serverTimestamp,
   setDoc,
 } from 'firebase/firestore'
@@ -44,4 +45,15 @@ export async function ensureUserProfile(
   await setDoc(ref, patch, { merge: true })
   const data = snap.data() as Partial<LunaUserProfile> | undefined
   return { ...data, ...patch }
+}
+
+/** Ignora cache local — útil após pagamento/webhook quando o Electron não propaga o snapshot. */
+export async function fetchUserProfileFromServer(
+  uid: string,
+): Promise<Partial<LunaUserProfile> | null> {
+  const db = getLunaFirestore()
+  if (!db) return null
+  const snap = await getDocFromServer(doc(db, userDoc(uid)))
+  if (!snap.exists()) return null
+  return snap.data() as Partial<LunaUserProfile>
 }

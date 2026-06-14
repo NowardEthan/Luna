@@ -22,7 +22,8 @@ export type LlmApiMessage =
     }
   | { role: 'tool'; tool_call_id: string; content: string }
 
-export type LlmProviderId = 'together' | 'groq' | 'ollama' | 'openrouter'
+export type { LlmProviderId } from '../types/chat'
+import type { LlmProviderId } from '../types/chat'
 
 export type LlmSelection = {
   provider: LlmProviderId
@@ -102,6 +103,8 @@ export type CompleteLlmOptions = {
   reasoningEnabled?: boolean
   /** Escolha explícita na UI (provedor + modelo do .env) */
   llmSelection?: LlmSelection
+  /** Permite abortar a requisição LLM em andamento */
+  signal?: AbortSignal
 }
 
 export async function completeLlmChat(

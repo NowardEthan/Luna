@@ -60,9 +60,21 @@ firebase emulators:start
 
 Com `VITE_FIREBASE_USE_EMULATORS=1`, o cliente liga Auth (9099), Firestore (8080) e Storage (9199).
 
-## 4. Catálogo da marketplace
+## 4. Catálogo e add-ons remotos
 
-Publique o mesmo formato que `src/data/marketplace-catalog.json` em Hosting ou num URL público e defina `VITE_LUNA_MARKETPLACE_CATALOG_URL`. A loja usa o JSON remoto quando tem itens; caso contrário mantém o catálogo local embutido.
+O catálogo embutido em `src/data/marketplace-catalog.json` fica vazio por defeito. O **Luna IDE** não vem na instalação nativa — publica-se à parte:
+
+```bash
+# Empacota, envia o .zip ao Storage e actualiza o catálogo local
+npm run addon:publish-ide
+npm run firebase:deploy-catalog
+```
+
+Ou passo a passo: `addon:pack-ide` → `addon:upload-ide` (requer `chaves/*firebase-adminsdk*.json`) → `firebase:deploy-catalog`.
+
+`firebase:deploy-catalog` gera `public/marketplace-catalog.json` a partir do `.env` e faz deploy no Hosting. Defina `VITE_LUNA_MARKETPLACE_CATALOG_URL` (ou use o URL por defeito `https://{PROJECT_ID}.web.app/marketplace-catalog.json`).
+
+Regras de leitura pública: `storage.rules` → `marketplace/plugins/{pluginId}/**`.
 
 Alternativa futura: coleção `marketplaceCatalog/listings` (ver `firestore.rules`).
 
@@ -78,7 +90,15 @@ No [Google Cloud Console](https://console.cloud.google.com/) → APIs → Creden
 
 `http://127.0.0.1:5167/auth-landing`
 
-Opcional no `.env`: `GOOGLE_OAUTH_WEB_CLIENT_ID` (se vazio, usa o cliente Web do projeto `luna-8787d`).
+Usa o **mesmo Web client OAuth** que o projeto Luna (`529601808898-…`, já no código). Opcional: `GOOGLE_OAUTH_WEB_CLIENT_ID` no `.env` para sobrescrever.
+
+### Firestore «Missing or insufficient permissions»
+
+O Luna não versiona `firestore.rules`; o New App tinha regras mais restritivas (`isLunarAccount`). As regras foram alinhadas ao padrão **só dono autenticado**. Publica uma vez:
+
+```bash
+npm run firebase:deploy-rules
+```
 
 ### Browser (Vite)
 

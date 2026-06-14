@@ -1,5 +1,8 @@
+import i18n from '../../i18n'
 import type { AgentStepRecord } from '../../types/chat'
 import { fileBasename } from '../../lib/pathUtils'
+
+const t = i18n.t.bind(i18n)
 
 export function WebSearchDetail({
   detail,
@@ -10,7 +13,8 @@ export function WebSearchDetail({
     <div className="space-y-2">
       {detail.query ? (
         <p className="text-[11px] text-fg-muted">
-          Consulta: <span className="text-fg-dim">«{detail.query}»</span>
+          {t('chatTurn.web_query')}{' '}
+          <span className="text-fg-dim">«{detail.query}»</span>
         </p>
       ) : null}
       {detail.answer ? (
@@ -27,7 +31,7 @@ export function WebSearchDetail({
             >
               <div className="flex flex-wrap items-center gap-1.5">
                 {r.hostname ? (
-                  <span className="rounded-md bg-raised px-1.5 py-px text-[10px] font-medium text-accent">
+                  <span className="luna-chip !rounded-md !px-1.5 !py-px text-[10px] text-accent">
                     {r.hostname}
                   </span>
                 ) : null}
@@ -42,7 +46,7 @@ export function WebSearchDetail({
                   </a>
                 ) : (
                   <span className="text-[12px] font-medium text-fg">
-                    {r.title ?? 'Fonte'}
+                    {r.title ?? t('chatTurn.source')}
                   </span>
                 )}
               </div>
@@ -93,7 +97,7 @@ export function DocumentsDetail({
 function PathList({ paths, title }: { paths: string[]; title?: string }) {
   if (!paths.length) {
     return (
-      <p className="text-[11px] text-fg-muted">Nenhum resultado encontrado.</p>
+      <p className="text-[11px] text-fg-muted">{t('chatTurn.no_results')}</p>
     )
   }
   return (
@@ -124,7 +128,7 @@ function GrepMatchesDetail({
   matches: { path: string; line: number; text: string }[]
 }) {
   if (!matches.length) {
-    return <p className="text-[11px] text-fg-muted">Sem correspondências.</p>
+    return <p className="text-[11px] text-fg-muted">{t('chatTurn.no_matches')}</p>
   }
   return (
     <ul className="max-h-48 space-y-1.5 overflow-y-auto">
@@ -155,18 +159,11 @@ function TerminalDetail({
     <div className="space-y-2">
       <p className="font-mono text-[11px] text-fg-dim">{detail.command}</p>
       {detail.gui ? (
-        <p className="text-[10px] text-fg-muted">Modo: janela gráfica (GUI)</p>
+        <p className="text-[10px] text-fg-muted">{t('chatTurn.terminal_gui')}</p>
       ) : null}
       {detail.exitCode != null ? (
         <p className="text-[11px] text-fg-muted">
-          Código de saída:{' '}
-          <span
-            className={
-              detail.exitCode === 0 ? 'text-emerald-400' : 'text-red-300'
-            }
-          >
-            {detail.exitCode}
-          </span>
+          {t('chatTurn.exit_code', { code: detail.exitCode })}
         </p>
       ) : null}
       {detail.stdoutPreview ? (
@@ -197,14 +194,16 @@ function EditDetail({
         <p className="text-[11px] text-fg-muted">{detail.summary}</p>
       ) : null}
       <p className="text-[10px] text-fg-muted">
-        {detail.action === 'write_file' ? 'Escrita' : 'Patch'}
-        {detail.lineCount != null ? ` · ${detail.lineCount} linhas` : ''}
+        {detail.action === 'write_file' ? t('toolStep.write') : t('toolStep.patch')}
+        {detail.lineCount != null
+          ? `${t('toolStep.lines')}${detail.lineCount}`
+          : ''}
         {' · '}
         {detail.status === 'pending'
-          ? 'aguarda aceitação no editor'
+          ? t('toolStep.pending')
           : detail.status === 'applied'
-            ? 'aplicado'
-            : 'falhou'}
+            ? t('toolStep.applied')
+            : t('toolStep.failed')}
       </p>
     </div>
   )
@@ -225,7 +224,7 @@ export function ToolStepDetailBody({ step }: { step: AgentStepRecord }) {
         <>
           {d.query ? (
             <p className="mb-1.5 text-[11px] text-fg-muted">
-              Consulta: «{d.query}»
+              {t('toolStep.query')} «{d.query}»
             </p>
           ) : null}
           <DocumentsDetail detail={d} />
@@ -238,8 +237,8 @@ export function ToolStepDetailBody({ step }: { step: AgentStepRecord }) {
     case 'describe_images':
       return (
         <p className="text-[11px] text-fg-muted">
-          {d.imageCount} imagem(ns)
-          {d.focus ? ` · foco: ${d.focus}` : ''}
+          {t('toolStep.image_count', { count: d.imageCount })}
+          {d.focus ? t('toolStep.focus', { focus: d.focus }) : ''}
         </p>
       )
     case 'save_memory':
@@ -256,7 +255,7 @@ export function ToolStepDetailBody({ step }: { step: AgentStepRecord }) {
             <>
               {d.entryCount != null ? (
                 <p className="text-[11px] text-fg-muted">
-                  {d.entryCount} entrada(s) listada(s)
+                  {t('toolStep.entries_listed', { count: d.entryCount })}
                 </p>
               ) : null}
               {d.sampleEntries?.length ? (
@@ -267,7 +266,9 @@ export function ToolStepDetailBody({ step }: { step: AgentStepRecord }) {
               ) : null}
             </>
           ) : d.entryCount != null ? (
-            <p className="text-[11px] text-fg-muted">{d.entryCount} linhas lidas</p>
+            <p className="text-[11px] text-fg-muted">
+              {t('toolStep.lines_read', { count: d.entryCount })}
+            </p>
           ) : null}
           {d.error ? (
             <p className="text-[11px] text-red-300/90">{d.error}</p>
@@ -278,20 +279,25 @@ export function ToolStepDetailBody({ step }: { step: AgentStepRecord }) {
       return (
         <div className="space-y-1.5">
           <p className="text-[11px] text-fg-muted">
-            Padrão: <span className="font-mono text-fg-dim">«{d.pattern}»</span>
-            {d.truncated ? ' (lista truncada)' : ''}
+            {t('toolStep.pattern')}{' '}
+            <span className="font-mono text-fg-dim">«{d.pattern}»</span>
+            {d.truncated ? t('toolStep.truncated_list') : ''}
           </p>
-          <PathList paths={d.paths} title={`${d.matchCount} resultado(s)`} />
+          <PathList
+            paths={d.paths}
+            title={t('toolStep.results', { count: d.matchCount })}
+          />
         </div>
       )
     case 'grep':
       return (
         <div className="space-y-1.5">
           <p className="text-[11px] text-fg-muted">
-            Expressão: <span className="font-mono text-fg-dim">«{d.pattern}»</span>
-            {d.truncated ? ' (truncado)' : ''}
+            {t('toolStep.expression')}{' '}
+            <span className="font-mono text-fg-dim">«{d.pattern}»</span>
+            {d.truncated ? t('toolStep.truncated') : ''}
             {' · '}
-            {d.matchCount} ocorrência(s)
+            {t('toolStep.occurrences', { count: d.matchCount })}
           </p>
           <GrepMatchesDetail matches={d.matches} />
         </div>
@@ -328,26 +334,37 @@ export function toolStepSubtitle(step: AgentStepRecord): string | undefined {
   if (step.attempt && step.attempt > 1) {
     const round =
       step.orchestratorRound && step.orchestratorRound > 0
-        ? ` · passo ${step.orchestratorRound}`
+        ? t('toolStep.round', { round: step.orchestratorRound })
         : ''
-    return `Tentativa ${step.attempt}${round}`
+    return t('toolStep.attempt', { attempt: step.attempt, round })
   }
 
   const d = step.detail
   if (d) {
     switch (d.kind) {
       case 'glob':
-        return `«${truncate(d.pattern, 32)}» · ${d.matchCount} ficheiro(s)`
+        return t('toolStep.files_match', {
+          pattern: truncate(d.pattern, 32),
+          count: d.matchCount,
+        })
       case 'grep':
-        return `«${truncate(d.pattern, 28)}» · ${d.matchCount} hit(s)`
+        return t('toolStep.grep_match', {
+          pattern: truncate(d.pattern, 28),
+          count: d.matchCount,
+        })
       case 'terminal':
         return truncate(d.command, 44)
       case 'edit':
-        return `${fileBasename(d.path)}${d.status === 'pending' ? ' · pendente' : ''}`
+        return `${fileBasename(d.path)}${
+          d.status === 'pending' ? t('toolStep.pending_suffix') : ''
+        }`
       case 'filesystem':
         if (d.action === 'list_directory') {
           return d.entryCount != null
-            ? `${d.entryCount} itens · ${fileBasename(d.path) || d.path}`
+            ? t('toolStep.items', {
+                count: d.entryCount,
+                path: fileBasename(d.path) || d.path,
+              })
             : fileBasename(d.path) || d.path
         }
         return fileBasename(d.path) || d.path
@@ -364,13 +381,13 @@ export function toolStepSubtitle(step: AgentStepRecord): string | undefined {
   }
 
   if (step.orchestratorRound && step.orchestratorRound > 0) {
-    return `Passo ${step.orchestratorRound}`
+    return t('toolStep.step', { round: step.orchestratorRound })
   }
   return undefined
 }
 
 function truncate(s: string, max: number): string {
-  const t = s.replace(/\s+/g, ' ').trim()
-  if (t.length <= max) return t
-  return `${t.slice(0, max - 1)}…`
+  const trimmed = s.replace(/\s+/g, ' ').trim()
+  if (trimmed.length <= max) return trimmed
+  return `${trimmed.slice(0, max - 1)}…`
 }

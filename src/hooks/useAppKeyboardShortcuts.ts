@@ -1,38 +1,36 @@
-import { useEffect } from 'react'
-import type { LunaWorkbenchMode } from '../lib/workbenchMode'
+import { useEffect, useRef } from 'react'
+import { isEditableTarget } from '../lib/keyboard'
 
 type Handlers = {
   onSend?: () => void
   onNewConversation: () => void
   onToggleHistory: () => void
   onToggleMemories: () => void
-  onToggleWorkbench: () => void
   onOpenCommandPalette: () => void
   onOpenPreferences?: () => void
   onOpenShortcutsHelp: () => void
   onCycleTheme?: () => void
   onCloseOverlays: () => void
   composerBusy?: boolean
-  workbenchMode: LunaWorkbenchMode
-}
-
-function isTypingTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false
-  const tag = target.tagName
-  return tag === 'INPUT' || tag === 'TEXTAREA' || target.isContentEditable
 }
 
 export function useAppKeyboardShortcuts(handlers: Handlers) {
+  const handlersRef = useRef(handlers)
+  handlersRef.current = handlers
+
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
+      const handlers = handlersRef.current
       const mod = e.ctrlKey || e.metaKey
 
       if (e.key === 'Escape') {
-        handlers.onCloseOverlays()
+        if (!isEditableTarget(e.target)) {
+          handlers.onCloseOverlays()
+        }
         return
       }
 
-      if (e.key === '?' && !mod && !isTypingTarget(e.target)) {
+      if (e.key === '?' && !mod && !isEditableTarget(e.target)) {
         e.preventDefault()
         handlers.onOpenShortcutsHelp()
         return
@@ -41,6 +39,10 @@ export function useAppKeyboardShortcuts(handlers: Handlers) {
       if (!mod) return
 
       if (e.key === 'k' || e.key === 'K') {
+        const el = e.target
+        if (el instanceof HTMLElement && el.closest('.cm-editor')) {
+          return
+        }
         e.preventDefault()
         handlers.onOpenCommandPalette()
         return
@@ -82,13 +84,9 @@ export function useAppKeyboardShortcuts(handlers: Handlers) {
         return
       }
 
-      if (e.key === '.' || e.code === 'Period') {
-        e.preventDefault()
-        handlers.onToggleWorkbench()
-      }
     }
 
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [handlers])
+  }, [])
 }

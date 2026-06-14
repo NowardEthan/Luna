@@ -6,6 +6,7 @@ import {
   PREFERENCES_SECTIONS,
   type PreferencesSharedProps,
 } from './settingsSections'
+import { useTranslation } from 'react-i18next'
 
 type Props = PreferencesSharedProps & {
   onClose: () => void
@@ -13,31 +14,25 @@ type Props = PreferencesSharedProps & {
 }
 
 export function PreferencesView(props: Props) {
+  const { t } = useTranslation()
   const { onClose, workbenchMode = 'chat', ...shared } = props
   const backLabel =
-    workbenchMode === 'ide' ? 'Voltar ao IDE' : 'Voltar à conversa'
+    workbenchMode === 'ide' ? t('settings.back_to_ide') : t('settings.back_to_chat')
   const { section, setSection } = usePreferencesNav()
   const Section = PREFERENCES_SECTION_COMPONENTS[section]
-  const meta = PREFERENCES_SECTIONS.find((s) => s.id === section)
   const fullHeightSection = section === 'addons'
 
   return (
-    <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-canvas">
-      <header className="flex shrink-0 items-center justify-between border-b border-line px-4 py-2.5">
-        <div>
-          <h1 className="text-title font-semibold text-fg">Definições</h1>
-          {meta ? (
-            <p className="text-ui text-fg-muted">{meta.description}</p>
-          ) : null}
-        </div>
+    <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-canvas relative">
+      <div className="absolute top-4 right-4 z-10">
         <button
           type="button"
-          className="luna-btn-secondary px-3 py-1.5"
+          className="luna-btn-secondary px-3 py-1.5 shadow-sm"
           onClick={onClose}
         >
           {backLabel}
         </button>
-      </header>
+      </div>
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <SettingsNav
           sections={PREFERENCES_SECTIONS}
@@ -45,7 +40,7 @@ export function PreferencesView(props: Props) {
           onSelect={setSection}
         />
         <main
-          className={`min-h-0 flex-1 overflow-y-auto p-5 ${
+          className={`min-h-0 flex-1 overflow-y-auto p-6 bg-canvas/30 ${
             fullHeightSection ? 'flex flex-col' : ''
           }`}
         >
@@ -53,7 +48,7 @@ export function PreferencesView(props: Props) {
             className={
               fullHeightSection
                 ? 'flex min-h-0 flex-1 flex-col'
-                : 'mx-auto max-w-2xl'
+                : 'mx-auto max-w-3xl'
             }
           >
             <Section {...shared} onNavigateSection={setSection} />

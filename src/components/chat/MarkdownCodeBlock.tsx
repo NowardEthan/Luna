@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import { EditorState } from '@codemirror/state'
 import { EditorView, lineNumbers } from '@codemirror/view'
 import { copyWithToast } from '../../lib/toast'
@@ -16,6 +17,7 @@ type Props = {
 }
 
 export function MarkdownCodeBlock({ code, className, compact = false }: Props) {
+  const { t } = useTranslation()
   const hostRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
   const cmExtensions = useMarkdownCodeBlockExtensions(compact)
@@ -59,23 +61,23 @@ export function MarkdownCodeBlock({ code, className, compact = false }: Props) {
         compact ? 'text-[11px]' : ''
       }`}
     >
-      <div className="flex items-center justify-between gap-2 border-b border-line-subtle/80 bg-surface/40 px-3 py-1.5">
+      <div className="flex items-center justify-between gap-2 border-b border-line-subtle bg-surface px-3 py-1.5">
         <span className="text-caption font-medium uppercase tracking-wider text-fg-muted">
           {label}
         </span>
         <button
           type="button"
-          className="rounded-md border border-line-subtle bg-canvas/60 px-2 py-0.5 text-caption text-fg-dim opacity-80 transition-colors hover:border-line hover:bg-raised-hover hover:text-fg group-hover/code:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+          className="luna-btn-ghost !rounded-md border border-line-subtle !px-2 !py-0.5 text-caption opacity-80 group-hover/code:opacity-100"
           onClick={() => void copyWithToast(code.trim())}
-          aria-label="Copiar código"
+          aria-label={t('chatTurn.copy_code')}
         >
-          Copiar
+          {t('chatTurn.copy')}
         </button>
       </div>
       <div
         ref={hostRef}
         className="max-h-[min(320px,50vh)] min-h-[2.5rem] overflow-hidden"
-        aria-label={`Bloco de código ${label}`}
+        aria-label={t('chatTurn.code_block_aria', { label })}
       />
     </div>
   )

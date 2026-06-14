@@ -1,11 +1,13 @@
 import type { CSSProperties } from 'react'
 import { BRAND_APP_NAME } from '../brand'
+import { useTranslation } from 'react-i18next'
 
 function drag(region: 'drag' | 'no-drag'): CSSProperties {
   return { WebkitAppRegion: region } as CSSProperties
 }
 
 function WindowControls() {
+  const { t } = useTranslation()
   const api = window.electron
   if (!api) return null
 
@@ -17,7 +19,7 @@ function WindowControls() {
       <button
         type="button"
         className={btnClass}
-        aria-label="Minimizar"
+        aria-label={t('titleBar.minimize')}
         onClick={() => void api.minimize()}
       >
         <svg
@@ -34,7 +36,7 @@ function WindowControls() {
       <button
         type="button"
         className={btnClass}
-        aria-label="Maximizar ou restaurar"
+        aria-label={t('titleBar.maximize')}
         onClick={() => void api.maximizeToggle()}
       >
         <svg
@@ -52,7 +54,7 @@ function WindowControls() {
       <button
         type="button"
         className="flex h-full w-10 items-center justify-center text-fg-muted transition-colors hover:bg-red-600/20 hover:text-fg active:bg-red-600/28"
-        aria-label="Fechar"
+        aria-label={t('titleBar.close')}
         onClick={() => void api.close()}
       >
         <svg

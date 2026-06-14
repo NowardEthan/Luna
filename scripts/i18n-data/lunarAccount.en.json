@@ -1,0 +1,80 @@
+{
+  "modal": {
+    "closeOverlayAria": "Close Lunar account",
+    "badge": "Lunar Account",
+    "closeAria": "Close"
+  },
+  "signIn": {
+    "title": "Sign in to {{appName}} cloud",
+    "description": "Online models, sync, store, and full tools require a Lunar Account. You can continue with Ollama and local data only.",
+    "googleBusy": "Opening Google…",
+    "google": "Sign in with Google",
+    "offline": "Continue offline (Ollama and local)"
+  },
+  "profile": {
+    "defaultName": "Lunar Account",
+    "statusCloud": "In the cloud · {{appName}}",
+    "statusOffline": "Offline mode",
+    "statusNoSession": "No session",
+    "cloudPaused": "Session active, but cloud is paused. Enable cloud mode to sync.",
+    "syncing": "Syncing…",
+    "syncNow": "Sync now",
+    "enableCloud": "Enable cloud mode",
+    "offlineMode": "Offline mode",
+    "signOut": "Sign out",
+    "cloudSummary": "Cloud summary",
+    "colThisPc": "This PC",
+    "colFirestore": "Firestore",
+    "metricConversations": "Conversations",
+    "metricFolders": "Folders",
+    "metricMessages": "Messages",
+    "metricSize": "Size",
+    "lastSync": "Last sync: {{date}}{{errorSuffix}}",
+    "syncNever": "not yet",
+    "cloudHint": "Mark conversations or folders with the cloud icon in history to upload only what you want."
+  },
+  "chip": {
+    "accountFallback": "Lunar Account",
+    "offline": "Offline mode",
+    "signIn": "Sign in to cloud",
+    "sublabelConnected": "Synced · online models",
+    "sublabelOffline": "Ollama and local only",
+    "sublabelSignIn": "Cloud models, sync, and store",
+    "activityAriaConnected": "Lunar Account active",
+    "activityAriaSignIn": "Sign in to Lunar Account",
+    "compactLunar": "Lunar",
+    "compactOffline": "Offline",
+    "compactSignIn": "Sign in to cloud"
+  },
+  "banner": {
+    "regionAria": "Lunar Account",
+    "badge": "Lunar Account",
+    "headline": "Unlock online models, sync, and the full store",
+    "body": "{{appName}} hosts models in the cloud — no API keys on your PC. Prefer local only? Continue with Ollama offline.",
+    "google": "Sign in with Google",
+    "offlineOnly": "Offline only",
+    "dismissAria": "Dismiss notice"
+  },
+  "storage": {
+    "title": "Storage · {{plan}}",
+    "used": "Used:",
+    "available": "Available:",
+    "progressAria": "Cloud storage used",
+    "atLimit": "{{plan}} plan limit reached. Remove cloud conversations to free space.",
+    "nearLimit": "Almost at the {{plan}} plan limit."
+  },
+  "plan": {
+    "free": "Free",
+    "pro": "Pro",
+    "team": "Team"
+  },
+  "error": {
+    "profileSave": "Error saving profile.",
+    "firestoreDenied": "Google session OK, but Firestore denied access. Run npm run firebase:deploy-rules.",
+    "firebaseNotConfigured": "Firebase is not configured.",
+    "loginCancelled": "Sign-in cancelled.",
+    "signInFailed": "Could not sign in.",
+    "anonDisabled": "Anonymous auth disabled (VITE_LUNA_CLOUD_ANON).",
+    "signOutFailed": "Could not sign out."
+  }
+}

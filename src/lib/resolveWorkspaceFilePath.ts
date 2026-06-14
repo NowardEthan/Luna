@@ -1,3 +1,4 @@
+import { findWorkspaceRootForPath } from './workspaceConfig'
 import { joinPath } from './pathJoin'
 
 /**
@@ -7,11 +8,18 @@ import { joinPath } from './pathJoin'
 export function resolveWorkspaceFilePath(
   filePath: string,
   workspaceRoot: string | null,
+  workspaceFolders?: string[] | null,
 ): string {
   const trimmed = filePath.trim()
-  if (!trimmed || !workspaceRoot) return trimmed
+  if (!trimmed) return trimmed
 
-  const root = workspaceRoot.replace(/[/\\]+$/, '')
+  const folders =
+    workspaceFolders?.filter((f) => f?.trim()) ??
+    (workspaceRoot ? [workspaceRoot] : [])
+  if (!folders.length) return trimmed
+
+  const matched = findWorkspaceRootForPath(trimmed, folders)
+  const root = (matched ?? workspaceRoot ?? folders[0]!).replace(/[/\\]+$/, '')
   const sep = root.includes('\\') ? '\\' : '/'
   const norm = (p: string) => p.replace(/\//g, sep)
 

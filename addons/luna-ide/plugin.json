@@ -1,0 +1,10 @@
+{
+  "id": "luna-ide",
+  "name": "Luna IDE",
+  "version": "1.0.0",
+  "description": "Editor de código, explorador de arquivos, terminal integrado e agente com ferramentas de workspace.",
+  "entry": "index.js",
+  "lunaApiVersion": "1",
+  "trusted": true,
+  "permissions": ["tools", "commands", "hooks", "storage", "settings"]
+}

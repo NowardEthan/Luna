@@ -10,10 +10,12 @@ import {
 
 export type BadgeHighlight =
   | { type: 'memory'; noteId: string }
+  | { type: 'folder'; folderId: string }
   | { type: 'tool'; messageId: string; toolId: string }
 
 export type LunaBadgeNavigation = {
   focusMemoryNote: (noteId: string) => void
+  focusFolder: (folderId: string) => void
   focusToolStep: (messageId: string, toolId: string) => void
   highlight: BadgeHighlight | null
 }
@@ -24,6 +26,7 @@ type ProviderProps = {
   children: ReactNode
   listRef: React.RefObject<HTMLElement | null>
   onOpenMemories: () => void
+  onOpenHistory: () => void
   onCloseSidePanels: () => void
 }
 
@@ -31,6 +34,7 @@ export function LunaBadgeNavigationProvider({
   children,
   listRef,
   onOpenMemories,
+  onOpenHistory,
   onCloseSidePanels,
 }: ProviderProps) {
   const [highlight, setHighlight] = useState<BadgeHighlight | null>(null)
@@ -61,7 +65,20 @@ export function LunaBadgeNavigationProvider({
         el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
       }, 220)
     },
-    [onCloseSidePanels, onOpenMemories],
+    [onOpenMemories],
+  )
+
+  const focusFolder = useCallback(
+    (folderId: string) => {
+      onOpenHistory()
+      setHighlight({ type: 'folder', folderId })
+      window.setTimeout(() => {
+        document
+          .getElementById(`history-folder-${CSS.escape(folderId)}`)
+          ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      }, 220)
+    },
+    [onOpenHistory],
   )
 
   const focusToolStep = useCallback(
@@ -84,8 +101,8 @@ export function LunaBadgeNavigationProvider({
   }, [highlight])
 
   const value = useMemo(
-    () => ({ focusMemoryNote, focusToolStep, highlight }),
-    [focusMemoryNote, focusToolStep, highlight],
+    () => ({ focusMemoryNote, focusFolder, focusToolStep, highlight }),
+    [focusMemoryNote, focusFolder, focusToolStep, highlight],
   )
 
   return (
@@ -116,4 +133,11 @@ export function isMemoryNoteHighlight(
   noteId: string,
 ): boolean {
   return highlight?.type === 'memory' && highlight.noteId === noteId
+}
+
+export function isFolderHighlight(
+  highlight: BadgeHighlight | null,
+  folderId: string,
+): boolean {
+  return highlight?.type === 'folder' && highlight.folderId === folderId
 }

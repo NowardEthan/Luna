@@ -7,6 +7,21 @@ service firebase.storage {
       allow write: if false;
     }
 
+    match /marketplace/assets/{pluginId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /marketplace/marketplace-catalog.json {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /marketplace/listings/{pluginId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+
     // Uploads privados por utilizador
     match /users/{userId}/{allPaths=**} {
       allow read, write: if request.auth != null && request.auth.uid == userId;

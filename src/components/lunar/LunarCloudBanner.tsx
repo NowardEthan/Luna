@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { BRAND_APP_NAME } from '../../brand'
 import { useLunaAuth } from '../../features/auth/AuthProvider'
 
@@ -25,6 +26,7 @@ type Props = {
 }
 
 export function LunarCloudBanner({ className = '' }: Props) {
+  const { t } = useTranslation()
   const auth = useLunaAuth()
   const [dismissed, setDismissed] = useState(readDismissed)
 
@@ -32,21 +34,20 @@ export function LunarCloudBanner({ className = '' }: Props) {
 
   return (
     <div
-      className={`border-b border-accent/25 bg-gradient-to-r from-accent/15 via-accent/8 to-transparent px-4 py-3 sm:px-5 ${className}`}
+      className={`border-b border-accent bg-accent-muted px-4 py-3 sm:px-5 ${className}`}
       role="region"
-      aria-label="Conta Lunar"
+      aria-label={t('lunarAccount.banner.regionAria')}
     >
       <div className="mx-auto flex max-w-3xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <p className="text-[10px] font-semibold uppercase tracking-widest text-accent">
-            Conta Lunar
+            {t('lunarAccount.banner.badge')}
           </p>
           <p className="mt-0.5 text-ui font-medium text-fg">
-            Desbloqueie modelos online, sincronização e a loja completa
+            {t('lunarAccount.banner.headline')}
           </p>
           <p className="mt-1 text-ui text-fg-muted">
-            A {BRAND_APP_NAME} hospeda os modelos na nuvem — sem chaves no seu PC.
-            Prefere só local? Continue com Ollama offline.
+            {t('lunarAccount.banner.body', { appName: BRAND_APP_NAME })}
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
@@ -55,19 +56,19 @@ export function LunarCloudBanner({ className = '' }: Props) {
             className="luna-btn-primary px-4 py-2"
             onClick={() => void auth.signInWithGoogle()}
           >
-            Entrar com Google
+            {t('lunarAccount.banner.google')}
           </button>
           <button
             type="button"
             className="luna-btn-secondary px-3 py-2"
             onClick={() => auth.continueOffline()}
           >
-            Só offline
+            {t('lunarAccount.banner.offlineOnly')}
           </button>
           <button
             type="button"
             className="px-2 py-2 text-ui text-fg-muted hover:text-fg"
-            aria-label="Ocultar aviso"
+            aria-label={t('lunarAccount.banner.dismissAria')}
             onClick={() => {
               writeDismissed()
               setDismissed(true)

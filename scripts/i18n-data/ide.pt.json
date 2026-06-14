@@ -1,0 +1,65 @@
+{
+  "sidebar": {
+    "conversations": "Conversas",
+    "memories": "Memórias",
+    "files": "Ficheiros"
+  },
+  "banner": {
+    "session": "Sessão IDE",
+    "step": "Passo {{round}}",
+    "folderActive": "“{{folder}}” — contexto de código injectado (activo, terminal, git).",
+    "noFolder": "Abre uma pasta — a Luna injecta código e ambiente em cada mensagem.",
+    "autoApply": "Aplicar patches automaticamente",
+    "ragSync": "Sincronizar índice RAG"
+  },
+  "explorer": {
+    "title": "Explorador",
+    "openFolder": "Abrir pasta",
+    "empty": "Abre uma pasta de projecto para começar.",
+    "loading": "A carregar…"
+  },
+  "editor": {
+    "closeTabAria": "Fechar",
+    "empty": "Abre um ficheiro no explorador"
+  },
+  "pending": {
+    "title": "Alterações pendentes",
+    "accepting": "A aplicar…",
+    "accept": "Aceitar",
+    "reject": "Rejeitar",
+    "gitCommit": "Commit Git",
+    "confirming": "A confirmar…",
+    "confirmCommit": "Confirmar commit",
+    "cancel": "Cancelar"
+  },
+  "checkpoint": {
+    "title": "Pontos de restauro",
+    "confirmRestoreTitle": "Restaurar checkpoint",
+    "confirmRestoreMessage": "Restaurar {{count}} ficheiro(s) ao estado antes de “{{label}}”? Alterações não guardadas no editor podem perder-se.",
+    "confirmRestore": "Restaurar",
+    "confirmDeleteTitle": "Apagar checkpoint",
+    "confirmDeleteMessage": "Remover ponto de restauro “{{label}}”?",
+    "confirmDelete": "Apagar",
+    "emptyTitle": "Sem checkpoints",
+    "emptyDescription": "Criados automaticamente antes de aplicar patches do agente.",
+    "filesOne": "{{name}}",
+    "filesMany": "{{count}} ficheiros",
+    "restoring": "A restaurar…",
+    "restore": "Restaurar",
+    "delete": "Apagar"
+  },
+  "diff": {
+    "view": "Ver diff",
+    "previewAria": "Pré-visualização da alteração"
+  },
+  "terminal": {
+    "title": "Terminal",
+    "running": "A executar…",
+    "clear": "Limpar",
+    "welcome": "Terminal Luna — comandos via ferramenta run_terminal_command"
+  },
+  "mentions": {
+    "none": "Sem correspondências",
+    "listAria": "Menções @"
+  }
+}

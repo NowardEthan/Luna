@@ -1,17 +1,17 @@
-# Arquitetura Luna
+# Arquitetura Orbit
 
-Plataforma modular para chat, IDE e agente com ferramentas. Este documento descreve as camadas e o fluxo de um turno.
+Plataforma modular para chat com Luna Core, IDE e addons. Este documento descreve as camadas e o fluxo de um turno de chat.
 
 ## Camadas
 
 | Camada | Pasta | Responsabilidade |
 |--------|-------|------------------|
-| Shell | `src/shell/` | `AppProviders`, `AppShell`, registo de UI built-in |
+| Shell | `src/shell/` | `AppProviders`, `AppShell`, `ChatColumn`, registo de UI built-in |
 | Features | `src/features/` | Domínios: `chat/`, `history/`, `memories/`, `settings/`, `ide/` |
 | Components | `src/components/` | Componentes legados; re-exportam `features/` e `ui/` |
 | UI | `src/ui/` | Design system (Panel, Stack, Select, …) |
 | Core | `src/core/` | Registries, plugins, eventos, MCP, conversação |
-| Agent | `src/agent/` | Turno do agente (ferramentas via `ToolRegistry`) |
+| Agent | `src/agent/` | Turno do agente legado (ferramentas via `ToolRegistry`) — IDE futuro |
 | Plugins | `src/plugins/builtin/` + `.luna/plugins/` | Extensões internas e externas |
 
 ## Registries
@@ -27,37 +27,51 @@ O hook `useConversations` (`src/hooks/`) é uma fachada fina que compõe:
 
 - `conversationPersistence` — hydrate / localStorage
 - `conversationListStore` / `folderStore` — conversas e pastas
-- `userMemoryStore` / `modelCatalogStore` — memória e modelo
-- `agentTurnService` — `sendMessage`, redo, `runAgentTurn`
+- `userMemoryStore` / `chatPreferencesStore` — memória e preferências (personalidade, RAG)
+- `useSimpleChatTurn` — `sendMessage` via Luna Core
 
 `agent/` e `core/` **não** importam `useConversations`; usam `getConversationStore()`.
 
-## Fluxo de um turno
+## Fluxo de um turno (chat principal)
 
 ```mermaid
 sequenceDiagram
-  participant UI as AppShell
+  participant UI as SimpleChatComposer
   participant Hook as useConversations
-  participant Agent as runAgentTurn
-  participant Reg as ToolRegistry
-  participant Bus as EventBus
+  participant Turn as useSimpleChatTurn
+  participant IPC as window.lunaCore
+  participant Core as Luna Core api.ts
 
   UI->>Hook: sendMessage(texto)
-  Hook->>Agent: runAgentTurn(ctx)
-  Agent->>Reg: getSchemas()
-  loop ferramentas
-    Agent->>Reg: handler
-    Reg-->>Agent: resultado
-    Bus-->>Bus: agent:tool:*
-  end
-  Agent-->>Hook: resposta final
+  Hook->>Turn: sendMessage(texto)
+  Turn->>IPC: executarPipeline(texto, convId)
+  IPC->>Core: import nativo (dist/entry-desktop.js)
+  Core-->>IPC: ResultadoCompleto (JSON)
+  IPC-->>Turn: resposta + analise + memoria
+  Turn-->>Hook: patch mensagem assistente
+  Hook-->>UI: UI atualizada
 ```
+
+**Arquivos centrais:**
+
+| Arquivo | Papel |
+|---------|--------|
+| `src/features/chat/useSimpleChatTurn.ts` | Turno do chat via Luna Core |
+| `src/features/chat/SimpleChatComposer.tsx` | Composer fixo Luna · PAIA |
+| `src/shell/ChatColumn.tsx` | Layout da coluna de chat |
+| `src/hooks/useConversations.ts` | Fachada React; estado em `src/features/chat/state/` |
+| `electron/main.cjs` | IPC `lunaCore:executarPipeline` |
+| `luna-core/src/cli/api.ts` | CLI JSON (`ambiente: desktop`) |
+
+Legado multi-LLM (`runAgentTurn`, `ChatComposer`, `ModelSelector`) está em `src/_archive/chat-legacy/`.
 
 ## Backend
 
-`POST /v1/tools/invoke` com allowlist carregada de `shared/tool-catalog.json` em `backend/luna/tools/router.py`.
+O servidor Python (`backend/run_server.py`) permanece activo para RAG, memória semântica, visão e **agente IDE/Finanças**. O **chat principal** usa Luna Core via `useSimpleChatTurn`; IDE e Finanças usam `useChatTurn` → `runAgentTurn` (ver [`luna-ide-core-bridge.md`](./luna-ide-core-bridge.md)).
 
-O servidor legado `server/app.cjs` está **obsoleto** — use `backend/run_server.py` (ver README).
+`POST /v1/tools/invoke` com allowlist em `backend/luna/tools/router.py`.
+
+O servidor legado `server/app.cjs` está **obsoleto**.
 
 ## Plugins e MCP
 
@@ -73,10 +87,14 @@ O servidor legado `server/app.cjs` está **obsoleto** — use `backend/run_serve
 - CodeMirror (IDE + blocos no chat) e xterm seguem as vars do tema activo.
 - Splits: `ResizableSplit` + `panelLayoutStorage` (`ratio` + `px` em `localStorage`).
 
+## Integração Luna Core
+
+Ver [`luna-core-integration-roadmap.md`](./luna-core-integration-roadmap.md) para fases, configuração (`LUNA_CORE_PATH`) e legado a deprecar.
+
 ## Tutorial rápido
 
-1. `npm run dev` — sobe Vite, Python e Electron.
-2. Novo chat pela barra lateral ou `Ctrl+N`.
-3. Modo IDE na Activity Bar para editar ficheiros.
-4. Definições → Plugins: confirme o aviso de risco antes de activar extensões.
-5. Para criar um plugin, adicione uma pasta em `.luna/plugins/<id>/` com `plugin.json` válido.
+1. Configurar `LUNA_CORE_PATH` e `.env` do Luna Core (ver README).
+2. `npm run dev` — sobe Vite, Python (opcional) e Electron.
+3. Novo chat pela barra lateral ou `Ctrl+N`.
+4. Modo IDE na Activity Bar para editar ficheiros.
+5. Definições → Plugins: confirme o aviso de risco antes de activar extensões.

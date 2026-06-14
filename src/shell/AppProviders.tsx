@@ -13,11 +13,16 @@ import { registerBuiltinPlugins } from '../plugins/builtin'
 import { mcpToolProvider } from '../core/mcp/McpToolProvider'
 
 import { registerBuiltinUi } from './registerBuiltinUi'
+import { installLunaIdeTrustedBridge } from '../plugins/luna-ide/bridge'
+import { installLunaFinancesTrustedBridge } from '../plugins/luna-finances/bridge'
+import { LunaFileExplorerHost } from '../components/files/LunaFileExplorerHost'
 
 /** Síncrono antes do primeiro render — evita ToolRegistry vazio na UI inicial. */
 registerBuiltinTools()
 registerBuiltinPlugins()
 registerBuiltinUi()
+installLunaIdeTrustedBridge()
+installLunaFinancesTrustedBridge()
 
 type Props = {
   children: ReactNode
@@ -38,7 +43,10 @@ export function AppProviders({ children }: Props) {
 
   return (
     <AuthProvider>
-      <LunaWorkspaceProvider>{children}</LunaWorkspaceProvider>
+      <LunaWorkspaceProvider>
+        {children}
+        <LunaFileExplorerHost />
+      </LunaWorkspaceProvider>
     </AuthProvider>
   )
 

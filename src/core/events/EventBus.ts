@@ -1,3 +1,5 @@
+import type { CloudSyncState } from '../../types/cloudSync'
+
 export type LunaEventMap = {
   'agent:turn:start': { convId: string; assistantMsgId: string }
   'agent:turn:complete': { convId: string; assistantMsgId: string; ok: boolean }
@@ -15,11 +17,16 @@ export type LunaEventMap = {
   'conversation:selected': { id: string }
   'plugin:activated': { pluginId: string }
   'plugin:deactivated': { pluginId: string }
+  'plugin:enabled-changed': { pluginId: string; enabled: boolean }
   'plugin:discover:complete': { count: number }
   'plugin:installed': { pluginId: string }
   'plugin:settings:registered': { pluginId: string }
   'plugin:settings:changed': { pluginId: string; key: string }
   'plugin:shortcut:registered': { pluginId: string; shortcutId: string }
+  'luna-ide:availability': { active: boolean }
+  'luna-finances:availability': { active: boolean }
+  'luna:chat:open': null
+  'finances:sync:complete': { ok: boolean; error?: string }
   'theme:changed': { id: string }
   'auth:signed-in': {
     uid: string
@@ -28,8 +35,22 @@ export type LunaEventMap = {
   }
   'auth:signed-out': Record<string, never>
   'lunar:auth-required': { reason?: string }
+  'lunar:usage-mode-changed': { mode: 'offline' | 'cloud' }
   'lunar:sync:start': Record<string, never>
-  'lunar:sync:complete': { ok: boolean; error?: string }
+  'lunar:sync:complete': {
+    ok: boolean
+    error?: string
+    conversationIds?: string[]
+    folderIds?: string[]
+  }
+  'lunar:sync:hydrate': Record<string, never>
+  'lunar:sync:tick': Record<string, never>
+  'lunar:sync:item': {
+    kind: 'conversation' | 'folder'
+    id: string
+    state: CloudSyncState
+    error?: string
+  }
 }
 
 type Handler<T> = (payload: T) => void

@@ -1,17 +1,20 @@
 import {
-  type KeyboardEvent,
   useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ContextCompactionNotice } from '../components/chat/ContextCompactionNotice'
 import { LunaBadgeNavigationProvider } from '../context/LunaBadgeNavigation'
-import { ActivityBar } from '../components/ActivityBar'
+import { AppSidebar } from './AppSidebar'
 import { AppBootSkeleton } from '../components/AppBootSkeleton'
-import { ChatComposer } from '../components/ChatComposer'
 import { ChatMessageColumn } from '../components/chat/ChatMessageColumn'
+import { ChatSessionHeader } from '../components/ChatSessionHeader'
+import { MainLayout } from './layouts/MainLayout'
+import { ChatColumn } from './ChatColumn'
 import { CommandPalette, type CommandItem } from '../components/CommandPalette'
 import { eventBus } from '../core/events/EventBus'
 import { commandRegistry } from '../core/registry/CommandRegistry'
@@ -19,175 +22,107 @@ import { panelRegistry } from '../core/registry/PanelRegistry'
 import { SIDEBAR_PANEL_IDS } from './registerBuiltinUi'
 import { HistoryPanel } from '../components/HistoryPanel'
 import { MemoriesPanel } from '../components/MemoriesPanel'
-import { dismissOnboarding, readOnboardingDismissed } from '../components/OnboardingCard'
 import { PreferencesView } from '../features/settings/PreferencesView'
 import { ShortcutsHelpModal } from '../components/ShortcutsHelpModal'
-import { StatusBar } from '../components/StatusBar'
-import { ChatSessionToolbar } from '../components/ChatSessionToolbar'
+
+import { ChatShellFooter } from './ChatShellFooter'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
+import { CpfCnpjDialog } from '../ui/CpfCnpjDialog'
 import { ToastHost } from '../components/ui/ToastHost'
-import { isAssistantGenerating } from '../lib/assistantMessageUi'
+import {
+  SIMPLE_CHAT_MODEL_LABEL,
+  SIMPLE_CHAT_PROVIDER_LABEL,
+} from '../features/chat/simpleChatLlmConfig'
+import { useLunaCoreBilling } from '../features/billing/useLunaCoreBilling'
+import { useIdeModelCatalog } from '../features/chat/useIdeModelCatalog'
+import { resolveSelectedOption } from '../lib/llmModelSelection'
 import { downloadConversationMarkdown } from '../lib/exportConversation'
+import {
+  isAssistantGenerating,
+  readAssistantTurnPhase,
+} from '../lib/assistantMessageUi'
 import { TitleBar } from '../components/TitleBar'
-import { ResizableSplit } from '../components/ui/ResizableSplit'
 import { IdeWorkbench } from '../components/ide/IdeWorkbench'
-import { PendingChangesPanel } from '../components/ide/PendingChangesPanel'
 import { BRAND_APP_NAME } from '../brand'
 import { useAppKeyboardShortcuts } from '../hooks/useAppKeyboardShortcuts'
+import { useChatScrollFollow } from '../hooks/useChatScrollFollow'
 import { usePluginKeyboardShortcuts } from '../hooks/usePluginKeyboardShortcuts'
+import { buildWelcomePanel } from '../features/chat/contextualChatWelcome'
+import {
+  getFinancesActiveTab,
+  subscribeFinancesActiveTab,
+} from '../lib/financesUiState'
 import { useConversations } from '../hooks/useConversations'
 import { useServerHealth } from '../hooks/useServerHealth'
-import type { PreparedImageAttachment } from '../lib/imageResize'
-import { bridgeSetWorkbenchLayout } from '../lib/lunaBridge'
-import {
-  readStreamingEnabled,
-  writeStreamingEnabled,
-} from '../lib/llmStreamClient'
-import { themeRegistry } from '../core/registry/ThemeRegistry'
-import {
-  cycleLunaTheme,
-  readStoredThemeId,
-  writeStoredThemeId,
-  type LunaThemeId,
-} from '../lib/lunaThemes'
-import {
-  readWorkbenchMode,
-  writeWorkbenchMode,
-  type LunaWorkbenchMode,
-} from '../lib/workbenchMode'
-import {
-  isHistoryOpen,
-  isMemoriesOpen,
-  toggleSidebarPanel,
-  type SidebarPanel,
-} from '../lib/sidebarPanel'
 import { FileExplorer } from '../components/ide/FileExplorer'
-import { buildContextUsageSnapshot } from '../lib/contextUsageEstimate'
-import { getIdeTurnHost } from '../lib/ideTurnHost'
+import { setComposerDraft } from '../lib/composerDraftStore'
 import { MarketplacePage } from '../features/marketplace/MarketplacePage'
-import { LunarCloudBanner } from '../components/lunar/LunarCloudBanner'
+import { FinancesPage } from '../features/finances/FinancesPage'
 import { LunarGateScreen } from '../features/auth/LunarGateScreen'
 import { useLunaAuth } from '../features/auth/AuthProvider'
-import {
-  readPrimaryView,
-  writePrimaryView,
-  type LunaPrimaryView,
-} from '../lib/primaryView'
+import { useLunaIdeAddon } from '../hooks/useLunaIdeAddon'
+import { useLunaFinancesAddon } from '../hooks/useLunaFinancesAddon'
+import { useAppNavigation } from '../hooks/useAppNavigation'
+import { useComposerDraft } from '../hooks/useComposerDraft'
+import { useAppShellUI } from '../hooks/useAppShellUI'
+import { useLunaWorkspace } from '../context/LunaWorkspaceContext'
+import { useWorkspaceConversationSync } from '../features/ide/useWorkspaceConversationSync'
+import { IdeWorkspaceHeader } from '../components/ide/IdeWorkspaceHeader'
 
 export function AppShell() {
+  const { t } = useTranslation()
   const lunarAuth = useLunaAuth()
-  const openLunarAccount = useCallback(() => {
-    lunarAuth.openGate()
-  }, [lunarAuth])
-  const [draft, setDraft] = useState('')
-  const {
-    hydrated,
-    conversations,
-    folders,
-    activeId,
-    messages,
-    createConversation,
-    selectConversation,
-    deleteConversationById,
-    removeActiveConversation,
-    sendMessage,
-    redoRegenerateAt,
-    canRedoMessage,
-    renameConversation,
-    togglePinConversation,
-    moveConversationToFolder,
-    createFolder,
-    renameFolder,
-    deleteFolder,
-    ragEnabled,
-    setRagEnabled,
-    reasoningEnabled,
-    setReasoningEnabled,
-    personalityId,
-    setPersonality,
-    memoryCrossChatEnabled,
-    setMemoryCrossChatEnabled,
-    memoryConversationSearchEnabled,
-    setConversationSearchEnabled,
-    clearUserProfileMemory,
-    clearActiveConversationMemory,
-    userMemory,
-    deleteMemoryNote,
-    updateMemoryNote,
-    cancelAgentTurn,
-    modelCatalog,
-    selectedModelId,
-    setSelectedModelId,
-    modelCatalogLoading,
-    modelCatalogError,
-  } = useConversations()
-
-  const [attachedImages, setAttachedImages] = useState<PreparedImageAttachment[]>([])
-  const [composerBusy, setComposerBusy] = useState(false)
-  const [sidebarPanel, setSidebarPanel] = useState<SidebarPanel>('none')
-  const [composerMenuOpen, setComposerMenuOpen] = useState(false)
-  const [preferencesOpen, setPreferencesOpen] = useState(false)
-  const [shortcutsOpen, setShortcutsOpen] = useState(false)
-  const [commandOpen, setCommandOpen] = useState(false)
-  /** Força actualizar lista da paleta quando plugins registam comandos (discover é async). */
-  const [commandsRevision, setCommandsRevision] = useState(0)
-  const [editingTitle, setEditingTitle] = useState(false)
-  const [titleDraft, setTitleDraft] = useState('')
-  const [showOnboarding, setShowOnboarding] = useState(() => !readOnboardingDismissed())
-  const [workbenchMode, setWorkbenchMode] = useState<LunaWorkbenchMode>(readWorkbenchMode)
-  const [primaryView, setPrimaryView] = useState<LunaPrimaryView>(readPrimaryView)
-  const [themeId, setThemeId] = useState<LunaThemeId>(() => readStoredThemeId())
-  const [streamingEnabled, setStreamingEnabled] = useState(() =>
-    readStreamingEnabled(),
-  )
-
-  const cycleTheme = useCallback(() => {
-    setThemeId((current) => {
-      const next = cycleLunaTheme(current)
-      writeStoredThemeId(next)
-      themeRegistry.setActive(next)
-      return next
-    })
-  }, [])
-
-  const listRef = useRef<HTMLDivElement>(null)
-  const prevActiveIdRef = useRef<string | null>(activeId)
-  const preferencesOpenRef = useRef(preferencesOpen)
-  preferencesOpenRef.current = preferencesOpen
+  const { active: lunaIdeActive } = useLunaIdeAddon()
+  const { active: lunaFinancesActive } = useLunaFinancesAddon()
   const { serverOk, checking: serverChecking } = useServerHealth()
 
-  const activeConversation = conversations.find((c) => c.id === activeId)
-  const sessionTitle = activeConversation?.title ?? 'Nova conversa'
+  const { hydrated, conv, foldersState, model, memory, sync, buildWelcomeContext } =
+    useConversations()
+  const workspace = useLunaWorkspace()
 
-  const contextUsage = useMemo(
-    () =>
-      activeId
-        ? buildContextUsageSnapshot({
-            workbenchMode,
-            messages,
-            conversationMemory: activeConversation?.memory,
-            userMemory,
-            conversations,
-            convId: activeId,
-            personalityId,
-            draft,
-            ideSnapshot: getIdeTurnHost()?.getSnapshot() ?? null,
-          })
-        : null,
-    [
-      workbenchMode,
-      messages,
-      activeConversation?.memory,
-      userMemory,
-      conversations,
-      activeId,
-      personalityId,
-      draft,
-    ],
-  )
-  const generating = messages.some(
-    (m) => m.role === 'assistant' && isAssistantGenerating(m),
-  )
+  // ── Hooks de estado ────────────────────────────────────────────────────────
+
+  const nav = useAppNavigation({
+    createConversation: conv.createConversation,
+    personalityId: model.personalityId,
+    setPersonality: model.setPersonality,
+    lunaIdeActive,
+    lunaFinancesActive,
+  })
+
+  const composer = useComposerDraft({
+    activeId: conv.activeId,
+    sendMessage: conv.sendMessage,
+    redoRegenerateAt: conv.redoRegenerateAt,
+    canRedoMessage: conv.canRedoMessage,
+  })
+
+  useWorkspaceConversationSync({
+    hydrated,
+    workbenchMode: nav.workbenchMode,
+    workspaceRoot: workspace.workspaceRoot,
+    conversations: conv.conversations,
+    activeId: conv.activeId,
+    activeIdByScope: conv.activeIdByScope,
+    setActiveId: conv.setActiveId,
+    rememberActiveForScope: conv.rememberActiveForScope,
+    pushRecentWorkspace: conv.pushRecentWorkspace,
+    createConversation: conv.createConversation,
+    buildWelcomeContext,
+  })
+
+  const ui = useAppShellUI({ activeId: conv.activeId })
+
+  // ── Estado local ───────────────────────────────────────────────────────────
+
+  const listRef = useRef<HTMLDivElement>(null)
+  const preferencesOpenRef = useRef(ui.preferencesOpen)
+  preferencesOpenRef.current = ui.preferencesOpen
+
+  const [commandsRevision, setCommandsRevision] = useState(0)
+  const [accountInitialTab, setAccountInitialTab] = useState<'conta' | 'planos' | 'cloud'>('conta')
+
+  // ── Efeitos ────────────────────────────────────────────────────────────────
 
   useEffect(() => {
     document.title = BRAND_APP_NAME
@@ -195,628 +130,574 @@ export function AppShell() {
 
   useEffect(() => {
     const bump = () => setCommandsRevision((n) => n + 1)
+    const onForgeCommands = () => bump()
     const unsubs = [
       eventBus.on('plugin:activated', bump),
       eventBus.on('plugin:deactivated', bump),
+      eventBus.on('plugin:enabled-changed', bump),
+      eventBus.on('plugin:installed', bump),
       eventBus.on('plugin:discover:complete', bump),
     ]
-    return () => unsubs.forEach((u) => u())
+    window.addEventListener('luna-forge-commands', onForgeCommands)
+    return () => {
+      unsubs.forEach((u) => u())
+      window.removeEventListener('luna-forge-commands', onForgeCommands)
+    }
   }, [])
 
   useEffect(() => {
-    setDraft('')
-    setAttachedImages([])
-    setEditingTitle(false)
-  }, [activeId])
-
-  useEffect(() => {
-    const el = listRef.current
-    if (!el || messages.length === 0) return
-
-    const switchedConv = prevActiveIdRef.current !== activeId
-    prevActiveIdRef.current = activeId
-
-    const last = messages[messages.length - 1]
-    if (!last) return
-
-    const instant = switchedConv
-    const behavior: ScrollBehavior = instant ? 'auto' : 'smooth'
-
-    const run = (fn: () => void) => {
-      if (instant) fn()
-      else requestAnimationFrame(fn)
+    if (lunaFinancesActive) {
+      globalThis.__lunaTrustedFinances?.registerTools()
     }
+  }, [lunaFinancesActive])
 
-    if (last.role === 'user') {
-      run(() => el.scrollTo({ top: el.scrollHeight, behavior }))
-      return
-    }
+  useChatScrollFollow(listRef, conv.messages, conv.activeId, {
+    enabled:
+      nav.primaryView === 'conversation' && nav.workbenchMode !== 'ide',
+    generating: conv.messages.some((m) => m.role === 'assistant' && isAssistantGenerating(m)),
+  })
 
-    if (last.role === 'assistant') {
-      if (last.text === 'Pensando…') {
-        run(() => el.scrollTo({ top: el.scrollHeight, behavior }))
-        return
-      }
-      const node = el.querySelector(
-        `[data-message-id="${CSS.escape(last.id)}"]`,
-      )
-      run(() =>
-        node?.scrollIntoView({
-          behavior,
-          block: 'start',
-          inline: 'nearest',
-        }),
-      )
-    }
-  }, [messages, activeId])
-
-  const openMemoriesPanel = useCallback(() => {
-    setSidebarPanel('memories')
-  }, [])
+  // ── Funções cruzadas ───────────────────────────────────────────────────────
 
   const closeSidePanels = useCallback(() => {
     const hadPreferences = preferencesOpenRef.current
-    setSidebarPanel('none')
-    setPreferencesOpen(false)
-    setShortcutsOpen(false)
-    setCommandOpen(false)
+    nav.setSidebarPanel('none')
+    ui.setPreferencesOpen(false)
+    ui.setShortcutsOpen(false)
+    ui.setCommandOpen(false)
     if (hadPreferences) {
-      requestAnimationFrame(() => {
-        document.getElementById('msg-input')?.focus()
-      })
+      requestAnimationFrame(() => document.getElementById('msg-input')?.focus())
     }
-  }, [])
-
-  const openConversationView = useCallback(() => {
-    setPrimaryView('conversation')
-    writePrimaryView('conversation')
-  }, [])
-
-  const openMarketplace = useCallback(() => {
-    setPreferencesOpen(false)
-    setSidebarPanel('none')
-    setPrimaryView('marketplace')
-    writePrimaryView('marketplace')
-  }, [])
+  }, [nav, ui])
 
   const openPreferences = useCallback(() => {
-    openConversationView()
-    setSidebarPanel('none')
-    setPreferencesOpen(true)
-  }, [openConversationView])
+    nav.openConversationView()
+    nav.setSidebarPanel('none')
+    ui.setPreferencesOpen(true)
+  }, [nav, ui])
 
   const openPreferencesAddons = useCallback(() => {
-    openConversationView()
-    setPreferencesOpen(false)
-    try {
-      sessionStorage.setItem('luna-preferences-section', 'addons')
-    } catch {
-      /* ignore */
-    }
-    requestAnimationFrame(() => setPreferencesOpen(true))
-  }, [openConversationView])
+    nav.openConversationView()
+    ui.setPreferencesOpen(false)
+    try { sessionStorage.setItem('luna-preferences-section', 'addons') } catch { /* ignore */ }
+    requestAnimationFrame(() => ui.setPreferencesOpen(true))
+  }, [nav, ui])
 
-  const toggleHistory = useCallback(() => {
-    openConversationView()
-    setPreferencesOpen(false)
-    setSidebarPanel((p) => toggleSidebarPanel(p, 'history'))
-  }, [openConversationView])
+  const commitTitleEdit = useCallback(() => {
+    if (!conv.activeId) return
+    conv.renameConversation(conv.activeId, ui.titleDraft)
+    ui.setEditingTitle(false)
+  }, [conv.activeId, conv.renameConversation, ui])
 
-  const toggleMemories = useCallback(() => {
-    openConversationView()
-    setPreferencesOpen(false)
-    setSidebarPanel((p) => toggleSidebarPanel(p, 'memories'))
-  }, [openConversationView])
+  const handleRedoMessage = useCallback(
+    (id: string) => {
+      void composer.handleRedoMessage(id)
+    },
+    [composer.handleRedoMessage],
+  )
 
-  const handleWorkbenchModeChange = useCallback((mode: LunaWorkbenchMode) => {
-    openConversationView()
-    setWorkbenchMode(mode)
-    writeWorkbenchMode(mode)
-    void bridgeSetWorkbenchLayout(mode)
-  }, [openConversationView])
+  const handleStarterPick = useCallback((text: string) => {
+    setComposerDraft(text)
+    focusComposer()
+  }, [])
 
-  async function handleSend() {
-    const text = draft.trim()
-    if ((!text && attachedImages.length === 0) || composerBusy) return
-    setComposerBusy(true)
-    setDraft('')
-    const imgs = [...attachedImages]
-    setAttachedImages([])
-    const safetyMs = 240_000
-    const safety = window.setTimeout(() => setComposerBusy(false), safetyMs)
-    try {
-      await sendMessage(text, imgs.length ? imgs : undefined)
-    } finally {
-      window.clearTimeout(safety)
-      setComposerBusy(false)
-    }
-  }
-
-  async function handleRedoMessage(messageId: string) {
-    if (composerBusy || !canRedoMessage(messageId)) return
-    setComposerBusy(true)
-    const safetyMs = 240_000
-    const safety = window.setTimeout(() => setComposerBusy(false), safetyMs)
-    try {
-      await redoRegenerateAt(messageId)
-    } finally {
-      window.clearTimeout(safety)
-      setComposerBusy(false)
-    }
-  }
-
-  function handleKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
-    if (composerBusy) return
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      void handleSend()
-    }
-  }
+  const handleComposerSend = useCallback(() => {
+    void composer.handleSend()
+  }, [composer.handleSend])
 
   function focusComposer() {
     document.getElementById('msg-input')?.focus()
   }
 
-  function focusCurrentChat() {
-    setSidebarPanel('none')
-    requestAnimationFrame(() => {
-      const el = listRef.current
-      const last = messages[messages.length - 1]
-      if (el && last?.role === 'assistant' && last.text !== 'Pensando…') {
-        el
-          .querySelector(`[data-message-id="${CSS.escape(last.id)}"]`)
-          ?.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'nearest' })
-      } else if (el) {
-        el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
-      }
-      focusComposer()
-    })
-  }
+  // ── Valores derivados ──────────────────────────────────────────────────────
 
-  const commitTitleEdit = useCallback(() => {
-    if (!activeId) return
-    renameConversation(activeId, titleDraft)
-    setEditingTitle(false)
-  }, [activeId, renameConversation, titleDraft])
+  const activeConversation = conv.conversations.find((c) => c.id === conv.activeId)
+  const sessionTitle = activeConversation?.title ?? 'Nova conversa'
+  const chatSideLayout = nav.workbenchMode === 'ide' || nav.primaryView === 'finances'
+  const financesAgentMode = nav.primaryView === 'finances'
+  const lunaCoreUiMode =
+    nav.workbenchMode === 'chat' || nav.workbenchMode === 'ide'
+  const lunaBilling = useLunaCoreBilling()
+  const billingOverdueAlert = lunarAuth.billingOverdue
+    ? 'Pagamento em atraso — actualiza na Asaas para manter o teu plano.'
+    : null
 
-  const composerProps = {
-    draft,
-    onChange: setDraft,
-    onSend: () => void handleSend(),
-    onKeyDown: handleKeyDown,
-    composerBusy,
-    menuOpen: composerMenuOpen,
-    onMenuOpenChange: setComposerMenuOpen,
-    attachedImages,
-    onAttachedImagesChange: setAttachedImages,
-    memoryCrossChatEnabled,
-    onMemoryCrossChatToggle: () =>
-      setMemoryCrossChatEnabled(!memoryCrossChatEnabled),
-    memoryConversationSearchEnabled,
-    onMemoryConversationSearchToggle: () =>
-      setConversationSearchEnabled(!memoryConversationSearchEnabled),
-    onClearUserProfileMemory: clearUserProfileMemory,
-    onClearConversationMemory: clearActiveConversationMemory,
-    onLimpar: () => {
-      removeActiveConversation()
-      setComposerMenuOpen(false)
+  const usageQuotaAlert = billingOverdueAlert
+    ?? (lunaCoreUiMode && lunaBilling.planId !== 'byok'
+      ? lunaBilling.usageAlertMessage
+      : null)
+  const usageQuotaAlertLevel = billingOverdueAlert
+    ? 'warn90'
+    : lunaCoreUiMode && lunaBilling.planId !== 'byok' && lunaBilling.usageAlertLevel !== 'none'
+      ? lunaBilling.usageAlertLevel
+      : undefined
+  const financesModel = useIdeModelCatalog(financesAgentMode)
+  const financesModelLabel = useMemo(() => {
+    if (!financesAgentMode) return undefined
+    const opt = resolveSelectedOption(
+      financesModel.modelCatalog,
+      financesModel.selectedModelId,
+    )
+    return opt ? `${opt.provider} · ${opt.label}` : 'Luna · Agente'
+  }, [financesAgentMode, financesModel.modelCatalog, financesModel.selectedModelId])
+
+  const financesActiveTab = useSyncExternalStore(
+    subscribeFinancesActiveTab,
+    getFinancesActiveTab,
+    getFinancesActiveTab,
+  )
+
+  const welcomeVariant =
+    nav.primaryView === 'finances' ? 'finances' : nav.workbenchMode === 'ide' ? 'ide' : 'chat'
+
+  const hasUserMessages = conv.messages.some((m) => m.role === 'user')
+
+  const welcomePanel = useMemo(
+    () => {
+      if (hasUserMessages) return null
+      return buildWelcomePanel({
+        conversation: activeConversation ?? null,
+        conversations: conv.conversations,
+        folders: foldersState.folders,
+        userMemory: memory.userMemory,
+        cloudSyncAvailable: sync.cloudSyncAvailable,
+        variant: welcomeVariant,
+      })
     },
-    modelCatalog,
-    selectedModelId,
-    onModelChange: setSelectedModelId,
-    modelCatalogLoading,
-    modelCatalogError,
-    ideMode: workbenchMode === 'ide',
-    onShowShortcutsHelp: () => setShortcutsOpen(true),
-    onExportConversation: activeConversation
-      ? () => downloadConversationMarkdown(activeConversation)
-      : undefined,
-    onOpenSettings: openPreferences,
-    onOpenMarketplace: openMarketplace,
-    onStop: cancelAgentTurn,
-  }
+    [
+      hasUserMessages,
+      activeConversation,
+      conv.conversations,
+      foldersState.folders,
+      memory.userMemory,
+      sync.cloudSyncAvailable,
+      welcomeVariant,
+      financesActiveTab,
+    ],
+  )
+
+  const generating = conv.messages.some(
+    (m) => m.role === 'assistant' && isAssistantGenerating(m),
+  )
+
+  const generatingPhaseMessage = [...conv.messages]
+    .reverse()
+    .find((m) => m.role === 'assistant' && isAssistantGenerating(m))
+
+  const workingPhase = useMemo(() => {
+    if (!generatingPhaseMessage) return undefined
+    return readAssistantTurnPhase(generatingPhaseMessage)
+  }, [generatingPhaseMessage])
+
+  const composerWorkingLabel = useMemo(() => {
+    if (!workingPhase) return undefined
+    return t(`chatTurn.phase_${workingPhase}`)
+  }, [workingPhase, t])
+
+  // ── Paleta de comandos ─────────────────────────────────────────────────────
 
   const commandItems: CommandItem[] = useMemo(() => {
     const builtin: CommandItem[] = [
-      {
-        id: 'new-chat',
-        label: 'Nova conversa',
-        keywords: 'criar',
-        run: () => createConversation(),
-      },
-      {
-        id: 'toggle-ide',
-        label: workbenchMode === 'ide' ? 'Modo Chat' : 'Modo IDE',
-        keywords: 'workbench',
-        run: () =>
-          handleWorkbenchModeChange(workbenchMode === 'ide' ? 'chat' : 'ide'),
-      },
-      {
-        id: 'history',
-        label: isHistoryOpen(sidebarPanel)
-          ? 'Fechar histórico'
-          : 'Abrir histórico',
-        run: toggleHistory,
-      },
-      {
-        id: 'memories',
-        label: isMemoriesOpen(sidebarPanel)
-          ? 'Fechar memórias'
-          : 'Abrir memórias',
-        run: toggleMemories,
-      },
-      {
-        id: 'marketplace',
-        label: 'Abrir Marketplace',
-        keywords: 'loja addons plugins extensões',
-        run: openMarketplace,
-      },
-      {
-        id: 'settings',
-        label: 'Definições',
-        run: () => openPreferences(),
-      },
-      {
-        id: 'export',
-        label: 'Exportar conversa (Markdown)',
-        run: () => {
-          if (activeConversation) downloadConversationMarkdown(activeConversation)
-        },
-      },
+      { id: 'new-chat', label: t('commands.new_chat'), keywords: 'criar new', run: () => nav.startNewConversation() },
+      { id: 'history', label: nav.isHistoryPanelOpen ? t('commands.close_history') : t('commands.open_history'), run: nav.toggleHistory },
+      { id: 'memories', label: nav.isMemoriesPanelOpen ? t('commands.close_memories') : t('commands.open_memories'), run: nav.toggleMemories },
+      { id: 'marketplace', label: t('commands.open_marketplace'), keywords: 'loja addons plugins extensões store', run: nav.openMarketplace },
+      { id: 'settings', label: t('commands.settings'), run: openPreferences },
+      { id: 'export', label: t('commands.export'), run: () => { if (activeConversation) downloadConversationMarkdown(activeConversation) } },
     ]
-    const fromRegistry = commandRegistry.list().map((c) => ({
-      id: c.id,
-      label: c.label,
-      keywords: c.keywords,
-      run: c.run,
-    }))
+    const fromRegistry = commandRegistry.list().map((c) => ({ id: c.id, label: c.label, keywords: c.keywords, run: c.run }))
     return [...builtin, ...fromRegistry]
   }, [
-    workbenchMode,
-    sidebarPanel,
+    t,
+    nav.isHistoryPanelOpen,
+    nav.isMemoriesPanelOpen,
     activeConversation,
-    toggleHistory,
-    toggleMemories,
-    createConversation,
-    handleWorkbenchModeChange,
+    nav.toggleHistory,
+    nav.toggleMemories,
+    nav.startNewConversation,
+    nav.openMarketplace,
     openPreferences,
-    openMarketplace,
-    commandOpen,
+    ui.commandOpen,
     commandsRevision,
   ])
 
-  usePluginKeyboardShortcuts(!preferencesOpen)
+  // ── Atalhos de teclado ─────────────────────────────────────────────────────
+
+  usePluginKeyboardShortcuts(!ui.preferencesOpen)
 
   useAppKeyboardShortcuts({
-    onSend: () => void handleSend(),
-    onNewConversation: () => createConversation(),
-    onToggleHistory: toggleHistory,
-    onToggleMemories: toggleMemories,
-    onToggleWorkbench: () =>
-      handleWorkbenchModeChange(workbenchMode === 'ide' ? 'chat' : 'ide'),
-    onOpenCommandPalette: () => setCommandOpen(true),
+    onSend: () => void composer.handleSend(),
+    onNewConversation: () => nav.startNewConversation(),
+    onToggleHistory: nav.toggleHistory,
+    onToggleMemories: nav.toggleMemories,
+    onOpenCommandPalette: () => ui.setCommandOpen(true),
     onOpenPreferences: openPreferences,
-    onOpenShortcutsHelp: () => setShortcutsOpen(true),
-    onCycleTheme: cycleTheme,
+    onOpenShortcutsHelp: () => ui.setShortcutsOpen(true),
+    onCycleTheme: ui.cycleTheme,
     onCloseOverlays: closeSidePanels,
-    composerBusy,
-    workbenchMode,
+    composerBusy: composer.composerBusy,
   })
 
-  const headerBlock = (compact: boolean) => (
-    <header
-      className={`shrink-0 border-b border-line-subtle bg-sidebar/90 backdrop-blur-sm ${compact ? 'px-2 py-2' : 'px-3 py-3 sm:px-4'}`}
-    >
-      <div
-        className={
-          compact
-            ? 'flex flex-col gap-1'
-            : 'mx-auto flex max-w-3xl flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between'
-        }
-      >
-        <div className="min-w-0 flex-1">
-          {editingTitle ? (
-            <input
-              value={titleDraft}
-              onChange={(e) => setTitleDraft(e.target.value)}
-              onBlur={commitTitleEdit}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  commitTitleEdit()
-                }
-                if (e.key === 'Escape') setEditingTitle(false)
-              }}
-              className="w-full rounded border border-line bg-canvas px-2 py-1 text-title font-semibold text-fg focus:outline-none focus:ring-1 focus:ring-focus"
-              autoFocus
-              maxLength={120}
-              aria-label="Renomear conversa"
-            />
-          ) : (
-            <h1
-              className={`line-clamp-2 font-semibold text-fg ${compact ? 'text-body' : 'text-title leading-snug tracking-tight'}`}
-              onDoubleClick={() => {
-                setTitleDraft(sessionTitle)
-                setEditingTitle(true)
-              }}
-              title="Duplo-clique para renomear"
-            >
-              {sessionTitle}
-            </h1>
-          )}
-          {!compact ? (
-            <p className="mt-0.5 truncate text-ui text-fg-muted">
-              Assistente {BRAND_APP_NAME}
-            </p>
-          ) : null}
-        </div>
-        <div className="flex flex-wrap items-center gap-1">
-          {activeConversation ? (
-            <button
-              type="button"
-              className="luna-btn-secondary px-2 py-1"
-              onClick={() => downloadConversationMarkdown(activeConversation)}
-              title="Exportar conversa"
-            >
-              Exportar
-            </button>
-          ) : null}
-          <ChatSessionToolbar
-            reasoningEnabled={reasoningEnabled}
-            onReasoningChange={setReasoningEnabled}
-            personalityId={personalityId}
-            onPersonalityChange={setPersonality}
-            onNewConversation={() => createConversation()}
-            onOpenSettings={openPreferences}
-            onOpenLunarAccount={openLunarAccount}
-            disabled={composerBusy}
-          />
-        </div>
-      </div>
-    </header>
-  )
+  // ── Painéis laterais ───────────────────────────────────────────────────────
 
-  const messageList = (
-    <>
-      <ChatMessageColumn
-        variant={workbenchMode === 'ide' ? 'ide' : 'chat'}
-        listRef={listRef}
-        messages={messages}
-        memoryNotes={userMemory.memoryNotes}
-        composerBusy={composerBusy}
-        generating={generating}
-        canRedoMessage={canRedoMessage}
-        onRedoMessage={(id) => void handleRedoMessage(id)}
-        onStarterPick={(text) => {
-          setDraft(text)
-          focusComposer()
-        }}
-        showOnboarding={showOnboarding && workbenchMode === 'chat'}
-        onDismissOnboarding={() => {
-          dismissOnboarding()
-          setShowOnboarding(false)
-        }}
-      />
-    </>
-  )
-
-  const chatColumn = (
-    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-canvas">
-      <div className="shrink-0">{headerBlock(workbenchMode === 'ide')}</div>
-      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-        {activeId && activeConversation?.memory?.summarizedThroughMessageId ? (
-          <div className="shrink-0 px-3 pt-2">
-            <ContextCompactionNotice
-              conversationId={activeId}
-              summarizedThroughMessageId={
-                activeConversation.memory.summarizedThroughMessageId
-              }
-              onClearConversationMemory={clearActiveConversationMemory}
-            />
-          </div>
-        ) : null}
-        {messageList}
-      </div>
-      <div className="shrink-0">
-        {workbenchMode === 'ide' ? <PendingChangesPanel variant="chat" /> : null}
-        <LunarCloudBanner />
-        <ChatComposer {...composerProps} />
-        <StatusBar
-          workbenchMode={workbenchMode}
-          modelCatalog={modelCatalog}
-          selectedModelId={selectedModelId}
-          serverOk={serverOk}
-          serverChecking={serverChecking}
-          contextUsage={contextUsage}
-          onOpenLunarAccount={openLunarAccount}
-        />
-      </div>
-    </div>
-  )
-
-  const preferencesShared = {
-    disabled: composerBusy,
-    themeId,
-    onThemeChange: setThemeId,
-    streamingEnabled,
-    onStreamingChange: (enabled: boolean) => {
-      writeStreamingEnabled(enabled)
-      setStreamingEnabled(enabled)
-    },
-    ragEnabled,
-    onRagEnabledChange: setRagEnabled,
-    reasoningEnabled,
-    onReasoningChange: setReasoningEnabled,
-    personalityId,
-    onPersonalityChange: setPersonality,
-    memoryCrossChatEnabled,
-    onMemoryCrossChatToggle: () =>
-      setMemoryCrossChatEnabled(!memoryCrossChatEnabled),
-    memoryConversationSearchEnabled,
-    onMemoryConversationSearchToggle: () =>
-      setConversationSearchEnabled(!memoryConversationSearchEnabled),
-    onOpenMarketplace: openMarketplace,
-  }
-
-  const historyPanelNode =
-    panelRegistry.get(SIDEBAR_PANEL_IDS[0]) ? (
+  const historyPanelNode = useMemo(() => {
+    if (!panelRegistry.get(SIDEBAR_PANEL_IDS[0])) return null
+    const ideScope = nav.workbenchMode === 'ide'
+    return (
       <HistoryPanel
         embedded
         open
-        conversations={conversations}
-        folders={folders}
-        activeId={activeId}
+        conversations={conv.conversations}
+        folders={foldersState.folders}
+        activeId={conv.activeId}
+        conversationScope={
+          ideScope
+            ? { mode: 'ide', workspaceRoot: workspace.workspaceRoot }
+            : { mode: 'chat' }
+        }
+        flatList={ideScope}
+        header={
+          ideScope ? (
+            <IdeWorkspaceHeader
+              workspaceRoot={workspace.workspaceRoot}
+              conversations={conv.conversations}
+            />
+          ) : undefined
+        }
         onSelect={(id) => {
-          selectConversation(id)
-          if (workbenchMode === 'chat') closeSidePanels()
+          conv.selectConversation(id)
         }}
-        onDelete={deleteConversationById}
+        onDelete={conv.deleteConversationById}
         onNewConversation={(inFolderId) =>
-          createConversation(
+          nav.startNewConversation(
             inFolderId ? { folderId: inFolderId } : undefined,
           )
         }
-        onRenameConversation={renameConversation}
-        onMoveConversation={moveConversationToFolder}
-        onCreateFolder={createFolder}
-        onRenameFolder={renameFolder}
-        onDeleteFolder={deleteFolder}
-        onTogglePin={togglePinConversation}
+        onRenameConversation={conv.renameConversation}
+        onMoveConversation={conv.moveConversationToFolder}
+        onSetConversationTags={conv.setConversationTags}
+        onCreateFolder={foldersState.createFolder}
+        onRenameFolder={foldersState.renameFolder}
+        onUpdateFolder={foldersState.updateFolder}
+        onDeleteFolder={foldersState.deleteFolder}
+        onTogglePin={conv.togglePinConversation}
+        cloudSyncAvailable={sync.cloudSyncAvailable}
+        onSetConversationCloudEnabled={sync.setConversationCloudEnabled}
+        onSetFolderCloudEnabled={sync.setFolderCloudEnabled}
         onClose={closeSidePanels}
       />
-    ) : null
+    )
+  }, [
+    conv.conversations,
+    conv.activeId,
+    conv.selectConversation,
+    conv.deleteConversationById,
+    conv.renameConversation,
+    conv.moveConversationToFolder,
+    conv.setConversationTags,
+    conv.togglePinConversation,
+    foldersState.folders,
+    foldersState.createFolder,
+    foldersState.renameFolder,
+    foldersState.updateFolder,
+    foldersState.deleteFolder,
+    sync.cloudSyncAvailable,
+    sync.setConversationCloudEnabled,
+    sync.setFolderCloudEnabled,
+    nav.workbenchMode,
+    workspace.workspaceRoot,
+    closeSidePanels,
+    nav.startNewConversation,
+  ])
 
-  const memoriesPanelNode =
-    panelRegistry.get(SIDEBAR_PANEL_IDS[1]) ? (
-      <MemoriesPanel
-        embedded
-        open
-        notes={userMemory.memoryNotes ?? []}
-        memoryUi={userMemory.memoryUi}
-        onDeleteNote={deleteMemoryNote}
-        onUpdateNote={updateMemoryNote}
-        onClose={closeSidePanels}
-      />
-    ) : null
+  const memoriesPanelNode = panelRegistry.get(SIDEBAR_PANEL_IDS[1]) ? (
+    <MemoriesPanel
+      embedded
+      open
+      notes={memory.userMemory.memoryNotes ?? []}
+      memoryUi={memory.userMemory.memoryUi}
+      onDeleteNote={memory.deleteMemoryNote}
+      onUpdateNote={memory.updateMemoryNote}
+      onClose={closeSidePanels}
+    />
+  ) : null
 
-  const sidebarOpen =
-    isHistoryOpen(sidebarPanel) || isMemoriesOpen(sidebarPanel)
+  // ── Coluna de chat (sempre Luna) ───────────────────────────────────────────
 
-  if (!hydrated) {
-    return <AppBootSkeleton />
-  }
+  const chatColumnVariant =
+    nav.primaryView === 'finances' ? 'finances' : chatSideLayout ? 'ide' : 'chat'
+
+  const chatColumn = useMemo(
+    () => (
+    <ChatColumn
+      header={
+        <ChatSessionHeader
+          compact={chatSideLayout}
+          sessionTitle={sessionTitle}
+          editingTitle={ui.editingTitle}
+          titleDraft={ui.titleDraft}
+          onTitleDraftChange={ui.setTitleDraft}
+          onCommit={commitTitleEdit}
+          onCancel={() => ui.setEditingTitle(false)}
+          onDoubleClick={() => { ui.setTitleDraft(sessionTitle); ui.setEditingTitle(true) }}
+          personalityId={model.personalityId}
+          onPersonalityChange={model.setPersonality}
+          onNewConversation={() => nav.startNewConversation()}
+          onExportConversation={activeConversation ? () => downloadConversationMarkdown(activeConversation) : undefined}
+          disabled={composer.composerBusy}
+        />
+      }
+      compactionBanner={
+        conv.activeId && activeConversation?.memory?.summarizedThroughMessageId ? (
+          <ContextCompactionNotice
+            conversationId={conv.activeId}
+            summarizedThroughMessageId={activeConversation.memory.summarizedThroughMessageId}
+            onClearConversationMemory={conv.clearActiveConversationMemory}
+          />
+        ) : undefined
+      }
+      messages={
+        <ChatMessageColumn
+          variant={chatColumnVariant}
+          listRef={listRef}
+          messages={conv.messages}
+          memoryNotes={memory.userMemory.memoryNotes}
+          composerBusy={composer.composerBusy}
+          generating={generating}
+          canRedoMessage={conv.canRedoMessage}
+          onRedoMessage={handleRedoMessage}
+          welcomeContext={welcomePanel}
+          onOpenConversation={conv.selectConversation}
+          onStarterPick={handleStarterPick}
+          showOnboarding={ui.showOnboarding && nav.workbenchMode === 'chat'}
+          onDismissOnboarding={ui.dismissShowOnboarding}
+        />
+      }
+      footer={
+        <ChatShellFooter
+          showPendingChanges={
+            nav.workbenchMode === 'ide' && nav.primaryView !== 'finances'
+          }
+          onSend={handleComposerSend}
+          onKeyDown={composer.handleKeyDown}
+          composerBusy={composer.composerBusy}
+          workingLabel={composerWorkingLabel}
+          workingPhase={workingPhase}
+          onStop={conv.cancelAgentTurn}
+          reasoningEnabled={model.reasoningEnabled}
+          onReasoningChange={model.setReasoningEnabled}
+          modelLabel={
+            financesAgentMode
+              ? financesModelLabel
+              : lunaCoreUiMode
+                ? `${SIMPLE_CHAT_PROVIDER_LABEL} · ${SIMPLE_CHAT_MODEL_LABEL}`
+                : undefined
+          }
+          reasoningUnsupportedMsg={
+            lunaCoreUiMode
+              ? 'O raciocínio vem do pipeline Luna Core — este toggle será removido em breve.'
+              : undefined
+          }
+          workbenchMode={nav.workbenchMode}
+          primaryView={nav.primaryView}
+          serverOk={serverOk}
+          serverChecking={serverChecking}
+          activeId={conv.activeId}
+          messages={conv.messages}
+          conversations={conv.conversations}
+          conversationMemory={activeConversation?.memory}
+          userMemory={memory.userMemory}
+          personalityId={model.personalityId}
+          financesAgentMode={financesAgentMode}
+          modelCatalog={financesModel.modelCatalog}
+          selectedModelId={financesModel.selectedModelId}
+          fixedModelLabel={
+            lunaCoreUiMode
+              ? `${SIMPLE_CHAT_PROVIDER_LABEL} · ${SIMPLE_CHAT_MODEL_LABEL}`
+              : undefined
+          }
+          onOpenLunarAccount={() => { setAccountInitialTab('conta'); lunarAuth.openGate() }}
+          onOpenBilling={() => { setAccountInitialTab('planos'); lunarAuth.openGate() }}
+          usageQuotaAlert={usageQuotaAlert}
+          usageQuotaAlertLevel={usageQuotaAlertLevel}
+        />
+      }
+    />
+  ),
+  [
+    chatSideLayout,
+    sessionTitle,
+    ui.editingTitle,
+    ui.titleDraft,
+    commitTitleEdit,
+    ui.setTitleDraft,
+    ui.setEditingTitle,
+    model.personalityId,
+    model.setPersonality,
+    nav.startNewConversation,
+    activeConversation,
+    conv.activeId,
+    conv.messages,
+    conv.conversations,
+    conv.canRedoMessage,
+    conv.clearActiveConversationMemory,
+    conv.cancelAgentTurn,
+    conv.selectConversation,
+    memory.userMemory.memoryNotes,
+    composer.composerBusy,
+    composer.handleKeyDown,
+    handleComposerSend,
+    generating,
+    handleRedoMessage,
+    welcomePanel,
+    handleStarterPick,
+    ui.showOnboarding,
+    nav.workbenchMode,
+    ui.dismissShowOnboarding,
+    chatColumnVariant,
+    composerWorkingLabel,
+    workingPhase,
+    model.reasoningEnabled,
+    model.setReasoningEnabled,
+    financesAgentMode,
+    financesModelLabel,
+    lunaCoreUiMode,
+    lunaBilling.planId,
+    usageQuotaAlert,
+    usageQuotaAlertLevel,
+    nav.primaryView,
+    serverOk,
+    serverChecking,
+    activeConversation?.memory,
+    financesModel.modelCatalog,
+    financesModel.selectedModelId,
+    lunarAuth.openGate,
+  ],
+  )
+
+  // ── Render guard ───────────────────────────────────────────────────────────
+
+  if (!hydrated) return <AppBootSkeleton />
+
+  // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <>
       {lunarAuth.gateOpen ? (
-        <LunarGateScreen onClose={() => lunarAuth.closeGate()} />
+        <LunarGateScreen
+          initialTab={accountInitialTab}
+          onClose={() => { lunarAuth.closeGate(); setAccountInitialTab('conta') }}
+        />
       ) : null}
       <ToastHost />
       <ConfirmDialog />
-      <ShortcutsHelpModal open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
+      <CpfCnpjDialog />
+      <ShortcutsHelpModal open={ui.shortcutsOpen} onClose={() => ui.setShortcutsOpen(false)} />
       <CommandPalette
-        open={commandOpen}
-        onClose={() => setCommandOpen(false)}
+        open={ui.commandOpen}
+        onClose={() => ui.setCommandOpen(false)}
         commands={commandItems}
       />
-      <div className="flex h-screen flex-col overflow-hidden bg-canvas">
-        <TitleBar />
 
-        <div className="flex min-h-0 flex-1">
-          <LunaBadgeNavigationProvider
-            listRef={listRef}
-            onOpenMemories={openMemoriesPanel}
-            onCloseSidePanels={closeSidePanels}
-          >
-            <div className="flex h-full min-h-0 min-w-0 flex-1 overflow-hidden">
-            <ActivityBar
-              workbenchMode={workbenchMode}
-              primaryView={primaryView}
-              onWorkbenchModeChange={handleWorkbenchModeChange}
-              onOpenMarketplace={openMarketplace}
-              onOpenConversation={openConversationView}
-              sidebarPanel={sidebarPanel}
-              onToggleHistory={toggleHistory}
-              onToggleMemories={toggleMemories}
-              preferencesOpen={preferencesOpen}
-              onTogglePreferences={() => {
-                if (preferencesOpen) setPreferencesOpen(false)
-                else openPreferences()
-              }}
-              onNewChat={() => {
-                openConversationView()
-                createConversation()
-              }}
-              onFocusCurrentChat={() => {
-                openConversationView()
-                focusCurrentChat()
-              }}
-              onOpenLunarAccount={openLunarAccount}
-            />
-
-            <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-              {primaryView === 'marketplace' ? (
-                <MarketplacePage onManageAddons={openPreferencesAddons} />
-              ) : workbenchMode === 'ide' ? (
-                <IdeWorkbench
-                  chatPanel={chatColumn}
-                  sidebarPanel={sidebarPanel}
-                  onSidebarPanelChange={setSidebarPanel}
-                  filesPanel={<FileExplorer />}
-                  historyPanel={historyPanelNode ?? <div />}
-                  memoriesPanel={memoriesPanelNode ?? <div />}
-                />
-              ) : (
-              <ResizableSplit
-                className="h-full min-h-0 min-w-0 flex-1"
-                storageKey="chat-sidebar"
-                defaultLeadingSize={288}
-                minLeading={220}
-                minTrailing={320}
-                resizable={sidebarOpen}
-                leadingSize={sidebarOpen ? undefined : 0}
-                leading={
-                  isHistoryOpen(sidebarPanel) && historyPanelNode ? (
-                    historyPanelNode
-                  ) : isMemoriesOpen(sidebarPanel) && memoriesPanelNode ? (
-                    memoriesPanelNode
-                  ) : (
-                    <div />
-                  )
-                }
-                trailing={
-                  <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col bg-canvas">
-                    {chatColumn}
-                  </div>
-                }
+      <LunaBadgeNavigationProvider
+        listRef={listRef}
+        onOpenMemories={nav.openMemoriesPanel}
+        onOpenHistory={nav.openHistoryPanel}
+        onCloseSidePanels={closeSidePanels}
+      >
+        <MainLayout
+          compact={
+            lunaIdeActive &&
+            nav.workbenchMode === 'ide' &&
+            Boolean(workspace.workspaceRoot?.trim())
+          }
+          titleBar={<TitleBar />}
+          sidebar={
+            /* Sidebar sempre visível — exceto no modo IDE (layout próprio) */
+            nav.workbenchMode !== 'ide' ? (
+              <AppSidebar
+                primaryView={nav.primaryView}
+                workbenchMode={nav.workbenchMode}
+                ideAddonActive={lunaIdeActive}
+                financesAddonActive={lunaFinancesActive}
+                sidebarPanel={nav.sidebarPanel}
+                historyPanel={historyPanelNode ?? <div />}
+                memoriesPanel={memoriesPanelNode ?? <div />}
+                onNewConversation={() => { nav.openConversationView(); nav.startNewConversation() }}
+                onWorkbenchModeChange={nav.handleWorkbenchModeChange}
+                onOpenMarketplace={nav.openMarketplace}
+                onOpenFinances={nav.openFinances}
+                onOpenConversation={nav.openConversationView}
+                onOpenAccount={() => lunarAuth.openGate()}
+                onTogglePreferences={() => {
+                  if (ui.preferencesOpen) ui.setPreferencesOpen(false)
+                  else openPreferences()
+                }}
+                preferencesOpen={ui.preferencesOpen}
+                onShowHistory={() => nav.setSidebarPanel('history')}
+                onShowMemories={() => nav.setSidebarPanel('memories')}
               />
-              )}
+            ) : undefined
+          }
+        >
+          {nav.primaryView === 'marketplace' ? (
+            <MarketplacePage onManageAddons={openPreferencesAddons} />
+          ) : nav.primaryView === 'finances' ? (
+            <FinancesPage chatPanel={chatColumn} />
+          ) : lunaIdeActive && nav.workbenchMode === 'ide' ? (
+            <IdeWorkbench
+              chatPanel={chatColumn}
+              filesPanel={<FileExplorer />}
+              historyPanel={historyPanelNode ?? <div />}
+              memoriesPanel={memoriesPanelNode ?? <div />}
+              recentWorkspaces={conv.recentWorkspaces}
+              conversations={conv.conversations}
+              onSwitchToChat={() => { nav.openConversationView(); nav.handleWorkbenchModeChange('chat') }}
+            />
+          ) : (
+            chatColumn
+          )}
 
-              {preferencesOpen ? (
-                <div
-                  className="luna-overlay-enter absolute inset-0 z-40 flex flex-col bg-canvas shadow-2xl"
-                  role="dialog"
-                  aria-modal="true"
-                  aria-label="Definições"
-                >
-                  <PreferencesView
-                    {...preferencesShared}
-                    onOpenMarketplace={openMarketplace}
-                    workbenchMode={workbenchMode}
-                    onClose={() => {
-                      setPreferencesOpen(false)
-                      requestAnimationFrame(() => {
-                        document.getElementById('msg-input')?.focus()
-                      })
-                    }}
-                  />
-                </div>
-              ) : null}
-            </div>
-            </div>
-          </LunaBadgeNavigationProvider>
-        </div>
-      </div>
+        </MainLayout>
+      </LunaBadgeNavigationProvider>
+
+      {ui.preferencesOpen ? (
+        <>
+          {/* Scrim blocks pointer events on content behind the panel */}
+          <div className="fixed inset-0 z-[48] bg-black/30" aria-hidden />
+          <div
+            className="luna-overlay-enter luna-surface-panel fixed inset-0 z-[49] m-2 flex flex-col overflow-hidden"
+            role="dialog"
+            aria-modal="true"
+            aria-label={t('shell.settings')}
+          >
+            <PreferencesView
+              disabled={composer.composerBusy}
+              themeId={ui.themeId}
+              onThemeChange={ui.setThemeId}
+              streamingEnabled={ui.streamingEnabled}
+              onStreamingChange={ui.setStreamingEnabled}
+              ragEnabled={model.ragEnabled}
+              onRagEnabledChange={model.setRagEnabled}
+              reasoningEnabled={model.reasoningEnabled}
+              onReasoningChange={model.setReasoningEnabled}
+              personalityId={model.personalityId}
+              onPersonalityChange={model.setPersonality}
+              memoryCrossChatEnabled={memory.memoryCrossChatEnabled}
+              onMemoryCrossChatToggle={() => memory.setMemoryCrossChatEnabled(!memory.memoryCrossChatEnabled)}
+              memoryConversationSearchEnabled={memory.memoryConversationSearchEnabled}
+              onMemoryConversationSearchToggle={() =>
+                memory.setConversationSearchEnabled(!memory.memoryConversationSearchEnabled)}
+              onOpenMarketplace={nav.openMarketplace}
+              workbenchMode={nav.workbenchMode}
+              onClose={() => {
+                ui.setPreferencesOpen(false)
+                requestAnimationFrame(() => document.getElementById('msg-input')?.focus())
+              }}
+            />
+          </div>
+        </>
+      ) : null}
     </>
   )
 }

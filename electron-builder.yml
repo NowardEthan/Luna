@@ -1,0 +1,34 @@
+appId: com.lunar.orbit
+productName: Luna
+copyright: Copyright © Lunar
+directories:
+  output: release
+  buildResources: build
+files:
+  - dist/**/*
+  - electron/**/*
+  - package.json
+  - node_modules/**/*
+asar: true
+asarUnpack:
+  - node_modules/better-sqlite3/**/*
+extraResources:
+  - from: build-pack/luna-core/dist
+    to: luna-core/dist
+  - from: build-pack/luna-core/package.json
+    to: luna-core/package.json
+  - from: build-pack/luna-core/.env
+    to: luna-core/.env
+  - from: build-pack/luna-core/node_modules
+    to: luna-core/node_modules
+  - from: build-pack/backend
+    to: backend
+    filter:
+      - "**/*"
+win:
+  target:
+    - portable
+  artifactName: Luna-${version}-portable.${ext}
+portable:
+  artifactName: Luna-${version}-portable.${ext}
+npmRebuild: false

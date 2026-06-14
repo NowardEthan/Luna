@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { useLunaAuth } from '../../features/auth/AuthProvider'
 
 type Variant = 'activity' | 'toolbar' | 'compact'
@@ -32,21 +33,22 @@ export function LunarAccountChip({
   onOpenAccount,
   className = '',
 }: Props) {
+  const { t } = useTranslation()
   const auth = useLunaAuth()
   const connected = auth.isLunarConnected
   const offline = auth.usageMode === 'offline'
 
   const label = connected
-    ? auth.user?.displayName || auth.user?.email || 'Conta Lunar'
+    ? auth.user?.displayName || auth.user?.email || t('lunarAccount.chip.accountFallback')
     : offline
-      ? 'Modo offline'
-      : 'Entrar na nuvem'
+      ? t('lunarAccount.chip.offline')
+      : t('lunarAccount.chip.signIn')
 
   const sublabel = connected
-    ? 'Sincronizado · modelos online'
+    ? t('lunarAccount.chip.sublabelConnected')
     : offline
-      ? 'Só Ollama e local'
-      : 'Modelos cloud, sync e loja'
+      ? t('lunarAccount.chip.sublabelOffline')
+      : t('lunarAccount.chip.sublabelSignIn')
 
   const handleClick = () => {
     if (onOpenAccount) onOpenAccount()
@@ -63,7 +65,11 @@ export function LunarAccountChip({
             ? 'bg-accent-muted text-accent shadow-sm'
             : 'text-fg-muted hover:bg-raised-hover hover:text-accent'
         } ${className}`}
-        aria-label={connected ? 'Conta Lunar activa' : 'Entrar na Conta Lunar'}
+        aria-label={
+          connected
+            ? t('lunarAccount.chip.activityAriaConnected')
+            : t('lunarAccount.chip.activityAriaSignIn')
+        }
         title={label}
       >
         <CloudIcon />
@@ -84,8 +90,8 @@ export function LunarAccountChip({
         onClick={handleClick}
         className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
           connected
-            ? 'border-accent/40 bg-accent/10 text-accent'
-            : 'border-line bg-raised/80 text-fg-muted hover:border-accent/30 hover:text-accent'
+            ? 'border-accent bg-accent-muted text-accent'
+            : 'border-line bg-raised text-fg-muted hover:border-accent hover:text-accent'
         } ${className}`}
         aria-label={label}
       >
@@ -95,7 +101,11 @@ export function LunarAccountChip({
           }`}
           aria-hidden
         />
-        {connected ? 'Lunar' : offline ? 'Offline' : 'Entrar na nuvem'}
+        {connected
+          ? t('lunarAccount.chip.compactLunar')
+          : offline
+            ? t('lunarAccount.chip.compactOffline')
+            : t('lunarAccount.chip.compactSignIn')}
       </button>
     )
   }
@@ -106,14 +116,14 @@ export function LunarAccountChip({
       onClick={handleClick}
       className={`flex max-w-[14rem] items-center gap-2 rounded-lg border px-2.5 py-1.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
         connected
-          ? 'border-accent/35 bg-accent/10 hover:bg-accent/15'
-          : 'border-line-subtle bg-canvas-elevated/80 hover:border-accent/25 hover:bg-accent/5'
+          ? 'border-accent bg-accent-muted hover:bg-accent-muted'
+          : 'border-line-subtle bg-raised hover:border-accent hover:bg-accent-muted'
       } ${className}`}
       aria-label={label}
     >
       <span
         className={`flex size-8 shrink-0 items-center justify-center rounded-md ${
-          connected ? 'bg-accent/20 text-accent' : 'bg-raised text-fg-muted'
+          connected ? 'bg-accent-muted text-accent' : 'bg-raised text-fg-muted'
         }`}
       >
         <CloudIcon className={connected ? 'text-accent' : undefined} />

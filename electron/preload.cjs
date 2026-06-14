@@ -1,12 +1,18 @@
 const { contextBridge, ipcRenderer } = require('electron')
 
-const LUNA_SERVER_PORT = process.env.LUNA_SERVER_PORT || '39281'
-const LUNA_SERVER_HOST = process.env.LUNA_SERVER_HOST || '127.0.0.1'
+function resolveLunaServerBaseUrl() {
+  const explicit = (process.env.LUNA_SERVER_URL || '').trim()
+  if (explicit) return explicit.replace(/\/$/, '')
+  const host = process.env.LUNA_SERVER_HOST || '127.0.0.1'
+  const port = process.env.LUNA_SERVER_PORT || '39281'
+  return `http://${host}:${port}`
+}
+
 const useHttpServer = process.env.LUNA_USE_SERVER !== '0'
 
 if (useHttpServer) {
   contextBridge.exposeInMainWorld('lunaServer', {
-    baseUrl: `http://${LUNA_SERVER_HOST}:${LUNA_SERVER_PORT}`,
+    baseUrl: resolveLunaServerBaseUrl(),
   })
 }
 
@@ -20,12 +26,17 @@ contextBridge.exposeInMainWorld('electron', {
   googleSignIn: () => ipcRenderer.invoke('auth:googleSignIn'),
 })
 
+// Compatível com o projeto Luna (src/lib/firebase.js)
+contextBridge.exposeInMainWorld('electronAPI', {
+  startGoogleLogin: () => ipcRenderer.invoke('start-google-login'),
+})
+
 contextBridge.exposeInMainWorld('translation', {
   translate: (payload) => ipcRenderer.invoke('translation:translate', payload),
 })
 
 const llmBridge = {
-  listModels: () => ipcRenderer.invoke('llm:listModels'),
+  listModels: (opts) => ipcRenderer.invoke('llm:listModels', opts),
   chat: (payload) => ipcRenderer.invoke('llm:chat', payload),
   chatStream: (payload, callbacks) => {
     const requestId = `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`
@@ -106,8 +117,16 @@ contextBridge.exposeInMainWorld('agentTools', {
   webSearch: (query) => ipcRenderer.invoke('agentTools:webSearch', query),
   setWorkspaceRoot: (rootPath) =>
     ipcRenderer.invoke('agentTools:setWorkspaceRoot', rootPath),
+  setWorkspaceRoots: (paths) =>
+    ipcRenderer.invoke('agentTools:setWorkspaceRoots', paths),
   writeFile: (filePath, content) =>
     ipcRenderer.invoke('agentTools:writeFile', filePath, content),
+  createDirectory: (dirPath) =>
+    ipcRenderer.invoke('agentTools:createDirectory', dirPath),
+  deletePath: (targetPath) =>
+    ipcRenderer.invoke('agentTools:deletePath', targetPath),
+  renamePath: (fromPath, toPath) =>
+    ipcRenderer.invoke('agentTools:renamePath', fromPath, toPath),
   grep: (pattern, searchPath, options) =>
     ipcRenderer.invoke('agentTools:grep', pattern, searchPath, options),
   glob: (pattern, searchPath) =>
@@ -121,10 +140,85 @@ contextBridge.exposeInMainWorld('agentTools', {
     ipcRenderer.invoke('agentTools:gitCommit', repoPath, message),
 })
 
+contextBridge.exposeInMainWorld('forgeLsp', {
+  setWorkspaceRoot: (rootPath) =>
+    ipcRenderer.invoke('forgeLsp:setWorkspaceRoot', rootPath),
+  openDocument: (doc) => ipcRenderer.invoke('forgeLsp:openDocument', doc),
+  changeDocument: (doc) => ipcRenderer.invoke('forgeLsp:changeDocument', doc),
+  closeDocument: (filePath) =>
+    ipcRenderer.invoke('forgeLsp:closeDocument', filePath),
+  completion: (pos) => ipcRenderer.invoke('forgeLsp:completion', pos),
+  hover: (pos) => ipcRenderer.invoke('forgeLsp:hover', pos),
+  definition: (pos) => ipcRenderer.invoke('forgeLsp:definition', pos),
+  onDiagnostics: (callback) => {
+    const handler = (_event, payload) => callback(payload)
+    ipcRenderer.on('forgeLsp:diagnostics', handler)
+    return () => ipcRenderer.removeListener('forgeLsp:diagnostics', handler)
+  },
+})
+
+contextBridge.exposeInMainWorld('forgeTerminal', {
+  create: (opts) => ipcRenderer.invoke('forgeTerminal:create', opts),
+  write: (id, data) => ipcRenderer.invoke('forgeTerminal:write', id, data),
+  resize: (id, cols, rows) =>
+    ipcRenderer.invoke('forgeTerminal:resize', id, cols, rows),
+  kill: (id) => ipcRenderer.invoke('forgeTerminal:kill', id),
+  onData: (callback) => {
+    const handler = (_event, payload) => callback(payload)
+    ipcRenderer.on('forgeTerminal:data', handler)
+    return () => ipcRenderer.removeListener('forgeTerminal:data', handler)
+  },
+})
+
+contextBridge.exposeInMainWorld('lunaFiles', {
+  getPlaces: () => ipcRenderer.invoke('lunaFiles:getPlaces'),
+  listDirectory: (dirPath, options) =>
+    ipcRenderer.invoke('lunaFiles:listDirectory', dirPath, options),
+  readFileBinary: (filePath, maxBytes) =>
+    ipcRenderer.invoke('lunaFiles:readFileBinary', filePath, maxBytes),
+})
+
+contextBridge.exposeInMainWorld('lunaCore', {
+  executarPipeline: (mensagem, sessaoId, opcoes) =>
+    ipcRenderer.invoke('lunaCore:executarPipeline', mensagem, sessaoId, opcoes),
+  executarAgenteIde: (mensagem, opcoes) =>
+    ipcRenderer.invoke('lunaCore:executarAgenteIde', mensagem, opcoes),
+  prepararSessao: (sessaoId) => ipcRenderer.invoke('lunaCore:prepararSessao', sessaoId),
+  refletirSessao: (sessaoId) => ipcRenderer.invoke('lunaCore:refletirSessao', sessaoId),
+  listarMemoriaLonga: (limit) => ipcRenderer.invoke('lunaCore:listarMemoriaLonga', limit),
+  // Eventos de progresso do pipeline agêntico
+  onStatusHint: (cb) => {
+    const listener = (_event, hint) => cb(hint)
+    ipcRenderer.on('forge:statusHint', listener)
+    return () => ipcRenderer.removeListener('forge:statusHint', listener)
+  },
+  onToolCallStart: (cb) => {
+    const listener = (_event, data) => cb(data)
+    ipcRenderer.on('forge:toolCallStart', listener)
+    return () => ipcRenderer.removeListener('forge:toolCallStart', listener)
+  },
+  onToolCallComplete: (cb) => {
+    const listener = (_event, passo) => cb(passo)
+    ipcRenderer.on('forge:toolCallComplete', listener)
+    return () => ipcRenderer.removeListener('forge:toolCallComplete', listener)
+  },
+})
+
+contextBridge.exposeInMainWorld('byok', {
+  canEncrypt: () => ipcRenderer.invoke('byok:canEncrypt'),
+  saveKey: (payload) => ipcRenderer.invoke('byok:saveKey', payload),
+  deleteKey: (payload) => ipcRenderer.invoke('byok:deleteKey', payload),
+  listKeyHints: (uid) => ipcRenderer.invoke('byok:listKeyHints', uid),
+  test: (payload) => ipcRenderer.invoke('byok:test', payload),
+})
+
 contextBridge.exposeInMainWorld('plugins', {
   pickAndInstall: () => ipcRenderer.invoke('plugins:pickAndInstall'),
+  installFromDirectory: (dirPath) =>
+    ipcRenderer.invoke('plugins:installFromDirectory', dirPath),
   installBundled: (pluginId) =>
     ipcRenderer.invoke('plugins:installBundled', pluginId),
+  installFromUrl: (url) => ipcRenderer.invoke('plugins:installFromUrl', url),
   uninstall: (pluginId) => ipcRenderer.invoke('plugins:uninstall', pluginId),
   readEntry: (pluginId) => ipcRenderer.invoke('plugins:readEntry', pluginId),
 })

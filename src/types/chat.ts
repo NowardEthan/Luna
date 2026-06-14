@@ -1,6 +1,8 @@
 export type Role = 'user' | 'assistant'
 
 import type { IdeAttachedContext } from '../lib/ideMentions'
+import type { CloudSyncMeta } from './cloudSync'
+import type { LunaPipelineTrace } from './lunaPipelineTrace'
 import type { ConversationMemory } from './memory'
 
 /** Imagem anexada numa mensagem do utilizador (JPEG em data URL, persistida no turno). */
@@ -94,7 +96,13 @@ export type ReasoningSegment = {
   translating?: boolean
 }
 
-export type LlmProviderId = 'groq' | 'together' | 'ollama' | 'openrouter'
+export type LlmProviderId =
+  | 'groq'
+  | 'together'
+  | 'ollama'
+  | 'openrouter'
+  | 'google'
+  | 'luna-core'
 
 export type ReasoningTrace = {
   /** Texto mostrado ao utilizador (após tradução, se aplicável) */
@@ -158,12 +166,16 @@ export type Message = {
   reasoningTranslating?: boolean
   /** Resposta ainda a chegar em streaming */
   streamingActive?: boolean
+  /** Estado efémero do turno (tools, visão) — não é o corpo da resposta */
+  turnStatusHint?: string
   /** Ronda actual do agente IDE (durante geração). */
   orchestratorRound?: number
   /** Fase do orquestrador IDE (exploring, acting, …). */
   agentPhase?: string
   /** Provedor LLM do turno */
   llmProvider?: LlmProviderId
+  /** Pipeline Luna Core — painel Atividade estruturado */
+  lunaPipelineTrace?: LunaPipelineTrace
   usedLlmFallback?: boolean
   /** Erros técnicos do turno (LLM, servidor) para diagnóstico. */
   turnDiagnostics?: TurnDiagnostics
@@ -175,15 +187,82 @@ export type TurnDiagnostics = {
   capturedAt?: number
 }
 
+/** Ícone visual da pasta no histórico */
+export type FolderIconId =
+  | 'folder'
+  | 'star'
+  | 'briefcase'
+  | 'code'
+  | 'heart'
+  | 'book'
+  | 'lightbulb'
+  | 'rocket'
+  | 'tag'
+  | 'home'
+  | 'user'
+  | 'users'
+  | 'calendar'
+  | 'clock'
+  | 'music'
+  | 'camera'
+  | 'gamepad'
+  | 'globe'
+  | 'mail'
+  | 'map'
+  | 'sun'
+  | 'moon'
+  | 'cloud'
+  | 'zap'
+  | 'coffee'
+  | 'cart'
+  | 'graduation'
+  | 'wrench'
+  | 'palette'
+  | 'archive'
+  | 'inbox'
+  | 'shield'
+  | 'flame'
+  | 'bell'
+  | 'chat'
+  | 'bookmark'
+  | 'image'
+
+/** Cor de destaque da pasta */
+export type FolderColorId =
+  | 'default'
+  | 'blue'
+  | 'green'
+  | 'amber'
+  | 'rose'
+  | 'violet'
+  | 'cyan'
+
 /** Pasta para agrupar conversas no histórico (somente cliente) */
 export type ChatFolder = {
   id: string
   name: string
   createdAt: number
+  /** null = pasta de nível raiz */
+  parentId?: string | null
+  icon?: FolderIconId
+  /** Ícone personalizado (PNG em data URL, gerado no cliente) */
+  customIcon?: string
+  color?: FolderColorId
+  /** Sincronização opt-in na nuvem Lunar */
+  cloudSync?: CloudSyncMeta
 }
+
+/** Origem da conversa — chat geral vs sessão de workspace IDE. */
+export type ConversationSourceMode = 'chat' | 'ide'
 
 export type Conversation = {
   id: string
+  /** ID da sessão no Luna Core (1:1 com `id` por defeito). */
+  lunaSessaoId?: string
+  /** `chat` (defeito) ou `ide` (scoped ao workspace). */
+  sourceMode?: ConversationSourceMode
+  /** Raiz do projecto quando `sourceMode === 'ide'`. */
+  workspaceRoot?: string | null
   title: string
   /** Fixada no topo do histórico */
   pinned?: boolean
@@ -191,8 +270,12 @@ export type Conversation = {
   titlePinned?: boolean
   /** null = fora de pastas (“Sem pasta”) */
   folderId: string | null
+  /** Etiquetas livres para filtrar e organizar (máx. 8) */
+  tags?: string[]
   messages: Message[]
   updatedAt: number
   /** Resumo rolante + fronteira para a API (UI mantém messages completo) */
   memory?: ConversationMemory
+  /** Sincronização opt-in na nuvem Lunar */
+  cloudSync?: CloudSyncMeta
 }

@@ -1,8 +1,9 @@
 import { PersonalityControls } from '../../../components/PersonalityControls'
 import { LocaleSelect } from '../../../components/translation/LocaleSelect'
-import { ReasoningToggle } from '../../../components/ReasoningToggle'
+import { Switch } from '../../../components/ui/Switch'
 import { isLlmStreamingAvailable } from '../../../lib/llmStreamClient'
 import type { PreferencesSharedProps } from '../settingsSections'
+import { useTranslation } from 'react-i18next'
 
 export function ConversationSection({
   reasoningEnabled,
@@ -13,52 +14,49 @@ export function ConversationSection({
   onStreamingChange,
   disabled,
 }: PreferencesSharedProps) {
+  const { t } = useTranslation()
   const streamAvailable = isLlmStreamingAvailable()
 
   return (
-    <div className="space-y-4">
-      <header>
-        <h2 className="text-title font-semibold text-fg">Conversa</h2>
-        <p className="mt-1 text-ui text-fg-muted">
-          Pensamento, idioma de tradução e tom da assistente.
+    <div className="space-y-6">
+      <header className="mb-6">
+        <h2 className="text-2xl font-bold tracking-tight text-fg">{t('settings.section_conversation_label', 'Conversa')}</h2>
+        <p className="mt-1 text-xs text-fg-muted">
+          {t('settings.section_conversation_desc', 'Raciocínio, idioma de tradução e tom da assistente.')}
         </p>
       </header>
-      <div className="flex flex-wrap gap-2">
-        <ReasoningToggle
-          enabled={reasoningEnabled}
-          onChange={onReasoningChange}
-          disabled={disabled}
-        />
-        <LocaleSelect disabled={disabled} />
-        <PersonalityControls
-          value={personalityId}
-          onChange={onPersonalityChange}
-          disabled={disabled}
-          variant="toolbar"
-        />
-      </div>
-      <div className="max-w-md">
-        <button
-          type="button"
-          disabled={disabled || !streamAvailable}
-          className="w-full rounded-lg border border-line px-3 py-2.5 text-left text-ui text-fg-dim hover:bg-white/[0.04] disabled:opacity-40"
-          onClick={() => onStreamingChange(!streamingEnabled)}
-          title={
-            streamAvailable
-              ? undefined
-              : 'Requer servidor Luna ou Electron com streaming activo'
-          }
-        >
-          Resposta em streaming:{' '}
-          <span className="text-fg">
-            {streamingEnabled ? 'ligado' : 'desligado'}
-          </span>
-          {!streamAvailable ? (
-            <span className="mt-1 block text-[10px] text-fg-muted">
-              Indisponível neste ambiente — inicie o servidor Luna.
-            </span>
-          ) : null}
-        </button>
+      
+      <div className="luna-card space-y-8">
+        
+        <div className="flex flex-col gap-6">
+          <Switch
+            label="Raciocínio explícito"
+            description="Pede raciocínio explicíto à API. Pode ser mais lento nalguns modelos."
+            checked={reasoningEnabled}
+            onChange={onReasoningChange}
+            disabled={disabled}
+          />
+
+          <Switch
+            label={t('settings.streaming_label')}
+            description={!streamAvailable ? t('settings.streaming_env_notice', 'Indisponível neste ambiente — inicie o servidor Luna.') : undefined}
+            checked={streamingEnabled}
+            onChange={(c) => onStreamingChange(c)}
+            disabled={disabled || !streamAvailable}
+          />
+        </div>
+
+        <div className="h-px w-full bg-line" aria-hidden />
+
+        <div className="flex flex-wrap items-center gap-4">
+          <LocaleSelect disabled={disabled} />
+          <PersonalityControls
+            value={personalityId}
+            onChange={onPersonalityChange}
+            disabled={disabled}
+            variant="toolbar"
+          />
+        </div>
       </div>
     </div>
   )

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { memo, useEffect, useState } from 'react'
 import { ContextUsageIndicator } from './chat/ContextUsageIndicator'
 import { eventBus } from '../core/events/EventBus'
 import { useLunaAuthOptional } from '../features/auth/AuthProvider'
@@ -6,30 +6,56 @@ import { cloudSyncService } from '../features/sync/cloudSyncService'
 import type { ContextUsageSnapshot } from '../lib/contextUsageEstimate'
 import type { LunaModelOption } from '../lib/llmModelSelection'
 import { isLunaServerBridgeAvailable } from '../lib/lunaServer/config'
+import type { LunaPrimaryView } from '../lib/primaryView'
 import type { LunaWorkbenchMode } from '../lib/workbenchMode'
+import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
+import { lunaStatusDotClass } from '../lib/lunaVisual'
+import { PlanBadge } from '../features/billing/PlanBadge'
 
 type Props = {
   workbenchMode: LunaWorkbenchMode
-  modelCatalog: LunaModelOption[]
-  selectedModelId: string | null
+  primaryView?: LunaPrimaryView
+  /** Catálogo legado — só necessário sem `fixedModelLabel` (ex.: modo IDE futuro). */
+  modelCatalog?: LunaModelOption[]
+  selectedModelId?: string | null
   serverOk: boolean | null
   serverChecking?: boolean
   contextUsage?: ContextUsageSnapshot | null
   onOpenLunarAccount?: () => void
+  onOpenBilling?: () => void
+  /** Chat Luna Core: label fixo, ignora catálogo. */
+  fixedModelLabel?: string
 }
 
-export function StatusBar({
+function modeLabel(
+  workbenchMode: LunaWorkbenchMode,
+  primaryView: LunaPrimaryView = 'conversation',
+  t: TFunction,
+): string {
+  if (primaryView === 'finances') return t('statusBar.mode_finances')
+  if (primaryView === 'marketplace') return t('statusBar.mode_marketplace')
+  return workbenchMode === 'ide' ? t('statusBar.mode_ide') : t('statusBar.mode_chat')
+}
+
+export const StatusBar = memo(function StatusBar({
   workbenchMode,
+  primaryView = 'conversation',
   modelCatalog,
   selectedModelId,
   serverOk,
   serverChecking,
   contextUsage = null,
   onOpenLunarAccount,
+  onOpenBilling,
+  fixedModelLabel,
 }: Props) {
   const auth = useLunaAuthOptional()
-  const model = modelCatalog.find((m) => m.id === selectedModelId)
+  const model = fixedModelLabel
+    ? { label: fixedModelLabel }
+    : modelCatalog?.find((m) => m.id === selectedModelId)
   const bridge = isLunaServerBridgeAvailable()
+  const { t } = useTranslation()
   const [syncTick, setSyncTick] = useState(0)
 
   useEffect(() => {
@@ -44,75 +70,75 @@ export function StatusBar({
   const syncStatus = cloudSyncService.getStatus()
 
   const lunarLabel = auth?.isLunarConnected
-    ? 'Conta Lunar'
+    ? t('statusBar.lunar_connected')
     : auth?.usageMode === 'offline'
-      ? 'Modo offline'
-      : 'Sem sessão Lunar'
+      ? t('statusBar.lunar_offline')
+      : t('statusBar.lunar_disconnected')
 
   return (
     <div
-      className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-0.5 border-t border-line bg-sidebar/40 px-3 py-1 text-caption text-fg-muted"
+      className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-0.5 border-t border-line bg-sidebar px-3 py-1 text-caption text-fg-muted"
       role="status"
     >
       <span>
-        Modo:{' '}
+        {t('statusBar.mode')}{' '}
         <span className="text-fg-dim">
-          {workbenchMode === 'ide' ? 'IDE' : 'Chat'}
+          {modeLabel(workbenchMode, primaryView, t)}
         </span>
       </span>
       <button
         type="button"
         onClick={onOpenLunarAccount}
-        className="-mx-1 flex items-center gap-1 rounded px-1 py-0.5 text-left transition-colors hover:bg-raised/60 hover:text-fg focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-focus"
+        className="luna-btn-ghost -mx-1 flex items-center gap-1 !px-1 !py-0.5 text-left"
         title={
           auth?.isLunarConnected
-            ? 'Conta Lunar activa — clique para gerir'
-            : 'Clique para entrar na Conta Lunar'
+            ? t('statusBar.lunar_hint_active')
+            : t('statusBar.lunar_hint_inactive')
         }
       >
         <span
-          className={`inline-block size-1.5 rounded-full ${
+          className={
             auth?.isLunarConnected
-              ? 'bg-emerald-400'
+              ? lunaStatusDotClass('success')
               : auth?.usageMode === 'offline'
-                ? 'bg-fg-dim'
-                : 'bg-amber-400'
-          }`}
+                ? 'luna-status-dot bg-fg-dim'
+                : lunaStatusDotClass('warning')
+          }
           aria-hidden
         />
         <span className={auth?.isLunarConnected ? 'text-accent' : undefined}>
           {lunarLabel}
         </span>
-        {syncStatus.pushing ? <span> · sync…</span> : null}
+        {syncStatus.pushing ? <span>{t('statusBar.syncing')}</span> : null}
         {syncStatus.lastError ? (
-          <span className="text-red-400/80" title={syncStatus.lastError}>
-            {' '}
-            · sync erro
+          <span className="text-danger" title={syncStatus.lastError}>
+            {t('statusBar.sync_error')}
           </span>
         ) : null}
       </button>
+      {auth?.plan ? (
+        <PlanBadge planId={auth.plan} onClick={onOpenBilling} />
+      ) : null}
       {model ? (
         <span className="min-w-0 truncate" title={model.label}>
-          Modelo: <span className="text-fg-dim">{model.label}</span>
+          {t('statusBar.model')} <span className="text-fg-dim">{model.label}</span>
         </span>
       ) : null}
       {bridge ? (
         <span className="flex items-center gap-1">
           <span
-            className={`inline-block size-1.5 rounded-full ${
+            className={
               serverChecking
-                ? 'animate-pulse bg-fg-muted'
-                : serverOk
-                  ? 'bg-emerald-400'
-                  : 'bg-red-400'
-            }`}
+                ? 'luna-status-dot animate-pulse bg-fg-muted'
+                : lunaStatusDotClass(serverOk ? 'success' : 'danger')
+            }
             aria-hidden
           />
           {serverChecking
-            ? 'Servidor…'
+            ? t('statusBar.server_checking')
             : serverOk
-              ? 'Servidor OK'
-              : 'Servidor offline'}
+              ? t('statusBar.server_ok')
+              : t('statusBar.server_offline')}
         </span>
       ) : null}
       {contextUsage ? (
@@ -121,4 +147,4 @@ export function StatusBar({
       <span className="ml-auto opacity-60">Python · v0.0.0</span>
     </div>
   )
-}
+})

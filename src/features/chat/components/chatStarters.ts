@@ -1,11 +1,13 @@
-export const STARTER_IDEAS_CHAT = [
-  'O que você pode fazer por mim?',
-  'Me ajude a organizar as ideias para um projeto.',
-  'Resuma um texto que vou colar em seguida.',
-]
+import i18n from '../../../i18n'
 
-export const STARTER_IDEAS_IDE = [
-  'Explique o ficheiro aberto.',
-  'Encontre bugs neste módulo.',
-  'Sugira testes para esta função.',
-]
+export function getStarterIdeasChat(): string[] {
+  return [0, 1, 2].map((i) => i18n.t(`starters.chat_${i}`))
+}
+
+export function getStarterIdeasIde(): string[] {
+  return [0, 1, 2].map((i) => i18n.t(`starters.ide_${i}`))
+}
+
+export function getStarterIdeasFinances(): string[] {
+  return [0, 1, 2].map((i) => i18n.t(`starters.finances_${i}`))
+}

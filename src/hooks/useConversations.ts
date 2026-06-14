@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ChatFolder } from '../types/chat'
 import { setConversationStore } from '../core/conversation'
 import { eventBus } from '../core/events/EventBus'
@@ -14,30 +14,56 @@ import {
 import { useConversationListStore } from '../features/chat/state/conversationListStore'
 import { useFolderStore } from '../features/chat/state/folderStore'
 import { useUserMemoryStore } from '../features/chat/state/userMemoryStore'
-import { useModelCatalogStore } from '../features/chat/state/modelCatalogStore'
-import { useAgentTurnService } from '../features/chat/state/agentTurnService'
+import { useChatPreferencesStore } from '../features/chat/state/chatPreferencesStore'
+import { useChatTurn } from '../features/chat/useChatTurn'
 import { cloudSyncService } from '../features/sync/cloudSyncService'
+import { dedupeConversations } from '../features/sync/conversationSyncDedup'
+import type { CreateConversationOpts } from '../features/chat/state/conversationListStore'
+import { isCloudSyncEnabled } from '../types/cloudSync'
+import type { LunaWorkbenchMode } from '../lib/workbenchMode'
+import { loadWorkspaceConfig, primaryPath } from '../lib/workspaceConfig'
 
-export type { SendMessageOptions } from '../features/chat/state/agentTurnService'
+export type { SendMessageOptions } from '../features/chat/useChatTurn'
 
 export function useConversations() {
   const [hydrated, setHydrated] = useState(false)
   const [folders, setFolders] = useState<ChatFolder[]>([])
+  const skipCloudScheduleRef = useRef(false)
 
   const list = useConversationListStore(hydrated, folders, (reset) => {
     setFolders(reset.folders)
   })
   const folder = useFolderStore(folders, setFolders, list.setConversations)
   const memory = useUserMemoryStore(hydrated)
-  const model = useModelCatalogStore()
+  const model = useChatPreferencesStore()
 
   useEffect(() => {
     queueMicrotask(() => {
       const parsed = hydrateFromLocalStorage()
       if (parsed) {
-        list.setConversations(parsed.conversations)
+        const conversations = dedupeConversations(parsed.conversations)
+        if (conversations.length !== parsed.conversations.length) {
+          persistToLocalStorage({
+            conversations,
+            folders: parsed.folders,
+            activeId: parsed.activeId,
+            activeIdByScope: parsed.activeIdByScope,
+            recentWorkspaces: parsed.recentWorkspaces,
+          })
+        }
+        list.setConversations(conversations)
         setFolders(parsed.folders)
-        list.setActiveId(parsed.activeId)
+        list.setActiveId(
+          conversations.some((c) => c.id === parsed.activeId)
+            ? parsed.activeId
+            : conversations[0]?.id ?? parsed.activeId,
+        )
+        if (parsed.activeIdByScope) {
+          list.setActiveIdByScope(parsed.activeIdByScope)
+        }
+        if (parsed.recentWorkspaces?.length) {
+          list.setRecentWorkspaces(parsed.recentWorkspaces)
+        }
       } else {
         const init = initialStore(nextId)
         list.setConversations(init.conversations)
@@ -55,10 +81,86 @@ export function useConversations() {
       conversations: list.conversations,
       folders,
       activeId: list.activeId,
+      activeIdByScope: list.activeIdByScope,
+      recentWorkspaces: list.recentWorkspaces,
     }
     persistToLocalStorage(snapshot)
-    cloudSyncService.schedulePush(snapshot)
-  }, [list.conversations, folders, list.activeId, hydrated])
+    if (skipCloudScheduleRef.current) {
+      skipCloudScheduleRef.current = false
+      return
+    }
+    const hasCloud =
+      snapshot.conversations.some((c) => isCloudSyncEnabled(c.cloudSync)) ||
+      snapshot.folders.some((f) => isCloudSyncEnabled(f.cloudSync))
+    if (hasCloud) cloudSyncService.schedulePush(snapshot)
+  }, [
+    list.conversations,
+    folders,
+    list.activeId,
+    list.activeIdByScope,
+    list.recentWorkspaces,
+    hydrated,
+  ])
+
+  useEffect(() => {
+    if (!hydrated) return
+    return eventBus.on('lunar:sync:hydrate', () => {
+      const parsed = hydrateFromLocalStorage()
+      if (!parsed) return
+      list.setConversations(parsed.conversations)
+      setFolders(parsed.folders)
+      list.setActiveId(parsed.activeId)
+    })
+  }, [hydrated, list.setConversations, list.setActiveId])
+
+  useEffect(() => {
+    if (!hydrated) return
+    return eventBus.on('lunar:sync:complete', ({ ok, conversationIds, folderIds }) => {
+      skipCloudScheduleRef.current = true
+      const err = cloudSyncService.getStatus().lastError
+      const synced = Date.now()
+      const convIds = conversationIds ? new Set(conversationIds) : null
+      const foldIds = folderIds ? new Set(folderIds) : null
+
+      list.setConversations((prev) =>
+        prev.map((c) => {
+          if (!isCloudSyncEnabled(c.cloudSync)) return c
+          if (convIds && !convIds.has(c.id)) return c
+          if (!ok) {
+            return {
+              ...c,
+              cloudSync: {
+                enabled: true,
+                lastError: err ?? 'Erro ao sincronizar',
+                lastSyncedAt: c.cloudSync?.lastSyncedAt,
+              },
+            }
+          }
+          return {
+            ...c,
+            cloudSync: { enabled: true, lastSyncedAt: synced },
+          }
+        }),
+      )
+      setFolders((prev) =>
+        prev.map((f) => {
+          if (!isCloudSyncEnabled(f.cloudSync)) return f
+          if (foldIds && !foldIds.has(f.id)) return f
+          if (!ok) {
+            return {
+              ...f,
+              cloudSync: {
+                enabled: true,
+                lastError: err ?? 'Erro ao sincronizar',
+                lastSyncedAt: f.cloudSync?.lastSyncedAt,
+              },
+            }
+          }
+          return { ...f, cloudSync: { enabled: true, lastSyncedAt: synced } }
+        }),
+      )
+    })
+  }, [hydrated, list.setConversations])
 
   useEffect(() => {
     if (!hydrated || !isChatMemoryAvailable()) return
@@ -68,14 +170,13 @@ export function useConversations() {
     return () => window.clearTimeout(t)
   }, [hydrated, list.conversations])
 
-  const turn = useAgentTurnService({
+  const turn = useChatTurn({
     activeId: list.activeId,
     conversations: list.conversations,
     messages: list.messages,
     personalityId: model.personalityId,
     ragEnabled: model.ragEnabled,
     reasoningEnabled: model.reasoningEnabled,
-    llmSelection: model.llmSelection,
     updateConversation: list.updateConversation,
     userMemoryRef: memory.userMemoryRef,
     setUserMemory: memory.setUserMemory,
@@ -149,13 +250,66 @@ export function useConversations() {
     memory.setUserMemory,
   ])
 
+  const buildWelcomeContext = useCallback(
+    (variant: LunaWorkbenchMode | 'finances' = 'chat') => ({
+      conversations: list.conversations,
+      folders,
+      userMemory: memory.userMemory,
+      cloudSyncAvailable: cloudSyncService.isAvailable(),
+      variant,
+    }),
+    [list.conversations, folders, memory.userMemory],
+  )
+
+  const deleteConversationById = useCallback(
+    (id: string) => {
+      const conv = list.conversations.find((c) => c.id === id)
+      const sessaoId = conv?.lunaSessaoId ?? id
+      if (conv && isCloudSyncEnabled(conv.cloudSync)) {
+        void cloudSyncService.removeConversationFromCloudPublic(id)
+      }
+      if (typeof window !== 'undefined' && window.lunaCore?.refletirSessao) {
+        void window.lunaCore.refletirSessao(sessaoId)
+      }
+      list.deleteConversationById(id)
+    },
+    [list.conversations, list.deleteConversationById],
+  )
+
   const createConversationWithEvent = useCallback(
-    (opts?: { folderId?: string }) => {
-      const id = list.createConversation(opts)
+    (opts?: {
+      folderId?: string | null
+      variant?: LunaWorkbenchMode | 'finances'
+      workspaceRoot?: string | null
+      sourceMode?: 'chat' | 'ide'
+    }) => {
+      const variant = opts?.variant ?? 'chat'
+      const sourceMode =
+        opts?.sourceMode ?? (variant === 'ide' ? 'ide' : 'chat')
+      let workspaceRoot: string | null | undefined
+      if (sourceMode === 'ide') {
+        workspaceRoot = opts?.workspaceRoot ?? null
+        if (!workspaceRoot) {
+          try {
+            workspaceRoot = primaryPath(loadWorkspaceConfig())
+          } catch {
+            workspaceRoot = null
+          }
+        }
+      }
+      const payload: CreateConversationOpts = {
+        folderId: opts?.folderId,
+        sourceMode,
+        workspaceRoot,
+        welcomeContext: buildWelcomeContext(
+          variant === 'finances' ? 'finances' : variant === 'ide' ? 'ide' : 'chat',
+        ),
+      }
+      const id = list.createConversation(payload)
       eventBus.emit('conversation:created', { id })
       return id
     },
-    [list.createConversation],
+    [list.createConversation, buildWelcomeContext],
   )
 
   const selectConversationWithEvent = useCallback(
@@ -166,47 +320,180 @@ export function useConversations() {
     [list.selectConversation],
   )
 
+  const setConversationCloudEnabled = useCallback(
+    (id: string, enabled: boolean) => {
+      void (async () => {
+        const snapshot = {
+          conversations: list.conversations,
+          folders,
+          activeId: list.activeId,
+        }
+        const next = await cloudSyncService.setConversationCloudEnabled(
+          snapshot,
+          id,
+          enabled,
+        )
+        if (!next) return
+        skipCloudScheduleRef.current = true
+        list.setConversations(next.conversations)
+        setFolders(next.folders)
+        persistToLocalStorage(next)
+      })()
+    },
+    [list.conversations, list.activeId, folders, list.setConversations],
+  )
+
+  const setFolderCloudEnabled = useCallback(
+    (folderId: string, enabled: boolean) => {
+      void (async () => {
+        const snapshot = {
+          conversations: list.conversations,
+          folders,
+          activeId: list.activeId,
+        }
+        const next = await cloudSyncService.setFolderCloudEnabled(
+          snapshot,
+          folderId,
+          enabled,
+        )
+        if (!next) return
+        skipCloudScheduleRef.current = true
+        list.setConversations(next.conversations)
+        setFolders(next.folders)
+        persistToLocalStorage(next)
+      })()
+    },
+    [list.conversations, list.activeId, folders, list.setConversations],
+  )
+
+  const sortedConversations = useMemo(
+    () => sortByUpdated(list.conversations),
+    [list.conversations],
+  )
+
+  const conv = useMemo(
+    () => ({
+      conversations: sortedConversations,
+      activeId: list.activeId,
+      messages: list.messages,
+      createConversation: createConversationWithEvent,
+      selectConversation: selectConversationWithEvent,
+      deleteConversationById,
+      removeActiveConversation: list.removeActiveConversation,
+      renameConversation: list.renameConversation,
+      togglePinConversation: list.togglePinConversation,
+      moveConversationToFolder: list.moveConversationToFolder,
+      setConversationTags: list.setConversationTags,
+      clearActiveConversationMemory: list.clearActiveConversationMemory,
+      sendMessage: turn.sendMessage,
+      redoRegenerateAt: turn.redoRegenerateAt,
+      canRedoMessage: turn.canRedoMessage,
+      cancelAgentTurn: turn.cancelAgentTurn,
+      activeIdByScope: list.activeIdByScope,
+      rememberActiveForScope: list.rememberActiveForScope,
+      pushRecentWorkspace: list.pushRecentWorkspace,
+      recentWorkspaces: list.recentWorkspaces,
+      setActiveId: list.setActiveId,
+    }),
+    [
+      sortedConversations,
+      list.activeId,
+      list.messages,
+      createConversationWithEvent,
+      selectConversationWithEvent,
+      deleteConversationById,
+      list.removeActiveConversation,
+      list.renameConversation,
+      list.togglePinConversation,
+      list.moveConversationToFolder,
+      list.setConversationTags,
+      list.clearActiveConversationMemory,
+      turn.sendMessage,
+      turn.redoRegenerateAt,
+      turn.canRedoMessage,
+      turn.cancelAgentTurn,
+      list.activeIdByScope,
+      list.rememberActiveForScope,
+      list.pushRecentWorkspace,
+      list.recentWorkspaces,
+      list.setActiveId,
+    ],
+  )
+
+  const foldersState = useMemo(
+    () => ({
+      folders: folder.foldersSorted,
+      createFolder: (name: string, parentId?: string | null) =>
+        folder.createFolder(name, { parentId: parentId ?? null }),
+      renameFolder: folder.renameFolder,
+      updateFolder: folder.updateFolder,
+      deleteFolder: folder.deleteFolder,
+    }),
+    [
+      folder.foldersSorted,
+      folder.createFolder,
+      folder.renameFolder,
+      folder.updateFolder,
+      folder.deleteFolder,
+    ],
+  )
+
+  const modelState = useMemo(
+    () => ({
+      ragEnabled: model.ragEnabled,
+      setRagEnabled: model.setRagEnabled,
+      reasoningEnabled: model.reasoningEnabled,
+      setReasoningEnabled: model.setReasoningEnabled,
+      personalityId: model.personalityId,
+      setPersonality: model.setPersonality,
+    }),
+    [
+      model.ragEnabled,
+      model.setRagEnabled,
+      model.reasoningEnabled,
+      model.setReasoningEnabled,
+      model.personalityId,
+      model.setPersonality,
+    ],
+  )
+
+  const memoryState = useMemo(
+    () => ({
+      userMemory: memory.userMemory,
+      memoryCrossChatEnabled: memory.userMemory.crossChatEnabled,
+      setMemoryCrossChatEnabled: memory.setMemoryCrossChatEnabled,
+      memoryConversationSearchEnabled: memory.userMemory.conversationSearchEnabled,
+      setConversationSearchEnabled: memory.setConversationSearchEnabled,
+      clearUserProfileMemory: memory.clearUserProfileMemory,
+      deleteMemoryNote: memory.deleteMemoryNote,
+      updateMemoryNote: memory.updateMemoryNote,
+    }),
+    [
+      memory.userMemory,
+      memory.setMemoryCrossChatEnabled,
+      memory.setConversationSearchEnabled,
+      memory.clearUserProfileMemory,
+      memory.deleteMemoryNote,
+      memory.updateMemoryNote,
+    ],
+  )
+
+  const syncState = useMemo(
+    () => ({
+      cloudSyncAvailable: cloudSyncService.isAvailable(),
+      setConversationCloudEnabled,
+      setFolderCloudEnabled,
+    }),
+    [setConversationCloudEnabled, setFolderCloudEnabled],
+  )
+
   return {
     hydrated,
-    conversations: sortByUpdated(list.conversations),
-    folders: folder.foldersSorted,
-    activeId: list.activeId,
-    messages: list.messages,
-    createConversation: createConversationWithEvent,
-    selectConversation: selectConversationWithEvent,
-    deleteConversationById: list.deleteConversationById,
-    removeActiveConversation: list.removeActiveConversation,
-    sendMessage: turn.sendMessage,
-    redoRegenerateAt: turn.redoRegenerateAt,
-    canRedoMessage: turn.canRedoMessage,
-    cancelAgentTurn: turn.cancelAgentTurn,
-    renameConversation: list.renameConversation,
-    togglePinConversation: list.togglePinConversation,
-    moveConversationToFolder: list.moveConversationToFolder,
-    createFolder: folder.createFolder,
-    renameFolder: folder.renameFolder,
-    deleteFolder: folder.deleteFolder,
-    ragEnabled: model.ragEnabled,
-    setRagEnabled: model.setRagEnabled,
-    reasoningEnabled: model.reasoningEnabled,
-    setReasoningEnabled: model.setReasoningEnabled,
-    personalityId: model.personalityId,
-    setPersonality: model.setPersonality,
-    memoryCrossChatEnabled: memory.userMemory.crossChatEnabled,
-    setMemoryCrossChatEnabled: memory.setMemoryCrossChatEnabled,
-    memoryConversationSearchEnabled:
-      memory.userMemory.conversationSearchEnabled,
-    setConversationSearchEnabled: memory.setConversationSearchEnabled,
-    clearUserProfileMemory: memory.clearUserProfileMemory,
-    clearActiveConversationMemory: list.clearActiveConversationMemory,
-    userMemory: memory.userMemory,
-    deleteMemoryNote: memory.deleteMemoryNote,
-    updateMemoryNote: memory.updateMemoryNote,
-    modelCatalog: model.modelCatalog,
-    selectedModelId: model.selectedModelId,
-    setSelectedModelId: model.setSelectedModelId,
-    modelCatalogLoading: model.modelCatalogLoading,
-    modelCatalogError: model.modelCatalogError,
-    llmSelection: model.llmSelection,
+    buildWelcomeContext,
+    conv,
+    foldersState,
+    model: modelState,
+    memory: memoryState,
+    sync: syncState,
   }
 }

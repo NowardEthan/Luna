@@ -1,7 +1,15 @@
 import type { Conversation } from '../../types/chat'
+import { lunaListRowClass } from '../../lib/lunaVisual'
+import i18n from '../../i18n'
+
+const LOCALE_MAP: Record<string, string> = {
+  pt: 'pt-BR',
+  en: 'en-US',
+}
 
 export function formatUpdated(ts: number): string {
-  return new Intl.DateTimeFormat('pt-BR', {
+  const lng = i18n.language?.slice(0, 2) ?? 'en'
+  return new Intl.DateTimeFormat(LOCALE_MAP[lng] ?? 'en-US', {
     day: 'numeric',
     month: 'short',
     hour: '2-digit',
@@ -24,16 +32,27 @@ export function matchesSearch(c: Conversation, q: string): boolean {
     .reverse()
     .find((m) => m.role === 'user' || m.role === 'assistant')
   const preview = last?.text?.slice(0, 200) ?? ''
+  const tagText = (c.tags ?? []).join(' ')
   return (
     c.title.toLowerCase().includes(q) ||
-    preview.toLowerCase().includes(q)
+    preview.toLowerCase().includes(q) ||
+    tagText.toLowerCase().includes(q)
   )
 }
 
+/** Pesquisa por texto + filtro por etiquetas (qualquer etiqueta activa). */
+export function matchesHistoryFilters(
+  c: Conversation,
+  q: string,
+  activeTags: string[],
+): boolean {
+  if (activeTags.length) {
+    const tags = c.tags ?? []
+    if (!activeTags.some((t) => tags.includes(t))) return false
+  }
+  return matchesSearch(c, q)
+}
+
 export function rowShell(selected: boolean): string {
-  return `flex flex-col rounded-md ring-1 transition-colors ${
-    selected
-      ? 'bg-accent/10 ring-accent/30'
-      : 'ring-transparent hover:bg-white/[0.03] hover:ring-line'
-  }`
+  return lunaListRowClass(selected)
 }

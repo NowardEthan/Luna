@@ -24,5 +24,7 @@ describe('lunaThemes', () => {
     const contrast = cssVarsForTheme('luna-contrast')
     expect(dark['--color-canvas']).not.toBe(light['--color-canvas'])
     expect(contrast['--color-accent']).toBe('#ffff00')
+    expect(light['--color-success-muted']).toBe('#d1fae5')
+    expect(dark['--color-success-muted']).toBe('#1a2a22')
   })
 })

@@ -7,6 +7,7 @@ import type {
   RagCitation,
   ReasoningTrace,
 } from '../types/chat'
+import type { LunaPrimaryView } from '../lib/primaryView'
 import type { LunaWorkbenchMode } from '../lib/workbenchMode'
 import type { IdeAttachedContext } from '../lib/ideMentions'
 import type { ConversationMemory, UserMemoryState } from '../types/memory'
@@ -49,7 +50,7 @@ export type AgentTurnInput = {
   >) => void
   onReasoningTranslating?: (translating: boolean) => void
   onToolsPending?: () => void
-  /** Após pesquisa/tools — UI deixa de mostrar «a pensar» e espera texto final */
+  /** Antes da ronda de síntese — bolha pronta para streaming da resposta final */
   onPrepareSynthesis?: () => void
   reasoningEnabled?: boolean
   streamingEnabled?: boolean
@@ -57,6 +58,9 @@ export type AgentTurnInput = {
   llmSelection?: LlmSelection
   workbenchMode?: LunaWorkbenchMode
   ideContextBlock?: string
+  financesContextBlock?: string
+  financesAddonActive?: boolean
+  primaryView?: LunaPrimaryView
   ideMentions?: IdeAttachedContext[]
   convIdForCheckpoints?: string
   /** Cancelar turno (botão Parar na UI). */

@@ -186,6 +186,7 @@ export function Select({
       id={listId}
       role="listbox"
       style={menuStyle}
+      data-luna-floating-overlay
       className="luna-select-menu overflow-y-auto rounded-lg border border-line bg-popover py-1 shadow-overlay"
     >
       {options.map((opt) => {

@@ -1,4 +1,12 @@
 import { toolBadgeClass, type BadgeToneId } from './badgeTone'
+import {
+  lunaFilterPillClass,
+  lunaToneCountClass,
+  lunaToneHeadingClass,
+  lunaToneNoteClass,
+  lunaToneSectionClass,
+  type LunaVividTone,
+} from './lunaVisual'
 
 /** Tipos de memória — escolhidos pela Luna em `save_memory` ou inferidos do título. */
 export const MEMORY_KIND_IDS = [
@@ -35,6 +43,44 @@ const KIND_BADGE_TONE: Record<MemoryKindId, BadgeToneId> = {
 /** Classes do badge por tipo — adaptadas ao tema claro/escuro. */
 export function memoryKindBadgeClass(kind: MemoryKindId): string {
   return toolBadgeClass(KIND_BADGE_TONE[kind] ?? 'slate')
+}
+
+const KIND_VIVID_TONE: Record<MemoryKindId, LunaVividTone> = {
+  identity: 'blue',
+  preference: 'amber',
+  project: 'violet',
+  constraint: 'rose',
+  health: 'cyan',
+  context: 'default',
+  other: 'default',
+}
+
+export function memoryKindVividTone(kind: MemoryKindId): LunaVividTone {
+  return KIND_VIVID_TONE[kind] ?? 'default'
+}
+
+/** Secção do painel Memórias — acento subtil, conteúdo legível. */
+export function memoryKindSectionClass(
+  kind: MemoryKindId,
+  emphasized = false,
+): string {
+  return lunaToneSectionClass(memoryKindVividTone(kind), emphasized)
+}
+
+export function memoryKindSectionHeadingClass(kind: MemoryKindId): string {
+  return lunaToneHeadingClass(memoryKindVividTone(kind))
+}
+
+export function memoryKindSectionCountClass(kind: MemoryKindId): string {
+  return lunaToneCountClass(memoryKindVividTone(kind))
+}
+
+export function memoryKindNoteShellClass(_kind?: MemoryKindId): string {
+  return lunaToneNoteClass
+}
+
+export function memoryKindFilterPillClass(kind: MemoryKindId, active: boolean): string {
+  return lunaFilterPillClass(memoryKindVividTone(kind), active)
 }
 
 export const MEMORY_KIND_META: Record<MemoryKindId, MemoryKindMeta> = {
@@ -91,7 +137,7 @@ export const MEMORY_KIND_META: Record<MemoryKindId, MemoryKindMeta> = {
     label: 'Outros',
     description: 'Factos úteis que não encaixam nas outras categorias',
     badgeTone: 'slate',
-    badgeClass: 'bg-white/8 text-fg-dim ring-white/10',
+    badgeClass: 'bg-raised text-fg-dim ring-line',
     sectionClass: 'border-line-subtle',
   },
 }

@@ -8,13 +8,16 @@ import {
   type LunaLocaleId,
 } from '../../translation'
 import { Select } from '../ui/Select'
+import { useTranslation } from 'react-i18next'
 
 type Props = {
   disabled?: boolean
   onChange?: (locale: LunaLocaleId) => void
+  fullWidth?: boolean
 }
 
-export function LocaleSelect({ disabled, onChange }: Props) {
+export function LocaleSelect({ disabled, onChange, fullWidth }: Props) {
+  const { t } = useTranslation()
   const locale = useSyncExternalStore(
     subscribeUiLocale,
     readUiLocale,
@@ -32,12 +35,12 @@ export function LocaleSelect({ disabled, onChange }: Props) {
       }}
       options={LUNA_LOCALES.map((l) => ({ value: l.id, label: l.label }))}
       disabled={disabled}
-      variant="toolbar"
+      variant={fullWidth ? 'default' : 'toolbar'}
       size="md"
-      className="max-w-[10rem]"
+      className={fullWidth ? 'w-full max-w-none' : 'max-w-[10rem]'}
       align="end"
-      aria-label="Idioma da interface"
-      title="Idioma para tradução automática"
+      aria-label={t('toolbar.language_aria')}
+      title={t('toolbar.language_title')}
     />
   )
 }

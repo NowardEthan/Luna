@@ -10,6 +10,7 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+release/
 *.local
 
 # Python (servidor Luna)
@@ -31,6 +32,9 @@ chaves/*
 
 # Firebase CLI cache e artefactos locais
 .firebase/
+
+# Pacotes zip de add-ons (gerados por npm run addon:pack-ide)
+addons/dist/
 
 # Testes
 test-results/

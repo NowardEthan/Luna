@@ -1,21 +1,24 @@
-import { isLikelyEnglish } from './detect'
-import { readAutoTranslateEnabled, readUiLocale } from './preferences'
+import { localesMatchSource } from './detect'
+import { readUiLocale } from './preferences'
 import { localizeText } from './service'
 import type { LocalizedText } from './types'
 
-/** Normaliza raciocínio do modelo para o idioma da UI. */
+/**
+ * Normaliza raciocínio do modelo para o idioma da UI (traduz EN → PT, etc.).
+ * Sempre tenta traduzir quando o texto não está já no idioma da interface.
+ */
 export async function normalizeReasoningForDisplay(
   raw: string,
 ): Promise<LocalizedText> {
+  const trimmed = raw.trim()
   const locale = readUiLocale()
-  const force =
-    readAutoTranslateEnabled() &&
-    locale === 'pt' &&
-    isLikelyEnglish(raw)
-
-  return localizeText(raw, {
-    minLength: 8,
-    force,
-    ...(force ? { from: 'en' as const } : {}),
+  if (!trimmed) return { text: '', locale }
+  if (localesMatchSource(trimmed, locale)) {
+    return { text: trimmed, locale }
+  }
+  return localizeText(trimmed, {
+    to: locale,
+    force: true,
+    minLength: 4,
   })
 }

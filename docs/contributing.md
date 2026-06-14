@@ -16,6 +16,13 @@ Obrigado por considerar contribuir. Este guia resume convenções do monorepo.
 | `npm run ci` | lint + build + testes |
 | `npm test` | Vitest |
 
+## Internacionalização (i18n)
+
+- Textos visíveis na UI vão em `src/i18n/locales/en.json` (fonte) e `pt.json` (tradução).
+- Nos componentes React use `useTranslation()` e `t('namespace.chave')` — evite `t('chave', 'fallback em português')`.
+- Antes do PR: `npm run i18n:check` (paridade en/pt) e, se útil, `npm run i18n:scan` (baseline de hardcoded).
+- Roadmap completo: [docs/i18n-roadmap.md](./i18n-roadmap.md).
+
 ## Estrutura de código
 
 - **Não** importe `useConversations` em `src/agent/` ou `src/core/` — use `ConversationStore`.

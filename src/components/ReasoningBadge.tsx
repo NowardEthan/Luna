@@ -21,9 +21,9 @@ export function ReasoningBadge({
     inProgress || translating || Boolean(displayText)
   if (!showBlock) return null
 
-  let title = 'Pensamento'
-  if (translating) title = 'A traduzir pensamento…'
-  else if (inProgress) title = 'A pensar…'
+  let title = 'Raciocínio'
+  if (translating) title = 'A traduzir raciocínio…'
+  else if (inProgress) title = 'A raciocinar…'
 
   const preview =
     displayText && !translating && !inProgress

@@ -4,8 +4,10 @@ import { cloudSyncService } from '../../sync/cloudSyncService'
 import { eventBus } from '../../../core/events/EventBus'
 import { readLunaCloudConfig } from '../../../lib/lunaCloud'
 import type { PreferencesSharedProps } from '../settingsSections'
+import { useTranslation } from 'react-i18next'
 
 export function CloudSection({ disabled }: PreferencesSharedProps) {
+  const { t } = useTranslation()
   const auth = useLunaAuth()
   const cloud = useMemo(() => readLunaCloudConfig(), [])
   const [, setSyncTick] = useState(0)
@@ -14,31 +16,31 @@ export function CloudSection({ disabled }: PreferencesSharedProps) {
     const unsubs = [
       eventBus.on('lunar:sync:start', () => setSyncTick((n) => n + 1)),
       eventBus.on('lunar:sync:complete', () => setSyncTick((n) => n + 1)),
+      eventBus.on('lunar:sync:tick', () => setSyncTick((n) => n + 1)),
     ]
     return () => unsubs.forEach((u) => u())
   }, [])
 
   const sync = cloudSyncService.getStatus()
 
+  const modeLabel = auth.isLunarConnected
+    ? t('settings.cloud_mode_active')
+    : auth.usageMode === 'offline'
+      ? t('settings.cloud_mode_offline')
+      : t('settings.cloud_mode_no_session')
+
   return (
     <div className="space-y-6">
-      <header>
-        <h2 className="text-title font-semibold text-fg">Conta Lunar</h2>
-        <p className="mt-1 text-ui text-fg-muted">
-          Modelos online hospedados pela Luna, sincronização entre dispositivos e
-          loja remota. Modo offline: Ollama, IDE e RAG local neste computador.
+      <header className="mb-6">
+        <h2 className="text-2xl font-bold tracking-tight text-fg">{t('settings.section_cloud_label', 'Conta Lunar')}</h2>
+        <p className="mt-1 text-xs text-fg-muted">
+          {t('settings.cloud_hint', 'Modelos online hospedados pela Luna, sincronização entre dispositivos e loja remota. Modo offline: Ollama, IDE e RAG local neste computador.')}
         </p>
       </header>
 
-      <section className="luna-surface-panel space-y-3 rounded-lg border border-line p-4">
-        <h3 className="text-ui font-medium text-fg">Modo actual</h3>
-        <p className="text-ui text-fg">
-          {auth.isLunarConnected
-            ? 'Lunar Cloud — sessão activa'
-            : auth.usageMode === 'offline'
-              ? 'Offline — só recursos locais'
-              : 'Sem sessão — inicie a Conta Lunar para a nuvem'}
-        </p>
+      <section className="luna-card space-y-4">
+        <h3 className="text-ui font-medium text-fg">{t('settings.cloud_current_mode')}</h3>
+        <p className="text-ui text-fg">{modeLabel}</p>
         <div className="flex flex-wrap gap-2">
           {!auth.isLunarConnected ? (
             <>
@@ -48,7 +50,7 @@ export function CloudSection({ disabled }: PreferencesSharedProps) {
                 disabled={disabled || !auth.configured}
                 onClick={() => void auth.signInWithGoogle()}
               >
-                Entrar com Google
+                {t('settings.cloud_sign_in_google')}
               </button>
               <button
                 type="button"
@@ -56,7 +58,7 @@ export function CloudSection({ disabled }: PreferencesSharedProps) {
                 disabled={disabled}
                 onClick={() => auth.openGate()}
               >
-                Ver opções de conta
+                {t('settings.cloud_account_options')}
               </button>
             </>
           ) : null}
@@ -67,7 +69,7 @@ export function CloudSection({ disabled }: PreferencesSharedProps) {
               disabled={disabled}
               onClick={() => auth.continueOffline()}
             >
-              Mudar para offline
+              {t('settings.cloud_go_offline')}
             </button>
           ) : (
             <button
@@ -76,7 +78,7 @@ export function CloudSection({ disabled }: PreferencesSharedProps) {
               disabled={disabled}
               onClick={() => auth.setUsageModeCloud()}
             >
-              Preferir modo cloud
+              {t('settings.cloud_prefer_cloud')}
             </button>
           )}
           {auth.isLunarConnected ? (
@@ -86,7 +88,7 @@ export function CloudSection({ disabled }: PreferencesSharedProps) {
               disabled={disabled}
               onClick={() => void auth.signOut()}
             >
-              Terminar sessão
+              {t('settings.cloud_sign_out')}
             </button>
           ) : null}
         </div>
@@ -97,20 +99,26 @@ export function CloudSection({ disabled }: PreferencesSharedProps) {
         ) : null}
       </section>
 
-      <section className="luna-surface-panel space-y-2 rounded-lg border border-line p-4">
-        <h3 className="text-ui font-medium text-fg">Sincronização</h3>
+      <section className="luna-card space-y-4">
+        <h3 className="text-ui font-medium text-fg">{t('settings.cloud_sync_title')}</h3>
+        <p className="text-ui text-fg-muted">
+          {t('settings.cloud_sync_hint')}
+        </p>
         <ul className="space-y-1 text-ui text-fg-muted">
           <li>
             Firestore:{' '}
             <span className={cloud.syncEnabled ? 'text-accent' : 'text-fg-dim'}>
-              {cloud.syncEnabled ? 'activada' : 'desligada (VITE_LUNA_CLOUD_SYNC)'}
+              {cloud.syncEnabled
+                ? t('common.on_f')
+                : t('settings.cloud_sync_disabled')}
             </span>
           </li>
           <li>
-            Último sync:{' '}
+            {t('settings.cloud_last_sync')}
+            {' '}
             {sync.lastSyncAt
               ? new Date(sync.lastSyncAt).toLocaleString()
-              : 'ainda não'}
+              : t('settings.cloud_never_synced')}
           </li>
           {sync.lastError ? (
             <li className="text-red-400/90">{sync.lastError}</li>
@@ -123,16 +131,19 @@ export function CloudSection({ disabled }: PreferencesSharedProps) {
             disabled={disabled || sync.pushing}
             onClick={() => void cloudSyncService.pullFromCloud()}
           >
-            Sincronizar agora
+            {t('settings.cloud_sync_now')}
           </button>
         ) : null}
       </section>
 
-      <section className="luna-surface-panel space-y-2 rounded-lg border border-line p-4 text-ui text-fg-muted">
-        <h3 className="font-medium text-fg">Plano</h3>
+      <section className="luna-card space-y-2 text-ui text-fg-muted">
+        <h3 className="font-medium text-fg">{t('settings.cloud_plan_title')}</h3>
         <p>
-          Plano actual: <span className="text-fg">free</span> — LLM hospedado,
-          sync e marketplace incluídos.
+          {t('settings.cloud_plan_label')} <span className="text-fg">{auth.plan}</span>
+          {' — '}
+          {t('settings.cloud_plan_storage')}{' '}
+          <span className="text-fg">25&nbsp;MB</span>{' '}
+          {t('settings.cloud_plan_storage_hint')}
         </p>
       </section>
     </div>

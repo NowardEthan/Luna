@@ -324,6 +324,17 @@ function createApp(services) {
         return
       }
 
+      if (method === 'POST' && pathname === '/v1/tools/set-workspace-roots') {
+        const body = await readJsonBody(req)
+        const paths = Array.isArray(body.paths)
+          ? body.paths.map((p) => String(p ?? ''))
+          : []
+        const result = agentTools.setWorkspaceRoots(paths)
+        sendJson(res, 200, result)
+        logHttpResult(rl, body, result)
+        return
+      }
+
       if (method === 'POST' && pathname === '/v1/tools/write-file') {
         const body = await readJsonBody(req)
         const result = agentTools.writeFile(

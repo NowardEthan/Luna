@@ -10,3 +10,23 @@ export function isReasoningBulkJump(prevLen: number, nextLen: number): boolean {
   const jump = nextLen - prevLen
   return jump > 48 && prevLen > 0
 }
+
+/** Separa tags `think`/`thought` do conteúdo visível na resposta. */
+export function extractThoughtFromStream(raw: string): {
+  content: string
+  thought: string
+} {
+  let content = raw
+  let thought = ''
+  const regex = /<(?:think|thought)>([\s\S]*?)(?:<\/(?:think|thought)>|$)/gi
+  let m
+  while ((m = regex.exec(raw)) !== null) {
+    if (thought) thought += '\n\n'
+    thought += m[1]
+  }
+  content = content.replace(
+    /<(?:think|thought)>[\s\S]*?(?:<\/(?:think|thought)>|$)/gi,
+    '',
+  )
+  return { content, thought }
+}

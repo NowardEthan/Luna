@@ -8,8 +8,8 @@ const { URL } = require('url')
 const { shell } = require('electron')
 
 const OAUTH_PORT = 5167
-/** Web client OAuth do Firebase (projeto luna-8787d) — sobrescrever com .env */
-const DEFAULT_GOOGLE_WEB_CLIENT_ID =
+/** Mesmo client Web que o projeto Luna (luna-8787d) — comprovado a funcionar. */
+const LUNA_GOOGLE_WEB_CLIENT_ID =
   '529601808898-nmlorgto19a1smpagh6vj33mn4b1g2qi.apps.googleusercontent.com'
 
 const AUTH_LANDING_HTML = `<!DOCTYPE html>
@@ -29,8 +29,9 @@ const CALLBACK_HTML = `<!DOCTYPE html>
 <body><p>Login concluído. Podes fechar esta aba e voltar à Luna.</p></body></html>`
 
 function readGoogleClientId() {
-  const fromEnv = process.env.GOOGLE_OAUTH_WEB_CLIENT_ID?.trim()
-  return fromEnv || DEFAULT_GOOGLE_WEB_CLIENT_ID
+  return (
+    process.env.GOOGLE_OAUTH_WEB_CLIENT_ID?.trim() || LUNA_GOOGLE_WEB_CLIENT_ID
+  )
 }
 
 /**
@@ -135,7 +136,16 @@ function startGoogleLogin() {
 
 /** @param {import('electron').IpcMain} ipcMain */
 function registerGoogleOAuth(ipcMain) {
-  ipcMain.handle('auth:googleSignIn', () => startGoogleLogin())
+  const handler = () => startGoogleLogin()
+  ipcMain.handle('auth:googleSignIn', handler)
+  // Alias igual ao projeto Luna (electronAPI.startGoogleLogin)
+  ipcMain.handle('start-google-login', async () => {
+    const r = await startGoogleLogin()
+    if (r.ok) {
+      return { success: true, idToken: r.idToken, accessToken: r.accessToken }
+    }
+    return { success: false, error: r.error || 'Login falhou' }
+  })
 }
 
 module.exports = { registerGoogleOAuth, startGoogleLogin, OAUTH_PORT }

@@ -6,13 +6,6 @@ import {
   completeLlmChat,
   type LlmApiMessage,
 } from '../lib/togetherClient'
-import {
-  buildPlanningUserBlock,
-  formatPlanningHintForMainSystem,
-  parsePlanningJson,
-  IDE_PLANNING_SYSTEM_PROMPT,
-  PLANNING_SYSTEM_PROMPT,
-} from '../lib/lunaPlanningPrompt'
 import { isAssistantErrorText } from '../lib/assistantMessageUi'
 import { formatMemorySaveBadgePreview } from '../lib/saveMemoryTool'
 import { trimMessagesForAgent, userContentForLlm } from '../lib/lunaMemory'
@@ -23,8 +16,6 @@ import type {
   ReasoningTrace,
 } from '../types/chat'
 import type { AgentTurnInput, AgentTurnResult } from './types'
-import { assertBuiltinToolsRegistered } from '../core/tools/registerBuiltin'
-import { toolRegistry } from '../core/registry/ToolRegistry'
 import { eventBus } from '../core/events/EventBus'
 import { executeToolCall, type ToolSideEffects } from './executeTools'
 import {
@@ -36,10 +27,6 @@ import {
   shouldRequestReasoningFromApi,
   shouldShowReasoningInUi,
 } from '../lib/reasoningModelCapabilities'
-import {
-  shouldReviewMemoryForTurn,
-  userAskedToRemember,
-} from '../lib/memoryPreferences'
 import { extractUrlsFromUserText } from '../lib/urlInMessage'
 import { normalizeReasoningForDisplay } from '../translation'
 import { autoCaptureMemoriesIfNeeded } from './autoMemoryCapture'
@@ -48,11 +35,6 @@ import {
   buildAgentFinalSystem,
   buildSystemCore,
 } from './buildAgentSystemPrompt'
-import {
-  IDE_FIRST_TURN_SYSTEM_HINT,
-  IDE_EXPLORE_HINT,
-  IDE_GUI_HINT,
-} from './ideSystemSupplement'
 import {
   buildContinuationNudge,
   buildBudgetExitMessage,
@@ -67,12 +49,11 @@ import {
   assessIdeContinuity,
   shouldNudgeIdeContinuation,
 } from './ideTaskContinuity'
+import { getAgentToolSchemas } from './toolSchemas'
 import { getIdeTurnHost } from '../lib/ideTurnHost'
-import {
-  compileIdeContextBlock,
-  compileIdeContextRefreshNote,
-} from '../lib/ideContextCompiler'
+import { compileIdeContextRefreshNote } from '../lib/ideContextCompiler'
 import { throwIfAgentTurnAborted } from '../lib/agentTurnCancel'
+import { extractThoughtFromStream } from '../lib/reasoningStreamUi'
 
 export const MAX_AGENT_STEPS = 8
 const AGENT_MAX_COMPLETION_TOKENS = 2048
@@ -87,13 +68,6 @@ export function isPlanningEnabled(): boolean {
   } catch {
     return false
   }
-}
-
-function shouldRunPlanning(ctx: AgentTurnInput): boolean {
-  if (ctx.usePlanning === true) return true
-  if (ctx.usePlanning === false) return false
-  if (ctx.workbenchMode === 'ide') return true
-  return isPlanningEnabled()
 }
 
 function imageHintForUserContent(ctx: AgentTurnInput, pending: string): string {
@@ -198,7 +172,14 @@ export async function runAgentTurn(
   })
   const budget = readAgentTurnBudget(ctx.workbenchMode ?? 'chat')
   const stepLimit = budget.maxLlmRounds
-  const systemCore = buildSystemCore(ctx.personalityId, ctx.workbenchMode ?? 'chat')
+  const systemCore = buildSystemCore(
+    ctx.personalityId,
+    ctx.workbenchMode ?? 'chat',
+    ctx.ideContextBlock,
+    ctx.financesContextBlock,
+    ctx.financesAddonActive,
+    ctx.primaryView ?? 'conversation',
+  )
   let mainSystem = buildAgentFinalSystem(
     systemCore,
     ctx.userMemory,
@@ -214,51 +195,7 @@ export async function runAgentTurn(
 
   throwIfAgentTurnAborted(ctx.signal)
 
-  if (shouldRunPlanning(ctx)) {
-    ctx.onStatusHint?.('A planear…')
-    const planningUserBlock = buildPlanningUserBlock(
-      ctx.verbatimWorking,
-      pendingContent,
-    )
-    const plannerSystem =
-      ctx.workbenchMode === 'ide'
-        ? IDE_PLANNING_SYSTEM_PROMPT
-        : PLANNING_SYSTEM_PROMPT
-    const planRes = await completeLlmChat(
-      [
-        { role: 'system', content: plannerSystem },
-        { role: 'user', content: planningUserBlock },
-      ],
-      {
-        temperature: 0.28,
-        maxCompletionTokens: 450,
-        tool_choice: 'none',
-        reasoningEnabled: false,
-      },
-    )
-    let parsedPlan = planRes.ok ? parsePlanningJson(planRes.text) : null
-    if (!parsedPlan && planRes.ok && planRes.text.trim()) {
-      const retry = await completeLlmChat(
-        [
-          { role: 'system', content: plannerSystem },
-          {
-            role: 'user',
-            content: `${planningUserBlock}\n\nReforço: devolve **somente** o objecto JSON pedido, sem markdown.`,
-          },
-        ],
-        {
-          temperature: 0.15,
-          maxCompletionTokens: 450,
-          tool_choice: 'none',
-          reasoningEnabled: false,
-        },
-      )
-      if (retry.ok) parsedPlan = parsePlanningJson(retry.text)
-    }
-    if (parsedPlan) {
-      mainSystem = mainSystem + formatPlanningHintForMainSystem(parsedPlan)
-    }
-  }
+  // O planeamento preliminar foi desativado a pedido do utilizador para tornar o fluxo mais padrão e instantâneo.
 
   const verbatimForApi = trimMessagesForAgent(ctx.verbatimWorking)
 
@@ -308,8 +245,6 @@ export async function runAgentTurn(
 
   const useStream = streamOn
 
-  const rememberRequest = userAskedToRemember(ctx.userCaption)
-  const memoryWorthyTurn = shouldReviewMemoryForTurn(ctx.userCaption)
   let pendingSynthesis = false
   let loopExited = false
 
@@ -329,57 +264,28 @@ export async function runAgentTurn(
             : 'A processar…',
     )
 
-    if (llmRound === 1 && ctx.workbenchMode === 'ide') {
-      loopMessages.push({
-        role: 'system',
-        content: IDE_FIRST_TURN_SYSTEM_HINT,
-      })
-      if (
-        /mapear|explorar|onde está|como funciona|estrutura do projecto|fluxo de/i.test(
-          ctx.userCaption,
-        )
-      ) {
-        loopMessages.push({ role: 'system', content: IDE_EXPLORE_HINT })
-      }
-      if (
-        /interface gráfica|\bgui\b|janela|tkinter|matplotlib|electron|dotnet|javafx|mostrar.*visual|ver.*na tela|na ui\b/i.test(
-          ctx.userCaption,
-        )
-      ) {
-        loopMessages.push({ role: 'system', content: IDE_GUI_HINT })
-      }
-    }
+    // Injeções de prompts extras (IDE, finanças, etc) foram desativadas a pedido do utilizador para simplificar o envio de mensagem.
 
-    if (llmRound > 1 && ctx.workbenchMode === 'ide' && agentSteps.length) {
-      const host = getIdeTurnHost()
-      if (host) {
-        const refresh = await compileIdeContextBlock({
-          snapshot: host.getSnapshot(),
-          mentions: ctx.ideMentions,
-          userQuery: ctx.userCaption,
-          ragEnabled: ctx.ragEnabled,
-        })
-        loopMessages.push({
-          role: 'system',
-          content:
-            compileIdeContextRefreshNote(host.getSnapshot()) +
-            (refresh ? `\n\n${refresh}` : ''),
-        })
-      }
-    }
+    // Injeções de memória e prompts de ferramentas financeiras desativadas.
 
-    if (llmRound === 1 && (rememberRequest || memoryWorthyTurn)) {
-      loopMessages.push({
-        role: 'system',
-        content: rememberRequest
-          ? '[Memória] A pessoa pediu para lembrar ou guardar algo. Chama **save_memory** com o facto concreto (título + detalhe) neste turno, antes de responder só em texto.'
-          : '[Memória] Este turno pode ter factos estáveis novos (nome, papel, projecto, preferências). Antes de fechar a resposta em texto, chama **save_memory** para cada facto novo que ainda não esteja nas notas listadas acima — não assumes que “já sabes” sem gravar.',
-      })
-    }
+    const financesOnlyTools =
+      ctx.financesAddonActive && (ctx.primaryView ?? 'conversation') === 'finances'
+
+    const apiLoopMessages = synthesisPass
+      ? loopMessages.map((m) => {
+          if (m.role !== 'assistant') return m
+          const { reasoning_content: _r1, reasoning: _r2, ...rest } = m as LlmApiMessage & {
+            reasoning_content?: string
+            reasoning?: string
+          }
+          return rest as LlmApiMessage
+        })
+      : loopMessages
 
     const messagesForLlm = injectReasoningLanguageIntoMessages(
-      loopMessages,
-      shouldInjectReasoningLanguage(userReasoningToggle),
+      apiLoopMessages,
+      shouldInjectReasoningLanguage(userReasoningToggle) && !synthesisPass,
+      ctx.llmSelection,
     )
 
     const llmOpts = {
@@ -390,11 +296,12 @@ export async function runAgentTurn(
       ...(synthesisPass
         ? {}
         : {
-            tools: (assertBuiltinToolsRegistered(), toolRegistry.getSchemas()),
+            tools: getAgentToolSchemas({ financesOnly: financesOnlyTools }),
             tool_choice: 'auto' as const,
           }),
       reasoningEnabled: requestReasoningApi && !synthesisPass,
       llmSelection: ctx.llmSelection,
+      signal: ctx.signal,
     }
 
     let streamedReasoningFull = ''
@@ -415,7 +322,17 @@ export async function runAgentTurn(
               }
             },
             onContent: (_delta, full) => {
-              ctx.onAssistantDelta?.(full)
+              const parsed = extractThoughtFromStream(full)
+              if (parsed.thought.trim()) {
+                if (!reasoningUiStarted) {
+                  reasoningUiStarted = true
+                  ctx.onReasoningStarted?.()
+                }
+                ctx.onReasoningSegmentDelta?.(llmRound, parsed.thought)
+              }
+              if (parsed.content.length > 0) {
+                ctx.onAssistantDelta?.(parsed.content)
+              }
             },
             onToolsPending: () => {
               ctx.onToolsPending?.()
@@ -461,10 +378,19 @@ export async function runAgentTurn(
 
     if (res.provider) llmProvider = res.provider
     if (res.usedFallback) usedLlmFallback = true
+
+    const finalParsed = extractThoughtFromStream(res.text)
+    res.text = finalParsed.content
+
     const roundReasoning =
-      res.reasoningContent?.trim() || streamedReasoningFull.trim() || ''
+      res.reasoningContent?.trim() || streamedReasoningFull.trim() || finalParsed.thought.trim() || ''
     ingestReasoningChunk(roundReasoning || undefined, reasoningParts)
-    if (roundReasoning) {
+
+    // Conteúdo pode só existir em res.text (ex. GPT-OSS) — buffer antes de fechar raciocínio.
+    if (finalParsed.content.length > 0) {
+      ctx.onAssistantDelta?.(finalParsed.content)
+    }
+    if (reasoningUiStarted) {
       ctx.onReasoningSegmentComplete?.(llmRound, roundReasoning)
     }
 
@@ -771,29 +697,15 @@ function parseAttemptErrorsFromText(error: string): string[] {
 }
 
 function formatAgentLlmError(error: string): string {
-  if (/nenhum provedor/i.test(error) && /•\s*(openrouter|groq|together|ollama)/i.test(error)) {
-    const hasOpenRouterLimit =
-      /free-models-per-day|free model requests per day|429|rate limit|quota/i.test(error)
-    const ringMention = /ring-2\.6|inclusionai\/ring/i.test(error)
+  if (/nenhum provedor/i.test(error)) {
     return (
-      (hasOpenRouterLimit
-        ? ringMention
-          ? 'Nenhum modelo respondeu — o Ring (free) no OpenRouter costuma bater no limite diário ou de velocidade. '
-          : 'Nenhum modelo respondeu — o modelo gratuito no OpenRouter pode estar no limite diário ou de velocidade. '
-        : 'Nenhum modelo respondeu neste turno. ') +
-      'Escolhe outro modelo no seletor (ex. Ollama local ou Groq), espera um minuto, ou abre «Detalhes técnicos» para ver cada tentativa.\n\n' +
-      error
-    )
-  }
-  if (/free-models-per-day|free model requests per day/i.test(error)) {
-    return (
-      'Atingiste o limite diário gratuito do OpenRouter para este modelo. ' +
-      'Adiciona créditos em openrouter.ai, escolhe outro modelo no seletor (ex.: Ollama local), ou tenta amanhã.\n\n' +
+      'Nenhum modelo respondeu neste turno. ' +
+      'Verifica se a API Key do Groq está correta no .env ou tenta novamente em instantes.\n\n' +
       error
     )
   }
   const contextTooLarge =
-    /context|too many tokens|maximum.*tokens|input.*length|context_length|max_tokens exceeded/i.test(
+    /context|too many tokens|maximum.*tokens|input.*length|context_length|max_tokens exceeded|request too large|\b413\b/i.test(
       error,
     )
   if (/429|rate limit|tokens per minute|\bTPM\b/i.test(error)) {
@@ -812,19 +724,26 @@ function formatAgentLlmError(error: string): string {
     return (
       'A API está no limite de pedidos agora (quota ou velocidade).' +
       hint +
-      ' Se persistir, troca de modelo no seletor ou espera o reset da quota.\n\n' +
+      ' Se persistir, aguarda o reset da quota.\n\n' +
       error
     )
   }
   if (/cannot specify both.*include_reasoning.*reasoning_format/i.test(error)) {
     return (
-      'A configuração de «Pensamento» entrou em conflito com a API Groq. Tenta desligar o toggle «Pensamento» no header ou reinicia o app após actualizar.\n\n' +
+      'A configuração de «Raciocínio» entrou em conflito com a API Groq. Tenta desligar o toggle «Raciocínio» junto ao campo de mensagem ou reinicia o app após actualizar.\n\n' +
       error
     )
   }
-  if (/Groq\s*\(4\d\d\)|Together\s*\(4\d\d\)/i.test(error)) {
+  if (contextTooLarge) {
     return (
-      'Não consegui completar o pedido — a API recusou o pedido. Vale tentar de novo em instantes.\n\n' +
+      'O pedido ficou grande demais para este modelo (muitas tools, raciocínio longo ou histórico). ' +
+      'Tenta desligar «Raciocínio» ou «Refazer» com uma frase mais curta.\n\n' +
+      error
+    )
+  }
+  if (/Groq\s*\(4\d\d\)/i.test(error)) {
+    return (
+      'Não consegui completar o pedido — a API do Groq recusou o pedido. Vale tentar de novo em instantes.\n\n' +
       error
     )
   }

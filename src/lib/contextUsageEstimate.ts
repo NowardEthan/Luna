@@ -10,7 +10,9 @@ import {
 import type { WorkspaceSnapshot } from './ideTurnHost'
 import type { Conversation, Message } from '../types/chat'
 import type { ConversationMemory, UserMemoryState } from '../types/memory'
+import type { LunaPrimaryView } from './primaryView'
 import type { LunaWorkbenchMode } from './workbenchMode'
+import { compileFinancesContextBlock } from './financesContextCompiler'
 import { ideContextLimits } from './ideContextConfig'
 
 export type ContextUsageSegment = {
@@ -41,6 +43,7 @@ export function estimateIdeContextTokens(snapshot: WorkspaceSnapshot | null): nu
 
 export function buildContextUsageSnapshot(input: {
   workbenchMode: LunaWorkbenchMode
+  primaryView?: LunaPrimaryView
   messages: Message[]
   conversationMemory?: ConversationMemory
   userMemory: UserMemoryState
@@ -50,6 +53,7 @@ export function buildContextUsageSnapshot(input: {
   draft: string
   ideSnapshot?: WorkspaceSnapshot | null
 }): ContextUsageSnapshot {
+  const financesView = input.primaryView === 'finances'
   const limitTokens = DEFAULT_CONTEXT_WINDOW_TOKENS
   const verbatim = messagesAfterSummaryBoundary(
     input.messages,
@@ -57,11 +61,21 @@ export function buildContextUsageSnapshot(input: {
   )
   const rolling = input.conversationMemory?.rollingSummary?.trim() ?? ''
   const ideTokens =
-    input.workbenchMode === 'ide'
+    input.workbenchMode === 'ide' && !financesView
       ? estimateIdeContextTokens(input.ideSnapshot ?? null)
       : 0
+  const financesTokens = financesView
+    ? estimateTokens(compileFinancesContextBlock())
+    : 0
 
-  const systemCore = buildSystemCore(input.personalityId, input.workbenchMode)
+  const systemCore = buildSystemCore(
+    input.personalityId,
+    input.workbenchMode,
+    undefined,
+    financesView ? compileFinancesContextBlock() : undefined,
+    financesView,
+    input.primaryView ?? 'conversation',
+  )
   const fullSystem = buildAgentFinalSystem(
     systemCore,
     input.userMemory,
@@ -70,7 +84,7 @@ export function buildContextUsageSnapshot(input: {
     rolling,
   )
 
-  const systemTokens = estimateTokens(fullSystem) + ideTokens
+  const systemTokens = estimateTokens(fullSystem) + ideTokens + financesTokens
   const historyTokens = verbatim.reduce(
     (n, m) => n + estimateTokens(userContentForLlm(m)),
     0,

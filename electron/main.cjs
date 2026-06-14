@@ -17,6 +17,8 @@ require('dotenv').config({
   path: path.join(__dirname, '..', '.env'),
 })
 
+const { startPackagedServer, stopPackagedServer } = require('./serverLauncher.cjs')
+
 const { app, BrowserWindow, ipcMain, Menu, dialog } = require('electron')
 const { createLunaServices } = require('./bootstrap.cjs')
 const { registerGoogleOAuth } = require('./googleOAuth.cjs')
@@ -99,6 +101,97 @@ function loadDevUrlWithRetry(win, url) {
   wc.loadURL(url).catch(() => scheduleRetry())
 }
 
+function registerLunaFileExplorerIpc() {
+  const { createLunaFileExplorer } = require('./lunaFileExplorer.cjs')
+  const lunaFiles = createLunaFileExplorer(app)
+  ipcMain.handle('lunaFiles:getPlaces', () => lunaFiles.getPlaces())
+  ipcMain.handle('lunaFiles:listDirectory', (_event, dirPath, options) =>
+    lunaFiles.listDirectory(dirPath, options),
+  )
+  ipcMain.handle('lunaFiles:readFileBinary', (_event, filePath, maxBytes) =>
+    lunaFiles.readFileBinary(filePath, maxBytes),
+  )
+
+  const { registerByokHandlers } = require('./byokHandlers.cjs')
+  registerByokHandlers(ipcMain)
+
+  const lunaCore = require('./lunaCoreBridge.cjs')
+
+  ipcMain.handle('lunaCore:executarPipeline', async (_event, mensagem, sessaoId, opcoes) => {
+    return lunaCore.executarPipeline(mensagem, sessaoId, opcoes)
+  })
+
+  ipcMain.handle('lunaCore:prepararSessao', async (_event, sessaoId) => {
+    return lunaCore.prepararSessao(sessaoId)
+  })
+
+  ipcMain.handle('lunaCore:refletirSessao', async (_event, sessaoId) => {
+    return lunaCore.refletirSessao(sessaoId)
+  })
+
+  ipcMain.handle('lunaCore:listarMemoriaLonga', async (_event, limit) => {
+    return lunaCore.listarMemoriaLonga(limit)
+  })
+}
+
+const { createForgeLsp } = require('./forgeLsp.cjs')
+const { createForgeTerminal } = require('./forgeTerminal.cjs')
+
+function registerForgeDesktopIpc() {
+  if (ipcMain.listenerCount('forgeTerminal:create') > 0) return
+
+  const forgeLsp = createForgeLsp((payload) => {
+    for (const win of BrowserWindow.getAllWindows()) {
+      if (!win.isDestroyed()) {
+        win.webContents.send('forgeLsp:diagnostics', payload)
+      }
+    }
+  })
+
+  ipcMain.handle('forgeLsp:setWorkspaceRoot', (_event, rootPath) =>
+    forgeLsp.setWorkspaceRoot(rootPath),
+  )
+  ipcMain.handle('forgeLsp:openDocument', (_event, doc) =>
+    forgeLsp.openDocument(doc),
+  )
+  ipcMain.handle('forgeLsp:changeDocument', (_event, doc) =>
+    forgeLsp.changeDocument(doc),
+  )
+  ipcMain.handle('forgeLsp:closeDocument', (_event, filePath) =>
+    forgeLsp.closeDocument(filePath),
+  )
+  ipcMain.handle('forgeLsp:completion', (_event, pos) =>
+    forgeLsp.completion(pos),
+  )
+  ipcMain.handle('forgeLsp:hover', (_event, pos) =>
+    forgeLsp.hover(pos),
+  )
+  ipcMain.handle('forgeLsp:definition', (_event, pos) =>
+    forgeLsp.definition(pos),
+  )
+
+  const forgeTerminal = createForgeTerminal((payload) => {
+    for (const win of BrowserWindow.getAllWindows()) {
+      if (!win.isDestroyed()) {
+        win.webContents.send('forgeTerminal:data', payload)
+      }
+    }
+  })
+
+  ipcMain.handle('forgeTerminal:create', (_event, opts) =>
+    forgeTerminal.create(opts),
+  )
+  ipcMain.handle('forgeTerminal:write', (_event, id, data) =>
+    forgeTerminal.write(id, data),
+  )
+  ipcMain.handle('forgeTerminal:resize', (_event, id, cols, rows) =>
+    forgeTerminal.resize(id, cols, rows),
+  )
+  ipcMain.handle('forgeTerminal:kill', (_event, id) =>
+    forgeTerminal.kill(id),
+  )
+}
+
 function registerIpc(services) {
   const {
     rag,
@@ -112,6 +205,12 @@ function registerIpc(services) {
   } = services
 
   registerGoogleOAuth(ipcMain)
+
+  // Pipeline agêntico PAIA — precisa do agentTools para o toolExecutor
+  const lunaCoreForAgent = require('./lunaCoreBridge.cjs')
+  ipcMain.handle('lunaCore:executarAgenteIde', async (event, mensagem, opcoes) => {
+    return lunaCoreForAgent.executarAgenteIde(event, mensagem, opcoes, agentTools)
+  })
 
   ipcMain.handle('window:minimize', (event) => {
     const win = BrowserWindow.fromWebContents(event.sender)
@@ -138,6 +237,8 @@ function registerIpc(services) {
     if (!win) return
     applyWorkbenchBounds(win, mode === 'ide' ? 'ide' : 'chat')
   })
+
+  registerForgeDesktopIpc()
 
   if (USE_HTTP_SERVER) {
     ipcMain.handle('rag:pickFolder', async () => {
@@ -205,7 +306,9 @@ function registerIpc(services) {
     return translateText(text, { to, ...(from ? { from } : {}) })
   })
 
-  ipcMain.handle('llm:listModels', () => listLunaModels())
+  ipcMain.handle('llm:listModels', (_event, opts) =>
+    listLunaModels(opts && typeof opts === 'object' ? opts : {}),
+  )
 
   ipcMain.handle('llm:chat', async (_event, payload) => llmChat(payload))
 
@@ -279,8 +382,20 @@ function registerIpc(services) {
   ipcMain.handle('agentTools:setWorkspaceRoot', (_event, rootPath) =>
     agentTools.setWorkspaceRoot(rootPath),
   )
+  ipcMain.handle('agentTools:setWorkspaceRoots', (_event, paths) =>
+    agentTools.setWorkspaceRoots(paths),
+  )
   ipcMain.handle('agentTools:writeFile', (_event, filePath, content) =>
     agentTools.writeFile(filePath, content),
+  )
+  ipcMain.handle('agentTools:createDirectory', (_event, dirPath) =>
+    agentTools.createDirectory(dirPath),
+  )
+  ipcMain.handle('agentTools:deletePath', (_event, targetPath) =>
+    agentTools.deletePath(targetPath),
+  )
+  ipcMain.handle('agentTools:renamePath', (_event, fromPath, toPath) =>
+    agentTools.renamePath(fromPath, toPath),
   )
   ipcMain.handle('agentTools:grep', (_event, pattern, searchPath, options) =>
     agentTools.grep(pattern, searchPath, options),
@@ -389,6 +504,70 @@ function bundledPluginsDir() {
   return path.join(__dirname, '..', '.luna', 'plugins')
 }
 
+function findPluginRoot(dir) {
+  if (fs.existsSync(path.join(dir, 'plugin.json'))) return dir
+  for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (!ent.isDirectory()) continue
+    const sub = path.join(dir, ent.name)
+    if (fs.existsSync(path.join(sub, 'plugin.json'))) return sub
+  }
+  return dir
+}
+
+async function installPluginFromUrl(url) {
+  if (!url || typeof url !== 'string') {
+    return { ok: false, error: 'URL de download inválida.' }
+  }
+  let AdmZip
+  try {
+    AdmZip = require('adm-zip')
+  } catch {
+    return {
+      ok: false,
+      error: 'Suporte a ZIP indisponível (adm-zip). Reinstale a aplicação.',
+    }
+  }
+  const os = require('os')
+  let res
+  try {
+    res = await fetch(url)
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Falha ao transferir o pacote.',
+    }
+  }
+  if (!res.ok) {
+    const hint =
+      res.status === 404
+        ? ' O pacote .zip ainda não foi publicado no Firebase Storage — corre npm run addon:upload-ide na raiz do projeto.'
+        : ''
+    return {
+      ok: false,
+      error: `Download falhou (HTTP ${res.status}).${hint}`,
+    }
+  }
+  const buf = Buffer.from(await res.arrayBuffer())
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'luna-plugin-'))
+  try {
+    const zip = new AdmZip(buf)
+    zip.extractAllTo(tmp, true)
+    const root = findPluginRoot(tmp)
+    return installPluginFromDirectory(root)
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Pacote ZIP inválido.',
+    }
+  } finally {
+    try {
+      fs.rmSync(tmp, { recursive: true, force: true })
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
 function installPluginFromDirectory(src) {
   const manifestPath = path.join(src, 'plugin.json')
   if (!fs.existsSync(manifestPath)) {
@@ -445,6 +624,13 @@ function registerPluginIpcHandlers() {
     return installPluginFromDirectory(r.filePaths[0])
   })
 
+  ipcMain.handle('plugins:installFromDirectory', async (_event, dirPath) => {
+    if (!dirPath || typeof dirPath !== 'string') {
+      return { ok: false, error: 'Caminho inválido.' }
+    }
+    return installPluginFromDirectory(dirPath)
+  })
+
   ipcMain.handle('plugins:installBundled', async (_event, pluginId) => {
     if (!pluginId || typeof pluginId !== 'string') {
       return { ok: false, error: 'ID do add-on inválido.' }
@@ -457,6 +643,10 @@ function registerPluginIpcHandlers() {
       }
     }
     return installPluginFromDirectory(src)
+  })
+
+  ipcMain.handle('plugins:installFromUrl', async (_event, url) => {
+    return installPluginFromUrl(url)
   })
 
   ipcMain.handle('plugins:uninstall', async (_event, pluginId) => {
@@ -505,7 +695,27 @@ function registerPluginIpcHandlers() {
 }
 
 app.whenReady().then(async () => {
+  if (app.isPackaged) {
+    process.env.LUNA_CORE_PATH = path.join(process.resourcesPath, 'luna-core')
+    const userEnv = path.join(app.getPath('userData'), '.env')
+    if (fs.existsSync(userEnv)) {
+      require('dotenv').config({ path: userEnv, override: true })
+    }
+    if (USE_HTTP_SERVER) {
+      const result = await startPackagedServer({
+        resourcesPath: process.resourcesPath,
+      })
+      if (!result.ok && !result.skipped) {
+        dialog.showErrorBox(
+          BRAND_APP_NAME,
+          `Não foi possível iniciar o servidor local.\n${result.error ?? 'Erro desconhecido.'}`,
+        )
+      }
+    }
+  }
+
   registerPluginIpcHandlers()
+  registerLunaFileExplorerIpc()
   if (!USE_HTTP_SERVER) {
     const services = await createLunaServices()
     registerIpc(services)
@@ -516,6 +726,9 @@ app.whenReady().then(async () => {
 })
 
 app.on('window-all-closed', () => {
+  if (app.isPackaged) {
+    stopPackagedServer()
+  }
   if (process.platform !== 'darwin') {
     app.quit()
   }

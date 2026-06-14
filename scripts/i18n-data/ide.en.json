@@ -1,0 +1,65 @@
+{
+  "sidebar": {
+    "conversations": "Conversations",
+    "memories": "Memories",
+    "files": "Files"
+  },
+  "banner": {
+    "session": "IDE session",
+    "step": "Step {{round}}",
+    "folderActive": "“{{folder}}” — code context injected (active, terminal, git).",
+    "noFolder": "Open a folder — Luna injects code and environment into each message.",
+    "autoApply": "Auto-apply patches",
+    "ragSync": "Sync RAG index"
+  },
+  "explorer": {
+    "title": "Explorer",
+    "openFolder": "Open folder",
+    "empty": "Open a project folder to get started.",
+    "loading": "Loading…"
+  },
+  "editor": {
+    "closeTabAria": "Close",
+    "empty": "Open a file in the explorer"
+  },
+  "pending": {
+    "title": "Pending changes",
+    "accepting": "Applying…",
+    "accept": "Accept",
+    "reject": "Reject",
+    "gitCommit": "Git commit",
+    "confirming": "Confirming…",
+    "confirmCommit": "Confirm commit",
+    "cancel": "Cancel"
+  },
+  "checkpoint": {
+    "title": "Restore points",
+    "confirmRestoreTitle": "Restore checkpoint",
+    "confirmRestoreMessage": "Restore {{count}} file(s) to the state before “{{label}}”? Unsaved editor changes may be lost.",
+    "confirmRestore": "Restore",
+    "confirmDeleteTitle": "Delete checkpoint",
+    "confirmDeleteMessage": "Remove restore point “{{label}}”?",
+    "confirmDelete": "Delete",
+    "emptyTitle": "No checkpoints",
+    "emptyDescription": "Created automatically before applying agent patches.",
+    "filesOne": "{{name}}",
+    "filesMany": "{{count}} files",
+    "restoring": "Restoring…",
+    "restore": "Restore",
+    "delete": "Delete"
+  },
+  "diff": {
+    "view": "View diff",
+    "previewAria": "Change preview"
+  },
+  "terminal": {
+    "title": "Terminal",
+    "running": "Running…",
+    "clear": "Clear",
+    "welcome": "Luna terminal — commands via run_terminal_command tool"
+  },
+  "mentions": {
+    "none": "No matches",
+    "listAria": "@ mentions"
+  }
+}

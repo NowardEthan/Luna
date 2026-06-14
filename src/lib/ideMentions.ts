@@ -15,7 +15,7 @@ export type IdeAttachedContext = {
 }
 
 const MENTION_RE =
-  /@(Terminal|Git|Regras|AGENTS\.md|(?:[A-Za-z]:[\\/][^\s@]+)|(?:\.{0,2}[\\/][^\s@]+)|(?:[A-Za-z0-9_.-]+(?:[\\/][A-Za-z0-9_.-]+)+))\b/gi
+  /@(Terminal|Git|Regras|AGENTS\.md|(?:[A-Za-z]:[\\/][^\s@]+)|(?:\.{0,2}[\\/][^\s@]+)|(?:[A-Za-z0-9_][A-Za-z0-9_.-]*\.[A-Za-z0-9]{1,12})|(?:[A-Za-z0-9_.-]+(?:[\\/][A-Za-z0-9_.-]+)+))\b/gi
 
 export function parseIdeMentions(text: string): IdeAttachedContext[] {
   const out: IdeAttachedContext[] = []

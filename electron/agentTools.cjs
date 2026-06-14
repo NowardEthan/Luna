@@ -45,10 +45,12 @@ function resolveSafePath(requested, allowRoots) {
  * @param {import('electron').App} electronApp
  * @param {{ getStatus: () => { indexedFolder?: string } }} ragModule
  */
-function getAllowRoots(electronApp, ragModule, userWorkspaceRoot) {
+function getAllowRoots(electronApp, ragModule, userWorkspaceRoots) {
   const roots = []
-  if (userWorkspaceRoot) {
-    roots.push(userWorkspaceRoot)
+  if (Array.isArray(userWorkspaceRoots)) {
+    for (const r of userWorkspaceRoots) {
+      if (r) roots.push(r)
+    }
   }
   const projectRoot = path.join(__dirname, '..')
   roots.push(projectRoot)
@@ -75,16 +77,27 @@ function getAllowRoots(electronApp, ragModule, userWorkspaceRoot) {
  * @param {{ getStatus: () => unknown }} ragModule
  */
 function createAgentTools(electronApp, ragModule) {
-  let userWorkspaceRoot = null
+  /** @type {string[]} */
+  let userWorkspaceRoots = []
   const allowRoots = () =>
-    getAllowRoots(electronApp, ragModule, userWorkspaceRoot)
+    getAllowRoots(electronApp, ragModule, userWorkspaceRoots)
   const ide = createIdeAgentTools(electronApp, allowRoots)
 
   return {
     setWorkspaceRoot(dirPath) {
       const r = ide.setWorkspaceRoot(dirPath)
-      if (r.ok && r.path) userWorkspaceRoot = r.path
-      else if (!dirPath) userWorkspaceRoot = null
+      if (r.ok && Array.isArray(r.paths)) userWorkspaceRoots = r.paths
+      else if (!dirPath) userWorkspaceRoots = []
+      return r
+    },
+
+    /**
+     * @param {string[]} paths
+     */
+    setWorkspaceRoots(paths) {
+      const r = ide.setWorkspaceRoots(paths)
+      if (r.ok && Array.isArray(r.paths)) userWorkspaceRoots = r.paths
+      else if (!paths?.length) userWorkspaceRoots = []
       return r
     },
     writeFile: ide.writeFile,

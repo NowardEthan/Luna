@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import type { MentionSuggestion } from '../../lib/ideMentionAutocomplete'
 
 type Props = {
@@ -11,22 +12,24 @@ export function IdeMentionPicker({
   activeIndex,
   onPick,
 }: Props) {
+  const { t } = useTranslation()
+
   if (!suggestions.length) {
     return (
       <div
-        className="absolute bottom-full left-0 z-50 mb-1 w-[min(100%,18rem)] rounded-lg border border-line bg-popover px-2.5 py-2 text-[11px] text-fg-muted shadow-overlay"
+        className="luna-select-menu absolute bottom-full left-0 z-50 mb-1 w-[min(100%,18rem)] px-2.5 py-2 text-[11px] text-fg-muted"
         role="listbox"
       >
-        Nenhuma correspondência
+        {t('ide.mentions.none')}
       </div>
     )
   }
 
   return (
     <ul
-      className="absolute bottom-full left-0 z-50 mb-1 max-h-52 w-[min(100%,20rem)] overflow-y-auto rounded-lg border border-line bg-popover py-1 shadow-overlay"
+      className="luna-select-menu absolute bottom-full left-0 z-50 mb-1 max-h-52 w-[min(100%,20rem)] overflow-y-auto py-1"
       role="listbox"
-      aria-label="Menções @"
+      aria-label={t('ide.mentions.listAria')}
     >
       {suggestions.map((s, i) => {
         const active = i === activeIndex

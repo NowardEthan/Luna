@@ -4,6 +4,10 @@
  * @param {(evt: { type: string; delta?: string; full?: string }) => void} emit
  * @param {{ provider?: string; parseMessage?: (msg: unknown) => { text: string; reasoningContent: string; toolCalls: unknown[] } }} opts
  */
+function yieldToMain() {
+  return new Promise((resolve) => setImmediate(resolve))
+}
+
 async function consumeChatCompletionSse(res, emit, opts = {}) {
   const body = res.body
   if (!body || typeof body.getReader !== 'function') {
@@ -64,6 +68,7 @@ async function consumeChatCompletionSse(res, emit, opts = {}) {
         if (!sawToolCalls) {
           sawToolCalls = true
           emit({ type: 'tools_pending' })
+          await yieldToMain()
         }
         mergeToolCallDeltas(toolAcc, delta.tool_calls)
       }
@@ -84,12 +89,14 @@ async function consumeChatCompletionSse(res, emit, opts = {}) {
         const t = String(thinkDelta)
         reasoning += t
         emit({ type: 'reasoning', delta: t, full: reasoning })
+        await yieldToMain()
       }
 
       if (delta.content && !sawToolCalls) {
         const c = String(delta.content)
         content += c
         emit({ type: 'content', delta: c, full: content })
+        await yieldToMain()
       }
     }
   }

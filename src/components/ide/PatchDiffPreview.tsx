@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { computeLineDiff, countDiffChanges } from '../../lib/lineDiff'
 
 type Props = {
@@ -12,6 +13,7 @@ export function PatchDiffPreview({
   newContent,
   defaultExpanded = false,
 }: Props) {
+  const { t } = useTranslation()
   const [expanded, setExpanded] = useState(defaultExpanded)
   const lines = useMemo(
     () => computeLineDiff(oldContent, newContent),
@@ -25,7 +27,7 @@ export function PatchDiffPreview({
     <div className="mt-2">
       <button
         type="button"
-        className="flex w-full items-center gap-1.5 rounded-md px-1 py-0.5 text-left text-[10px] text-fg-muted transition-colors hover:bg-white/[0.05] hover:text-fg"
+        className="luna-hover-row flex w-full items-center gap-1.5 px-1 py-0.5 text-left text-[10px] text-fg-muted hover:text-fg"
         aria-expanded={expanded}
         onClick={() => setExpanded((v) => !v)}
       >
@@ -36,7 +38,7 @@ export function PatchDiffPreview({
           ▸
         </span>
         <span>
-          Ver diff
+          {t('ide.diff.view')}
           {stats.added || stats.removed ? (
             <span className="ml-1 tabular-nums text-fg-dim">
               (+{stats.added} −{stats.removed})
@@ -46,18 +48,18 @@ export function PatchDiffPreview({
       </button>
       {expanded ? (
         <pre
-          className="mt-1 max-h-48 overflow-auto rounded-md border border-line-subtle bg-canvas/90 p-2 font-mono text-[10px] leading-relaxed"
-          aria-label="Pré-visualização das alterações"
+          className="mt-1 max-h-48 overflow-auto rounded-md border border-line-subtle bg-canvas p-2 font-mono text-[10px] leading-relaxed"
+          aria-label={t('ide.diff.previewAria')}
         >
           {lines.map((line, idx) => (
             <span
               key={`${idx}-${line.kind}-${line.oldLine ?? ''}-${line.newLine ?? ''}`}
               className={
                 line.kind === 'add'
-                  ? 'block bg-emerald-500/12 text-emerald-200/95'
+                  ? 'block bg-success-muted text-success'
                   : line.kind === 'remove'
-                    ? 'block bg-red-500/12 text-red-200/90'
-                    : 'block text-fg-muted/80'
+                    ? 'block bg-danger-muted text-danger'
+                    : 'block text-fg-muted'
               }
             >
               {line.kind === 'add' ? '+' : line.kind === 'remove' ? '-' : ' '}

@@ -1,3 +1,5 @@
+import i18n from '../i18n'
+
 export type ConfirmOptions = {
   title: string
   message: string
@@ -36,8 +38,8 @@ export function requestConfirm(options: ConfirmOptions): Promise<boolean> {
       open: true,
       title: options.title,
       message: options.message,
-      confirmLabel: options.confirmLabel ?? 'Confirmar',
-      cancelLabel: options.cancelLabel ?? 'Cancelar',
+      confirmLabel: options.confirmLabel ?? i18n.t('confirm.confirm'),
+      cancelLabel: options.cancelLabel ?? i18n.t('confirm.cancel'),
       destructive: options.destructive ?? false,
     }
     emit()

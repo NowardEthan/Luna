@@ -1,15 +1,18 @@
-type ShortcutRow = { keys: string; action: string }
+import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 
-const ROWS: ShortcutRow[] = [
-  { keys: 'Ctrl+Enter', action: 'Enviar mensagem' },
-  { keys: 'Ctrl+N', action: 'Nova conversa' },
-  { keys: 'Ctrl+Shift+L', action: 'Abrir/fechar conversas (painel esquerdo)' },
-  { keys: 'Ctrl+Shift+M', action: 'Abrir/fechar memórias (painel esquerdo)' },
-  { keys: 'Ctrl+Shift+T', action: 'Alternar tema visual' },
-  { keys: 'Ctrl+.', action: 'Alternar Chat / IDE' },
-  { keys: 'Ctrl+K', action: 'Paleta de comandos' },
-  { keys: '?', action: 'Esta ajuda' },
-  { keys: 'Escape', action: 'Fechar painéis e diálogos' },
+type ShortcutRow = { keys: string; actionKey: string }
+
+const ROW_DEFS: ShortcutRow[] = [
+  { keys: 'Ctrl+Enter', actionKey: 'shortcuts.send_message' },
+  { keys: 'Ctrl+N', actionKey: 'shortcuts.new_chat' },
+  { keys: 'Ctrl+Shift+L', actionKey: 'shortcuts.toggle_history' },
+  { keys: 'Ctrl+Shift+M', actionKey: 'shortcuts.toggle_memories' },
+  { keys: 'Ctrl+Shift+T', actionKey: 'shortcuts.cycle_theme' },
+  { keys: 'Ctrl+.', actionKey: 'shortcuts.toggle_chat_ide' },
+  { keys: 'Ctrl+K', actionKey: 'shortcuts.command_palette' },
+  { keys: '?', actionKey: 'shortcuts.this_help' },
+  { keys: 'Escape', actionKey: 'shortcuts.escape' },
 ]
 
 type Props = {
@@ -18,27 +21,33 @@ type Props = {
 }
 
 export function ShortcutsHelpModal({ open, onClose }: Props) {
+  const { t } = useTranslation()
+  const rows = useMemo(
+    () => ROW_DEFS.map((r) => ({ keys: r.keys, action: t(r.actionKey) })),
+    [t],
+  )
+
   if (!open) return null
 
   return (
     <div
-      className="fixed inset-0 z-[85] flex items-center justify-center bg-black/55 p-4"
+      className="luna-overlay-scrim fixed inset-0 z-[85] flex items-center justify-center p-4"
       role="presentation"
       onClick={onClose}
     >
       <div
         role="dialog"
         aria-labelledby="shortcuts-title"
-        className="w-full max-w-md rounded-xl border border-line bg-surface p-4 shadow-2xl"
+        className="luna-dialog w-full max-w-md p-4"
         onClick={(e) => e.stopPropagation()}
       >
         <h2 id="shortcuts-title" className="text-title font-semibold text-fg">
-          Atalhos de teclado
+          {t('shortcuts.title')}
         </h2>
         <table className="mt-3 w-full text-ui">
           <tbody>
-            {ROWS.map((r) => (
-              <tr key={r.keys} className="border-t border-line/60 first:border-0">
+            {rows.map((r) => (
+              <tr key={r.keys} className="luna-hover-row border-t border-line first:border-0">
                 <td className="py-2 pr-3 font-mono text-fg-dim">{r.keys}</td>
                 <td className="py-2 text-fg">{r.action}</td>
               </tr>
@@ -47,10 +56,10 @@ export function ShortcutsHelpModal({ open, onClose }: Props) {
         </table>
         <button
           type="button"
-          className="mt-4 w-full rounded-lg border border-line py-2 text-ui text-fg-dim hover:bg-white/[0.05]"
+          className="luna-btn-secondary mt-4 w-full py-2"
           onClick={onClose}
         >
-          Fechar
+          {t('shortcuts.close')}
         </button>
       </div>
     </div>

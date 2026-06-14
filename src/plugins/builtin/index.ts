@@ -6,12 +6,9 @@ import { readStoredThemeId } from '../../lib/lunaThemes'
 import type { LunaPluginApi } from '../../../packages/luna-sdk/src'
 import { activateBuiltinMemory } from './memory'
 import { activateBuiltinRag } from './rag'
-import { activateBuiltinIde } from './ide-tools'
-
 const BUILTIN_MANIFESTS = [
   { id: 'builtin-memory', activate: activateBuiltinMemory },
   { id: 'builtin-rag', activate: activateBuiltinRag },
-  { id: 'builtin-ide', activate: activateBuiltinIde },
 ] as const
 
 /** Regista temas e activa plugins internos via API Luna. */

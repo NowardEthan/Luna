@@ -1,9 +1,9 @@
 import { toolRegistry } from '../registry/ToolRegistry'
 import { conversationTools } from './handlers/conversation'
 import { filesystemTools } from './handlers/filesystem'
-import { ideTools } from './handlers/ide'
 import { memoryTools } from './handlers/memory'
 import { ragTools } from './handlers/rag'
+import { lunaFinancesTools } from '../../features/finances/financesLunaTools'
 
 let registered = false
 
@@ -23,7 +23,7 @@ export function registerBuiltinTools(): void {
     ...ragTools,
     ...conversationTools,
     ...filesystemTools,
-    ...ideTools,
+    ...lunaFinancesTools,
   ]
   for (const tool of all) {
     if (!toolRegistry.has(tool.name)) {

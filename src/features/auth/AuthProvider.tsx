@@ -8,18 +8,30 @@ import {
   type ReactNode,
 } from 'react'
 import { onAuthStateChanged, signInAnonymously, signOut, type User } from 'firebase/auth'
+import { doc, onSnapshot } from 'firebase/firestore'
 import { eventBus } from '../../core/events/EventBus'
 import {
   DEFAULT_LUNA_ENTITLEMENTS,
   parseEntitlements,
+  parsePlanId,
   type LunaEntitlements,
+  type LunaPlanId,
 } from '../../lib/firebase/entitlements'
+import { getLunaFirestore } from '../../lib/firebase/client'
+import { userDoc } from '../../lib/firebase/paths'
+import type { LunaBillingState } from '../../lib/firebase/types'
+import { parseBilling } from '../billing/parseBilling'
+import { setCachedLunarPlan, resetCachedLunarPlan } from '../../lib/lunarPlanCache'
 import { getLunaAuth, isFirebaseConfigured } from '../../lib/firebase'
 import {
   completeGoogleRedirectIfPending,
   startGoogleSignIn,
 } from '../../lib/firebase/googleSignIn'
-import { ensureUserProfile } from '../../lib/firebase/userProfile'
+import {
+  ensureUserProfile,
+  fetchUserProfileFromServer,
+} from '../../lib/firebase/userProfile'
+import { syncAsaasBilling, syncTrialBilling } from '../billing/billingApi'
 import {
   isRealLunarUser,
   readUsageMode,
@@ -28,6 +40,7 @@ import {
 } from '../../lib/lunarAccount'
 import { registerLunarTokenGetter } from '../../lib/lunarAuthHeaders'
 import { readLunaCloudConfig } from '../../lib/lunaCloud'
+import i18n from '../../i18n'
 
 export type LunaAuthContextValue = {
   configured: boolean
@@ -37,6 +50,9 @@ export type LunaAuthContextValue = {
   usageMode: LunaUsageMode
   isLunarConnected: boolean
   entitlements: LunaEntitlements
+  plan: LunaPlanId
+  billing: LunaBillingState | null
+  billingOverdue: boolean
   error: string | null
   gateOpen: boolean
   openGate: () => void
@@ -48,6 +64,8 @@ export type LunaAuthContextValue = {
   continueOffline: () => void
   setUsageModeCloud: () => void
   getIdToken: () => Promise<string | null>
+  /** Recarrega plano/billing do servidor (Asaas + Firestore). */
+  refreshAccount: () => Promise<void>
   anonAuthAllowed: boolean
 }
 
@@ -62,6 +80,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [entitlements, setEntitlements] = useState<LunaEntitlements>(
     DEFAULT_LUNA_ENTITLEMENTS,
   )
+  const [plan, setPlan] = useState<LunaPlanId>('free')
+  const [billing, setBilling] = useState<LunaBillingState | null>(null)
   const [loading, setLoading] = useState(configured)
   const [error, setError] = useState<string | null>(null)
   const [gateOpen, setGateOpen] = useState(false)
@@ -69,6 +89,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const isLunarConnected =
     usageMode === 'cloud' && isRealLunarUser(user)
+
+  const applyUserProfile = useCallback(
+    (profile: {
+      plan?: unknown
+      entitlements?: unknown
+      billing?: unknown
+    } | null | undefined) => {
+      if (!profile) return
+      const nextPlan = parsePlanId(profile.plan)
+      setPlan(nextPlan)
+      setCachedLunarPlan(nextPlan)
+      if (profile.entitlements) {
+        setEntitlements(parseEntitlements(profile.entitlements))
+      }
+      setBilling(parseBilling(profile.billing))
+    },
+    [],
+  )
 
   const refreshToken = useCallback(async (u: User | null) => {
     if (!u || u.isAnonymous) {
@@ -112,14 +150,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (next && !next.isAnonymous) {
         writeUsageMode('cloud')
         setUsageMode('cloud')
-        void ensureUserProfile(next)
-          .then((profile) => {
-            if (profile?.entitlements) {
-              setEntitlements(parseEntitlements(profile.entitlements))
-            }
-          })
+        void ensureUserProfile(next).then((profile) => {
+          applyUserProfile(profile)
+        })
           .catch((err) => {
             console.warn('[Luna] Perfil Firestore:', err)
+            const msg =
+              err instanceof Error
+                ? err.message
+                : i18n.t('lunarAccount.error.profileSave')
+            if (msg.includes('insufficient permissions')) {
+              setError(i18n.t('lunarAccount.error.firestoreDenied'))
+            }
           })
         eventBus.emit('auth:signed-in', {
           uid: next.uid,
@@ -127,12 +169,73 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           isAnonymous: next.isAnonymous,
         })
       } else {
+        setPlan('free')
+        setBilling(null)
+        resetCachedLunarPlan()
         eventBus.emit('auth:signed-out', {})
       }
     })
 
     return unsub
-  }, [configured, refreshToken])
+  }, [configured, refreshToken, applyUserProfile])
+
+  const refreshAccount = useCallback(async () => {
+    const uid = user?.uid
+    if (!uid || user?.isAnonymous || !configured) return
+    try {
+      await syncTrialBilling()
+    } catch {
+      /* trial opcional */
+    }
+    try {
+      await syncAsaasBilling()
+    } catch {
+      /* reconciliação opcional */
+    }
+    try {
+      const profile = await fetchUserProfileFromServer(uid)
+      applyUserProfile(profile)
+    } catch (err) {
+      console.warn('[Luna] refreshAccount:', err)
+    }
+  }, [user?.uid, user?.isAnonymous, configured, applyUserProfile])
+
+  useEffect(() => {
+    const uid = user?.uid
+    if (!uid || user.isAnonymous || !configured) {
+      return
+    }
+    const db = getLunaFirestore()
+    if (!db) return
+
+    const unsub = onSnapshot(
+      doc(db, userDoc(uid)),
+      (snap) => {
+        if (!snap.exists()) return
+        applyUserProfile(snap.data())
+      },
+      (err) => {
+        console.warn('[Luna] user onSnapshot:', err)
+      },
+    )
+    return unsub
+  }, [user?.uid, user?.isAnonymous, configured, applyUserProfile])
+
+  useEffect(() => {
+    if (!user?.uid || user.isAnonymous || !configured) return
+
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return
+      void refreshAccount()
+    }
+
+    window.addEventListener('focus', onVisible)
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      window.removeEventListener('focus', onVisible)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [user?.uid, user?.isAnonymous, configured, refreshAccount])
 
   useEffect(() => {
     const unsubs = [
@@ -155,7 +258,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setError(null)
     const auth = getLunaAuth()
     if (!auth) {
-      setError('Firebase não está configurado.')
+      setError(i18n.t('lunarAccount.error.firebaseNotConfigured'))
       return
     }
     setGoogleSignInBusy(true)
@@ -170,12 +273,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           ? String((err as { code: string }).code)
           : ''
       if (code === 'auth/popup-closed-by-user') {
-        setError('Login cancelado.')
+        setError(i18n.t('lunarAccount.error.loginCancelled'))
       } else {
         setError(
           err instanceof Error
             ? err.message
-            : 'Não foi possível iniciar sessão.',
+            : i18n.t('lunarAccount.error.signInFailed'),
         )
       }
     } finally {
@@ -185,20 +288,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signInAnonymouslyDev = useCallback(async () => {
     if (!cloud.anonAuthEnabled) {
-      setError('Auth anónima desactivada (VITE_LUNA_CLOUD_ANON).')
+      setError(i18n.t('lunarAccount.error.anonDisabled'))
       return
     }
     setError(null)
     const auth = getLunaAuth()
     if (!auth) {
-      setError('Firebase não está configurado.')
+      setError(i18n.t('lunarAccount.error.firebaseNotConfigured'))
       return
     }
     try {
       await signInAnonymously(auth)
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : 'Não foi possível iniciar sessão.',
+        err instanceof Error
+          ? err.message
+          : i18n.t('lunarAccount.error.signInFailed'),
       )
     }
   }, [cloud.anonAuthEnabled])
@@ -212,7 +317,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIdToken(null)
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : 'Não foi possível terminar sessão.',
+        err instanceof Error
+          ? err.message
+          : i18n.t('lunarAccount.error.signOutFailed'),
       )
     }
   }, [])
@@ -220,6 +327,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const continueOffline = useCallback(() => {
     writeUsageMode('offline')
     setUsageMode('offline')
+    eventBus.emit('lunar:usage-mode-changed', { mode: 'offline' })
     setGateOpen(false)
     void signOutUser()
   }, [signOutUser])
@@ -227,6 +335,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const setUsageModeCloud = useCallback(() => {
     writeUsageMode('cloud')
     setUsageMode('cloud')
+    eventBus.emit('lunar:usage-mode-changed', { mode: 'cloud' })
   }, [])
 
   const getIdToken = useCallback(async () => {
@@ -243,6 +352,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       usageMode,
       isLunarConnected,
       entitlements,
+      plan,
+      billing,
+      billingOverdue: billing?.status === 'overdue',
       error,
       gateOpen,
       openGate: () => setGateOpen(true),
@@ -254,6 +366,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       continueOffline,
       setUsageModeCloud,
       getIdToken,
+      refreshAccount,
       anonAuthAllowed: cloud.anonAuthEnabled && import.meta.env.DEV,
     }),
     [
@@ -264,6 +377,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       usageMode,
       isLunarConnected,
       entitlements,
+      plan,
+      billing,
       error,
       gateOpen,
       signInWithGoogle,
@@ -273,6 +388,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       continueOffline,
       setUsageModeCloud,
       getIdToken,
+      refreshAccount,
       cloud.anonAuthEnabled,
     ],
   )

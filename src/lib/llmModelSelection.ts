@@ -1,6 +1,8 @@
+import { isLunarCloudSession } from './lunarGate'
 import { bridgeListModels } from './lunaBridge'
 
-export type LlmProviderId = 'openrouter' | 'groq' | 'together' | 'ollama'
+export type { LlmProviderId } from '../types/chat'
+import type { LlmProviderId } from '../types/chat'
 
 export type LunaModelOption = {
   id: string
@@ -16,11 +18,14 @@ export type LlmSelection = {
 
 const STORAGE_KEY = 'luna-selected-model-id'
 
-/** Modelo OpenRouter gratuito por defeito (substitui Ring no selector). */
+/** Modelo por defeito no selector (Groq chat simples). */
 export const PREFERRED_OPENROUTER_MODEL_ID =
-  'openrouter|baidu/cobuddy:free'
+  'groq|openai/gpt-oss-120b'
 
 const LEGACY_RING_MODEL_ID = 'openrouter|inclusionai/ring-2.6-1t:free'
+const LEGACY_COBUDDY_MODEL_ID = 'openrouter|baidu/cobuddy:free'
+const LEGACY_DEEPSEEK_V4_MODEL_ID = 'openrouter|deepseek/deepseek-v4-flash:free'
+const LEGACY_QWEN3_MODEL_ID = 'groq|qwen/qwen3-32b'
 
 export function modelOptionId(provider: string, model: string): string {
   return `${provider}|${model}`
@@ -58,7 +63,13 @@ export function resolveSelectedOption(
 
   const preferred = models.find((m) => m.id === PREFERRED_OPENROUTER_MODEL_ID)
 
-  if (storedId === LEGACY_RING_MODEL_ID && preferred) {
+  if (
+    (storedId === LEGACY_RING_MODEL_ID ||
+      storedId === LEGACY_COBUDDY_MODEL_ID ||
+      storedId === LEGACY_DEEPSEEK_V4_MODEL_ID ||
+      storedId === LEGACY_QWEN3_MODEL_ID) &&
+    preferred
+  ) {
     return preferred
   }
 
@@ -74,7 +85,7 @@ export async function fetchLunaModelCatalog(): Promise<
   | { ok: true; models: LunaModelOption[] }
   | { ok: false; error: string }
 > {
-  const res = await bridgeListModels()
+  const res = await bridgeListModels({ lunarCloud: isLunarCloudSession() })
   if (res?.ok) {
     return { ok: true, models: (res.models ?? []) as LunaModelOption[] }
   }

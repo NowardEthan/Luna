@@ -1,40 +1,51 @@
 @import 'tailwindcss';
 
-/* Estética “workbench” escura, inspiração Cursor / editor — minimalista */
+/* Estética workbench escura — base neutra cinza (VS Code), acento violeta Luna */
 @theme {
-  --color-canvas: #161618;
-  --color-sidebar: #121214;
-  --color-surface: #1e1e22;
-  --color-raised: #26262c;
-  --color-raised-hover: #303038;
-  --color-popover: #232328;
-  --color-line: #34343a;
-  --color-line-subtle: #2a2a30;
-  --color-fg: #ececef;
-  --color-fg-dim: #a8a8b3;
-  --color-fg-muted: #6f6f7a;
-  --color-accent: #5eb3f6;
-  --color-accent-muted: rgba(94, 179, 246, 0.16);
-  --color-accent-fg: #0f1419;
-  --color-focus: rgba(94, 179, 246, 0.42);
-  --color-composer-well: #0e0e10;
-  --shadow-overlay: 0 12px 40px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.04);
-  --shadow-soft: 0 2px 12px rgba(0, 0, 0, 0.35);
-  --text-caption: 0.625rem;
-  --text-ui: 0.6875rem;
-  --text-body: 0.8125rem;
-  --text-title: 0.9375rem;
+  --color-canvas: #1e1e1e;
+  --color-sidebar: #181818;
+  --color-surface: #252525;
+  --color-raised: #2d2d2d;
+  --color-raised-hover: #383838;
+  --color-popover: #252525;
+  --color-line: #3c3c3c;
+  --color-line-subtle: #2a2a2a;
+  --color-fg: #d4d4d4;
+  --color-fg-dim: #9d9d9d;
+  --color-fg-muted: #6e6e6e;
+  --color-accent: #8b7cf8;
+  --color-accent-muted: #1c1829;
+  --color-accent-fg: #ffffff;
+  --color-success: #4ade80;
+  --color-success-muted: #1a2f26;
+  --color-danger: #f87171;
+  --color-danger-muted: #2a1c20;
+  --color-warning: #fbbf24;
+  --color-warning-muted: #2a2418;
+  --color-focus: #8b7cf8;
+  --color-composer-well: #141414;
+  /** Fundo de modais — escurece sem blackout (sem backdrop-filter no Electron). */
+  --color-scrim: rgb(30 30 30 / 0.55);
+  --color-scrim-account: rgb(30 30 30 / 0.48);
+  --shadow-overlay: 0 16px 48px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  --shadow-soft: 0 4px 16px rgba(0, 0, 0, 0.25);
+  --text-caption: 0.6875rem;
+  --text-ui: 0.75rem;
+  --text-body: 0.875rem;
+  --text-title: 1rem;
   --luna-space-1: 0.25rem;
   --luna-space-2: 0.5rem;
   --luna-space-3: 0.75rem;
   --luna-space-4: 1rem;
   --luna-space-5: 1.25rem;
   --luna-space-6: 1.5rem;
-  --luna-radius-sm: 0.375rem;
-  --luna-radius-md: 0.5rem;
-  --luna-radius-lg: 0.75rem;
+  --luna-radius-sm: 0.5rem; /* 8px */
+  --luna-radius-md: 0.75rem; /* 12px */
+  --luna-radius-lg: 1rem; /* 16px */
   --luna-z-overlay: 50;
   --luna-z-modal: 88;
+  /** Explorador de ficheiros — acima de modais, menus e lightbox (máx. app ~9999). */
+  --luna-z-file-explorer: 10100;
 }
 
 @layer base {
@@ -65,6 +76,11 @@
 
   #root {
     @apply min-h-svh;
+  }
+
+  input[type='checkbox'],
+  input[type='radio'] {
+    accent-color: var(--color-accent);
   }
 
   * {
@@ -123,8 +139,19 @@
       0 8px 28px rgba(0, 0, 0, 0.08);
   }
 
-  .luna-marketplace-drawer {
-    animation: luna-slide-in-right 0.22s ease-out both;
+  .luna-marketplace-modal {
+    animation: luna-modal-in 0.22s ease-out both;
+  }
+
+  @keyframes luna-modal-in {
+    from {
+      opacity: 0;
+      transform: scale(0.96) translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+    }
   }
 }
 
@@ -153,8 +180,17 @@
     margin-left: 0.35rem;
   }
 
+  .turn-timeline__list--compact {
+    margin-left: 0;
+    padding-left: 0.25rem;
+  }
+
+  .turn-activity[open] > summary {
+    @apply border-b border-line-subtle;
+  }
+
   .timeline-row__summary:hover {
-    @apply bg-raised/40 text-fg-dim;
+    @apply bg-raised-hover text-fg-dim;
   }
 
   .timeline-row__summary:focus-visible {
@@ -170,13 +206,81 @@
   }
 
   .luna-surface-panel {
-    @apply bg-raised/70 text-fg-dim;
+    @apply rounded-2xl bg-surface text-fg;
   }
 
   html[data-luna-theme='luna-light'] .luna-surface-panel,
   html[data-luna-theme='luna-solar'] .luna-surface-panel,
   html[data-luna-theme='luna-rose'] .luna-surface-panel {
-    @apply border-line bg-surface text-fg;
+    @apply bg-surface text-fg;
+  }
+
+  /* ── Navegação (Finanças, Definições, barras laterais) ── */
+  .luna-nav-item {
+    @apply flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-medium transition-all duration-200;
+  }
+
+  .luna-nav-item--active {
+    @apply bg-accent text-accent-fg;
+  }
+
+  .luna-nav-item--idle {
+    @apply text-fg-muted hover:bg-surface hover:text-fg;
+  }
+
+  /* ── Ícones nas barras laterais ── */
+  .luna-icon-btn {
+    @apply flex size-10 items-center justify-center rounded-xl text-fg-muted transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus;
+  }
+
+  .luna-icon-btn:hover {
+    @apply bg-surface text-fg;
+  }
+
+  .luna-icon-btn--active {
+    @apply bg-surface text-accent;
+  }
+
+  /* ── Cartões e painéis ── */
+  .luna-card {
+    @apply rounded-2xl bg-surface p-5 shadow-sm transition-all duration-200;
+  }
+
+  .luna-card--hover:hover {
+    @apply bg-raised shadow-md;
+  }
+
+  .luna-card-vivid {
+    @apply rounded-2xl bg-accent p-5 text-accent-fg shadow-sm transition-all duration-200;
+  }
+
+  .luna-dialog {
+    @apply overflow-hidden rounded-2xl bg-surface shadow-overlay;
+    background-color: var(--color-surface);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  .luna-input-well {
+    @apply rounded-2xl bg-composer-well transition-all duration-200 focus-within:ring-1 focus-within:ring-inset focus-within:ring-accent/40;
+  }
+
+  .luna-composer-textarea {
+    box-sizing: border-box;
+    min-height: 44px;
+    overflow: hidden;
+  }
+
+  .luna-list-row {
+    @apply rounded-xl transition-colors duration-150;
+  }
+
+  .luna-list-row--selected {
+    @apply bg-raised;
+  }
+
+  .luna-list-row--idle:hover {
+    @apply bg-surface;
   }
 
   html[data-luna-theme='luna-light'] .assistant-markdown--reasoning,
@@ -204,35 +308,525 @@
   }
 
   .luna-select-menu {
+    @apply overflow-hidden rounded-xl bg-raised py-0.5;
     box-shadow: var(--shadow-overlay);
   }
 
   .luna-toolbar-pill {
-    @apply flex items-center gap-0.5 rounded-xl border border-line-subtle bg-surface/80 p-0.5 shadow-soft;
+    @apply flex items-center gap-0.5 rounded-xl bg-raised p-0.5;
   }
 
   .luna-btn-ghost {
-    @apply rounded-lg px-2.5 py-1.5 text-ui text-fg-dim transition-colors hover:bg-raised-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:cursor-not-allowed disabled:opacity-40;
+    @apply rounded-xl px-3 py-1.5 text-ui text-fg-muted transition-all duration-200 hover:bg-raised hover:text-fg active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:cursor-not-allowed disabled:opacity-40;
   }
 
   .luna-btn-secondary {
-    @apply rounded-lg border border-line-subtle bg-surface/60 px-2.5 py-1.5 text-ui text-fg-dim shadow-sm transition-colors hover:border-line hover:bg-raised-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:cursor-not-allowed disabled:opacity-40;
+    @apply rounded-xl bg-raised px-4 py-1.5 text-ui font-medium text-fg-dim transition-all duration-200 hover:bg-raised-hover hover:text-fg active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:cursor-not-allowed disabled:opacity-40;
   }
 
   .luna-btn-primary {
-    @apply rounded-lg border border-accent/35 bg-accent/12 px-3 py-1.5 text-ui font-medium text-accent shadow-sm transition-colors hover:border-accent/50 hover:bg-accent/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:cursor-not-allowed disabled:opacity-40;
+    @apply rounded-xl bg-accent px-4 py-1.5 text-ui font-semibold text-accent-fg transition-all duration-200 hover:bg-accent/90 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:cursor-not-allowed disabled:opacity-40;
+  }
+
+  .luna-btn-warning {
+    @apply rounded-xl bg-warning px-4 py-1.5 text-ui font-semibold text-canvas shadow-md transition-all duration-200 hover:opacity-90 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:cursor-not-allowed disabled:opacity-40;
+  }
+
+  .luna-status-dot {
+    @apply inline-block size-2 shrink-0 rounded-full;
+  }
+
+  .luna-status-dot--success {
+    @apply bg-success;
+  }
+
+  .luna-status-dot--warning {
+    @apply bg-warning;
+  }
+
+  .luna-status-dot--danger {
+    @apply bg-danger;
+  }
+
+  .luna-tab {
+    @apply rounded-lg px-2 py-1 text-ui text-fg-muted transition-colors hover:bg-surface hover:text-fg-dim focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus;
+  }
+
+  .luna-tab--active {
+    @apply bg-surface font-medium text-fg;
+  }
+
+  /* Luna Forge — chrome estilo Cursor */
+  .forge-tab {
+    @apply text-fg-muted transition-colors hover:bg-canvas/60 hover:text-fg-dim;
+  }
+
+  .forge-tab--active {
+    @apply border-t-2 border-t-accent bg-canvas font-medium text-fg;
+  }
+
+  .forge-tab-bar {
+    scrollbar-width: thin;
+  }
+
+  .forge-panel-tab {
+    @apply shrink-0 border-r border-line-subtle/50 px-3 py-1.5 text-[10px] font-medium uppercase tracking-wide text-fg-muted transition-colors hover:bg-surface hover:text-fg-dim;
+  }
+
+  .forge-panel-tab--active {
+    @apply border-b-2 border-b-accent bg-canvas text-fg;
+  }
+
+  .forge-status-bar {
+    @apply select-none;
+  }
+
+  /* Editor IDE — uma única scrollbar (só .cm-scroller), sem propagar scroll ao chat */
+  .forge-workbench-editor {
+    contain: layout style;
+    @apply overflow-hidden;
+  }
+
+  .forge-editor-host {
+    @apply min-h-0 flex-1 overflow-hidden;
+  }
+
+  .forge-editor-host .cm-editor {
+    height: 100%;
+    max-height: 100%;
+  }
+
+  .forge-editor-host .cm-scroller {
+    overflow: auto !important;
+    overscroll-behavior: contain;
+    height: 100%;
+    max-height: 100%;
+  }
+
+  .forge-minimap-host {
+    opacity: 0.85;
+  }
+
+  .forge-lsp-hover {
+    max-width: 28rem;
+    padding: 0.5rem 0.65rem;
+    font-size: 11px;
+    line-height: 1.45;
+    color: var(--luna-fg);
+    background: var(--luna-surface-panel, #1e1e22);
+    border: 1px solid var(--luna-line-subtle, rgba(255, 255, 255, 0.08));
+    border-radius: 0.5rem;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    white-space: pre-wrap;
+  }
+
+  .forge-diff-line-add {
+    background: rgba(34, 197, 94, 0.12);
+  }
+
+  .forge-diff-line-remove {
+    background: rgba(239, 68, 68, 0.12);
+    text-decoration: line-through;
+    text-decoration-color: rgba(239, 68, 68, 0.55);
+  }
+
+  .forge-diff-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin: 0.25rem 0 0.5rem;
+    padding: 0.4rem 0.65rem;
+    font-size: 11px;
+    color: var(--luna-fg-dim);
+    background: rgba(99, 102, 241, 0.1);
+    border: 1px solid rgba(99, 102, 241, 0.25);
+    border-radius: 0.375rem;
+  }
+
+  .forge-diff-banner-actions {
+    display: flex;
+    gap: 0.35rem;
+  }
+
+  .forge-diff-banner-accept,
+  .forge-diff-banner-reject {
+    padding: 0.15rem 0.55rem;
+    font-size: 10px;
+    border-radius: 0.25rem;
+    border: 1px solid transparent;
+  }
+
+  .forge-diff-banner-accept {
+    color: #fff;
+    background: rgba(34, 197, 94, 0.85);
+  }
+
+  .forge-diff-banner-reject {
+    color: var(--luna-fg);
+    background: rgba(255, 255, 255, 0.06);
+    border-color: var(--luna-line-subtle, rgba(255, 255, 255, 0.1));
+  }
+
+  .forge-diff-gutter-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1rem;
+    height: 1rem;
+    margin: 0 1px;
+    padding: 0;
+    font-size: 9px;
+    line-height: 1;
+    border: none;
+    border-radius: 2px;
+    cursor: pointer;
+  }
+
+  .forge-diff-gutter-accept {
+    color: #166534;
+    background: rgba(34, 197, 94, 0.35);
+  }
+
+  .forge-diff-gutter-reject {
+    color: #991b1b;
+    background: rgba(239, 68, 68, 0.3);
+  }
+
+  .forge-editor-pane {
+    background: var(--luna-canvas, #161618);
+  }
+
+  .forge-chat-isolated {
+    contain: layout style;
+    isolation: isolate;
+    @apply flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden;
+  }
+
+  .forge-chat-scroll {
+    scroll-behavior: auto;
+    overscroll-behavior-y: contain;
+    overscroll-behavior-x: none;
+  }
+
+  .luna-drop-target {
+    @apply rounded-2xl border-2 border-dashed border-accent/45 bg-accent-muted/30 transition-colors focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/20;
+  }
+
+  .luna-modal-close {
+    @apply flex size-8 shrink-0 items-center justify-center rounded-xl text-fg-muted transition-colors hover:bg-surface hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus;
+  }
+
+  .luna-empty {
+    @apply rounded-2xl bg-surface/50 px-6 py-10 text-center text-fg-muted;
+  }
+
+  .luna-filter-pill {
+    @apply rounded-full px-2.5 py-0.5 text-[10px] font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus;
+  }
+
+  .luna-filter-pill--active {
+    @apply bg-accent text-accent-fg;
+  }
+
+  .luna-filter-pill--idle {
+    @apply text-fg-muted hover:bg-surface hover:text-fg;
+  }
+
+  .luna-field {
+    @apply w-full rounded-xl border border-line-subtle bg-surface px-2.5 py-1.5 text-fg shadow-sm transition-colors focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20;
+  }
+
+  .luna-field-muted {
+    @apply text-fg-dim;
+  }
+
+  /* Hierarquia por tom: faixa esquerda colorida, sem outline */
+  .luna-tone-section {
+    @apply rounded-2xl bg-raised transition-all duration-200;
+    border-left: 3px solid transparent;
+  }
+
+  .luna-tone-section--default {
+    border-left-color: var(--color-line);
+  }
+
+  .luna-tone-section--blue {
+    @apply bg-sky-500/[0.06];
+    border-left-color: theme('colors.sky.500');
+  }
+
+  .luna-tone-section--green {
+    @apply bg-emerald-500/[0.06];
+    border-left-color: theme('colors.emerald.500');
+  }
+
+  .luna-tone-section--amber {
+    @apply bg-amber-500/[0.08];
+    border-left-color: theme('colors.amber.500');
+  }
+
+  .luna-tone-section--rose {
+    @apply bg-rose-500/[0.06];
+    border-left-color: theme('colors.rose.500');
+  }
+
+  .luna-tone-section--violet {
+    @apply bg-violet-500/[0.06];
+    border-left-color: theme('colors.violet.500');
+  }
+
+  .luna-tone-section--cyan {
+    @apply bg-cyan-500/[0.06];
+    border-left-color: theme('colors.cyan.500');
+  }
+
+  .luna-tone-section--emphasized {
+    @apply brightness-110;
+  }
+
+  .luna-tone-heading {
+    @apply font-semibold;
+  }
+
+  .luna-tone-heading--default {
+    @apply text-fg;
+  }
+
+  .luna-tone-heading--blue {
+    @apply text-sky-300;
+  }
+
+  .luna-tone-heading--green {
+    @apply text-emerald-300;
+  }
+
+  .luna-tone-heading--amber {
+    @apply text-amber-200;
+  }
+
+  .luna-tone-heading--rose {
+    @apply text-rose-300;
+  }
+
+  .luna-tone-heading--violet {
+    @apply text-violet-300;
+  }
+
+  .luna-tone-heading--cyan {
+    @apply text-cyan-300;
+  }
+
+  .luna-tone-count {
+    @apply rounded-lg bg-raised-hover px-1.5 py-0.5 text-[9px] font-semibold tabular-nums text-fg-dim;
+  }
+
+  .luna-tone-count--blue {
+    @apply bg-sky-500/15 text-sky-200;
+  }
+
+  .luna-tone-count--green {
+    @apply bg-emerald-500/15 text-emerald-200;
+  }
+
+  .luna-tone-count--amber {
+    @apply bg-amber-500/15 text-amber-100;
+  }
+
+  .luna-tone-count--rose {
+    @apply bg-rose-500/15 text-rose-200;
+  }
+
+  .luna-tone-count--violet {
+    @apply bg-violet-500/15 text-violet-200;
+  }
+
+  .luna-tone-count--cyan {
+    @apply bg-cyan-500/15 text-cyan-200;
+  }
+
+  .luna-tone-note {
+    @apply rounded-xl bg-raised px-2.5 py-2 text-fg transition-colors hover:bg-raised-hover;
+  }
+
+  .luna-tone-icon-chip {
+    @apply flex items-center justify-center rounded-lg bg-raised text-fg-dim;
+  }
+
+  .luna-tone-icon-chip--blue {
+    @apply bg-sky-500/15 text-sky-300;
+  }
+
+  .luna-tone-icon-chip--green {
+    @apply bg-emerald-500/15 text-emerald-300;
+  }
+
+  .luna-tone-icon-chip--amber {
+    @apply bg-amber-500/15 text-amber-200;
+  }
+
+  .luna-tone-icon-chip--rose {
+    @apply bg-rose-500/15 text-rose-300;
+  }
+
+  .luna-tone-icon-chip--violet {
+    @apply bg-violet-500/15 text-violet-300;
+  }
+
+  .luna-tone-icon-chip--cyan {
+    @apply bg-cyan-500/15 text-cyan-300;
+  }
+
+  .luna-filter-pill--tone {
+    @apply font-medium;
+  }
+
+  .luna-filter-pill--tone-blue {
+    @apply bg-sky-500/12 text-sky-200;
+  }
+
+  .luna-filter-pill--tone-green {
+    @apply bg-emerald-500/12 text-emerald-200;
+  }
+
+  .luna-filter-pill--tone-amber {
+    @apply bg-amber-500/12 text-amber-100;
+  }
+
+  .luna-filter-pill--tone-rose {
+    @apply bg-rose-500/12 text-rose-200;
+  }
+
+  .luna-filter-pill--tone-violet {
+    @apply bg-violet-500/12 text-violet-200;
+  }
+
+  .luna-filter-pill--tone-cyan {
+    @apply bg-cyan-500/12 text-cyan-200;
+  }
+
+  /* Botão cloud sync no histórico — cor de fundo indica estado, sem border */
+  .luna-cloud-sync-btn {
+    @apply flex size-7 shrink-0 items-center justify-center rounded-lg transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus active:scale-95 disabled:cursor-wait;
+  }
+
+  .luna-cloud-sync-btn--neutral {
+    @apply bg-raised text-fg-muted hover:bg-raised-hover hover:text-fg-dim;
+  }
+
+  .luna-cloud-sync-btn--neutral.luna-cloud-sync-btn--on {
+    @apply bg-accent/20 text-accent hover:bg-accent/30;
+  }
+
+  .luna-cloud-sync-btn--neutral.luna-cloud-sync-btn--pending {
+    @apply bg-warning-muted text-warning hover:bg-warning/20;
+  }
+
+  .luna-cloud-sync-btn--neutral.luna-cloud-sync-btn--syncing {
+    @apply bg-accent/15 text-accent;
+  }
+
+  .luna-cloud-sync-btn--neutral.luna-cloud-sync-btn--error {
+    @apply bg-danger-muted text-danger hover:bg-danger/20;
+  }
+
+  .luna-cloud-sync-btn--vivid {
+    @apply bg-white/15 text-white hover:bg-white/25;
+  }
+
+  .luna-cloud-sync-btn--vivid.luna-cloud-sync-btn--off {
+    @apply text-white/80 hover:text-white;
+  }
+
+  .luna-cloud-sync-btn--vivid.luna-cloud-sync-btn--on {
+    @apply bg-white/30 text-white hover:bg-white/40;
+  }
+
+  .luna-cloud-sync-btn--vivid.luna-cloud-sync-btn--pending {
+    @apply bg-amber-400/25 text-amber-50;
+  }
+
+  .luna-cloud-sync-btn--vivid.luna-cloud-sync-btn--syncing {
+    @apply bg-white/25 text-white;
+  }
+
+  .luna-cloud-sync-btn--vivid.luna-cloud-sync-btn--error {
+    @apply bg-rose-500/30 text-white;
   }
 
   .luna-chip {
-    @apply rounded-full border border-line-subtle bg-raised/40 px-3.5 py-2 text-left text-ui text-fg-dim shadow-sm transition-all hover:border-accent/35 hover:bg-raised-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus;
+    @apply rounded-xl bg-raised px-3 py-1.5 text-left text-ui font-medium text-fg-dim transition-all duration-200 hover:bg-raised-hover hover:text-fg active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus;
   }
 
   .luna-welcome-card {
-    @apply rounded-2xl border border-line-subtle bg-gradient-to-b from-surface/80 to-surface/40 px-5 py-5 shadow-soft;
+    @apply rounded-2xl bg-surface px-5 py-5 shadow-sm;
+  }
+
+  .luna-hover-row {
+    @apply rounded-xl transition-colors duration-150 hover:bg-surface;
+  }
+
+  .luna-marketplace-card {
+    @apply rounded-2xl bg-surface text-left shadow-sm transition-all duration-200 hover:bg-raised hover:shadow-md;
+  }
+
+  .luna-overlay-scrim {
+    background-color: var(--color-scrim);
+  }
+
+  /** Wrapper de modal — scrim e painel são irmãos (não filho com blur). */
+  .luna-overlay-root {
+    @apply fixed inset-0 flex items-center justify-center;
+  }
+
+  .luna-overlay-backdrop {
+    @apply absolute inset-0;
+    background-color: var(--color-scrim);
+  }
+
+  .luna-account-overlay {
+    @apply fixed inset-0 flex items-center justify-center;
+    z-index: 200;
+  }
+
+  .luna-account-overlay__backdrop {
+    @apply absolute inset-0;
+    background-color: var(--color-scrim-account);
+  }
+
+  .luna-file-explorer-layer {
+    position: fixed;
+    inset: 0;
+    z-index: var(--luna-z-file-explorer);
+    isolation: isolate;
+  }
+
+  .luna-callout-warning {
+    @apply rounded-lg bg-warning-muted px-3 py-2 text-[11px] leading-relaxed text-warning;
+  }
+
+  .luna-callout-danger {
+    @apply rounded-lg bg-danger-muted px-3 py-2 text-[11px] leading-relaxed text-danger;
+  }
+
+  .luna-settings-nav-item--active {
+    @apply bg-accent text-accent-fg font-medium;
+  }
+
+  .chat-bubble {
+    @apply shadow-sm;
+  }
+
+  .chat-bubble--user {
+    @apply rounded-2xl rounded-br-md bg-surface text-fg;
+  }
+
+  .chat-bubble--assistant {
+    @apply rounded-2xl rounded-bl-md bg-raised text-fg;
   }
 
   .luna-resize-handle {
-    @apply relative z-10 shrink-0 bg-line-subtle/80 transition-colors;
+    @apply relative z-10 shrink-0 bg-line-subtle transition-colors;
   }
 
   .luna-resize-handle--horizontal {
@@ -241,7 +835,7 @@
 
   .luna-resize-handle--horizontal:hover,
   .luna-resize-handle--horizontal:focus-visible {
-    @apply w-1 bg-accent/45;
+    @apply w-1 bg-accent;
   }
 
   .luna-resize-handle--vertical {
@@ -250,7 +844,219 @@
 
   .luna-resize-handle--vertical:hover,
   .luna-resize-handle--vertical:focus-visible {
-    @apply h-1 bg-accent/45;
+    @apply h-1 bg-accent;
+  }
+
+  /* Temas claros — card-vivid e nav já são sólidos na base, override não necessário */
+
+  html[data-luna-theme='luna-light'] .luna-tone-section--blue,
+  html[data-luna-theme='luna-solar'] .luna-tone-section--blue,
+  html[data-luna-theme='luna-rose'] .luna-tone-section--blue {
+    @apply border-l-sky-500 bg-sky-50;
+  }
+
+  html[data-luna-theme='luna-light'] .luna-tone-section--green,
+  html[data-luna-theme='luna-solar'] .luna-tone-section--green,
+  html[data-luna-theme='luna-rose'] .luna-tone-section--green {
+    @apply border-l-emerald-500 bg-emerald-50;
+  }
+
+  html[data-luna-theme='luna-light'] .luna-tone-section--amber,
+  html[data-luna-theme='luna-solar'] .luna-tone-section--amber,
+  html[data-luna-theme='luna-rose'] .luna-tone-section--amber {
+    @apply border-l-amber-500 bg-amber-50;
+  }
+
+  html[data-luna-theme='luna-light'] .luna-tone-section--rose,
+  html[data-luna-theme='luna-solar'] .luna-tone-section--rose,
+  html[data-luna-theme='luna-rose'] .luna-tone-section--rose {
+    @apply border-l-rose-500 bg-rose-50;
+  }
+
+  html[data-luna-theme='luna-light'] .luna-tone-section--violet,
+  html[data-luna-theme='luna-solar'] .luna-tone-section--violet,
+  html[data-luna-theme='luna-rose'] .luna-tone-section--violet {
+    @apply border-l-violet-500 bg-violet-50;
+  }
+
+  html[data-luna-theme='luna-light'] .luna-tone-section--cyan,
+  html[data-luna-theme='luna-solar'] .luna-tone-section--cyan,
+  html[data-luna-theme='luna-rose'] .luna-tone-section--cyan {
+    @apply border-l-cyan-500 bg-cyan-50;
+  }
+
+  html[data-luna-theme='luna-light'] .luna-tone-heading--blue,
+  html[data-luna-theme='luna-solar'] .luna-tone-heading--blue,
+  html[data-luna-theme='luna-rose'] .luna-tone-heading--blue {
+    @apply text-sky-900;
+  }
+
+  html[data-luna-theme='luna-light'] .luna-tone-heading--green,
+  html[data-luna-theme='luna-solar'] .luna-tone-heading--green,
+  html[data-luna-theme='luna-rose'] .luna-tone-heading--green {
+    @apply text-emerald-900;
+  }
+
+  html[data-luna-theme='luna-light'] .luna-tone-heading--amber,
+  html[data-luna-theme='luna-solar'] .luna-tone-heading--amber,
+  html[data-luna-theme='luna-rose'] .luna-tone-heading--amber {
+    @apply text-amber-950;
+  }
+
+  html[data-luna-theme='luna-light'] .luna-tone-heading--rose,
+  html[data-luna-theme='luna-solar'] .luna-tone-heading--rose,
+  html[data-luna-theme='luna-rose'] .luna-tone-heading--rose {
+    @apply text-rose-900;
+  }
+
+  html[data-luna-theme='luna-light'] .luna-tone-heading--violet,
+  html[data-luna-theme='luna-solar'] .luna-tone-heading--violet,
+  html[data-luna-theme='luna-rose'] .luna-tone-heading--violet {
+    @apply text-violet-900;
+  }
+
+  html[data-luna-theme='luna-light'] .luna-tone-heading--cyan,
+  html[data-luna-theme='luna-solar'] .luna-tone-heading--cyan,
+  html[data-luna-theme='luna-rose'] .luna-tone-heading--cyan {
+    @apply text-cyan-900;
+  }
+
+  html[data-luna-theme='luna-light'] .luna-tone-count--blue,
+  html[data-luna-theme='luna-solar'] .luna-tone-count--blue,
+  html[data-luna-theme='luna-rose'] .luna-tone-count--blue {
+    @apply bg-sky-100 text-sky-900;
+  }
+
+  html[data-luna-theme='luna-light'] .luna-tone-count--green,
+  html[data-luna-theme='luna-solar'] .luna-tone-count--green,
+  html[data-luna-theme='luna-rose'] .luna-tone-count--green {
+    @apply bg-emerald-100 text-emerald-900;
+  }
+
+  html[data-luna-theme='luna-light'] .luna-tone-count--amber,
+  html[data-luna-theme='luna-solar'] .luna-tone-count--amber,
+  html[data-luna-theme='luna-rose'] .luna-tone-count--amber {
+    @apply bg-amber-100 text-amber-950;
+  }
+
+  html[data-luna-theme='luna-light'] .luna-tone-count--rose,
+  html[data-luna-theme='luna-solar'] .luna-tone-count--rose,
+  html[data-luna-theme='luna-rose'] .luna-tone-count--rose {
+    @apply bg-rose-100 text-rose-900;
+  }
+
+  html[data-luna-theme='luna-light'] .luna-tone-count--violet,
+  html[data-luna-theme='luna-solar'] .luna-tone-count--violet,
+  html[data-luna-theme='luna-rose'] .luna-tone-count--violet {
+    @apply bg-violet-100 text-violet-900;
+  }
+
+  html[data-luna-theme='luna-light'] .luna-tone-count--cyan,
+  html[data-luna-theme='luna-solar'] .luna-tone-count--cyan,
+  html[data-luna-theme='luna-rose'] .luna-tone-count--cyan {
+    @apply bg-cyan-100 text-cyan-900;
+  }
+
+  html[data-luna-theme='luna-light'] .luna-tone-icon-chip--blue,
+  html[data-luna-theme='luna-solar'] .luna-tone-icon-chip--blue,
+  html[data-luna-theme='luna-rose'] .luna-tone-icon-chip--blue {
+    @apply bg-sky-100 text-sky-800;
+  }
+
+  html[data-luna-theme='luna-light'] .luna-tone-icon-chip--green,
+  html[data-luna-theme='luna-solar'] .luna-tone-icon-chip--green,
+  html[data-luna-theme='luna-rose'] .luna-tone-icon-chip--green {
+    @apply bg-emerald-100 text-emerald-800;
+  }
+
+  html[data-luna-theme='luna-light'] .luna-tone-icon-chip--amber,
+  html[data-luna-theme='luna-solar'] .luna-tone-icon-chip--amber,
+  html[data-luna-theme='luna-rose'] .luna-tone-icon-chip--amber {
+    @apply bg-amber-100 text-amber-900;
+  }
+
+  html[data-luna-theme='luna-light'] .luna-tone-icon-chip--rose,
+  html[data-luna-theme='luna-solar'] .luna-tone-icon-chip--rose,
+  html[data-luna-theme='luna-rose'] .luna-tone-icon-chip--rose {
+    @apply bg-rose-100 text-rose-800;
+  }
+
+  html[data-luna-theme='luna-light'] .luna-tone-icon-chip--violet,
+  html[data-luna-theme='luna-solar'] .luna-tone-icon-chip--violet,
+  html[data-luna-theme='luna-rose'] .luna-tone-icon-chip--violet {
+    @apply bg-violet-100 text-violet-800;
+  }
+
+  html[data-luna-theme='luna-light'] .luna-tone-icon-chip--cyan,
+  html[data-luna-theme='luna-solar'] .luna-tone-icon-chip--cyan,
+  html[data-luna-theme='luna-rose'] .luna-tone-icon-chip--cyan {
+    @apply bg-cyan-100 text-cyan-800;
+  }
+
+  html[data-luna-theme='luna-light'] .luna-filter-pill--tone-blue,
+  html[data-luna-theme='luna-solar'] .luna-filter-pill--tone-blue,
+  html[data-luna-theme='luna-rose'] .luna-filter-pill--tone-blue {
+    @apply bg-sky-100 text-sky-900;
+  }
+
+  html[data-luna-theme='luna-light'] .luna-filter-pill--tone-green,
+  html[data-luna-theme='luna-solar'] .luna-filter-pill--tone-green,
+  html[data-luna-theme='luna-rose'] .luna-filter-pill--tone-green {
+    @apply bg-emerald-100 text-emerald-900;
+  }
+
+  html[data-luna-theme='luna-light'] .luna-filter-pill--tone-amber,
+  html[data-luna-theme='luna-solar'] .luna-filter-pill--tone-amber,
+  html[data-luna-theme='luna-rose'] .luna-filter-pill--tone-amber {
+    @apply bg-amber-100 text-amber-950;
+  }
+
+  html[data-luna-theme='luna-light'] .luna-filter-pill--tone-rose,
+  html[data-luna-theme='luna-solar'] .luna-filter-pill--tone-rose,
+  html[data-luna-theme='luna-rose'] .luna-filter-pill--tone-rose {
+    @apply bg-rose-100 text-rose-900;
+  }
+
+  html[data-luna-theme='luna-light'] .luna-filter-pill--tone-violet,
+  html[data-luna-theme='luna-solar'] .luna-filter-pill--tone-violet,
+  html[data-luna-theme='luna-rose'] .luna-filter-pill--tone-violet {
+    @apply bg-violet-100 text-violet-900;
+  }
+
+  html[data-luna-theme='luna-light'] .luna-filter-pill--tone-cyan,
+  html[data-luna-theme='luna-solar'] .luna-filter-pill--tone-cyan,
+  html[data-luna-theme='luna-rose'] .luna-filter-pill--tone-cyan {
+    @apply bg-cyan-100 text-cyan-900;
+  }
+
+  html[data-luna-theme='luna-light'] .luna-tone-note,
+  html[data-luna-theme='luna-solar'] .luna-tone-note,
+  html[data-luna-theme='luna-rose'] .luna-tone-note {
+    @apply bg-white;
+  }
+
+  html[data-luna-theme='luna-light'] .luna-cloud-sync-btn--neutral,
+  html[data-luna-theme='luna-solar'] .luna-cloud-sync-btn--neutral,
+  html[data-luna-theme='luna-rose'] .luna-cloud-sync-btn--neutral {
+    @apply bg-surface text-fg-muted hover:bg-raised-hover hover:text-fg;
+  }
+
+  html[data-luna-theme='luna-light'] .luna-cloud-sync-btn--neutral.luna-cloud-sync-btn--on,
+  html[data-luna-theme='luna-solar'] .luna-cloud-sync-btn--neutral.luna-cloud-sync-btn--on,
+  html[data-luna-theme='luna-rose'] .luna-cloud-sync-btn--neutral.luna-cloud-sync-btn--on {
+    @apply bg-accent/15 text-accent hover:bg-accent/25;
+  }
+
+  html[data-luna-theme='luna-light'] .luna-cloud-sync-btn--neutral.luna-cloud-sync-btn--pending,
+  html[data-luna-theme='luna-solar'] .luna-cloud-sync-btn--neutral.luna-cloud-sync-btn--pending,
+  html[data-luna-theme='luna-rose'] .luna-cloud-sync-btn--neutral.luna-cloud-sync-btn--pending {
+    @apply bg-amber-100 text-amber-900;
+  }
+
+  html[data-luna-theme='luna-light'] .luna-cloud-sync-btn--neutral.luna-cloud-sync-btn--error,
+  html[data-luna-theme='luna-solar'] .luna-cloud-sync-btn--neutral.luna-cloud-sync-btn--error,
+  html[data-luna-theme='luna-rose'] .luna-cloud-sync-btn--neutral.luna-cloud-sync-btn--error {
+    @apply bg-rose-100 text-rose-800;
   }
 }
 
@@ -300,6 +1106,222 @@
   animation: luna-fade-in 0.22s ease-out both;
 }
 
+/* ── Luna phase indicators (chat turn feedback) ── */
+
+@keyframes luna-dot-bounce {
+  0%,
+  80%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.35;
+  }
+  40% {
+    transform: translateY(-3px);
+    opacity: 1;
+  }
+}
+
+@keyframes luna-think-pulse {
+  0%,
+  100% {
+    transform: scale(0.82);
+    opacity: 0.45;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+}
+
+@keyframes luna-think-ring {
+  0%,
+  100% {
+    transform: scale(0.92);
+    opacity: 0.35;
+  }
+  50% {
+    transform: scale(1.12);
+    opacity: 0.85;
+  }
+}
+
+@keyframes luna-write-bar {
+  0%,
+  100% {
+    transform: scaleY(0.4);
+    opacity: 0.45;
+  }
+  50% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+@keyframes luna-translate-pulse {
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: translateY(0);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-1px);
+  }
+}
+
+@keyframes luna-tool-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes luna-wait-ping {
+  0%,
+  100% {
+    transform: scale(0.75);
+    opacity: 0.25;
+  }
+  50% {
+    transform: scale(1.15);
+    opacity: 0.55;
+  }
+}
+
+@keyframes luna-turn-banner-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes luna-turn-shimmer {
+  0%,
+  100% {
+    opacity: 0.15;
+    transform: scaleY(0.65);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scaleY(1);
+  }
+}
+
+@keyframes luna-activity-live {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--color-accent) 0%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 1px color-mix(in oklab, var(--color-accent) 28%, transparent);
+  }
+}
+
+@keyframes luna-stream-cursor {
+  0%,
+  45% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0.15;
+  }
+}
+
+@keyframes luna-composer-status-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.luna-phase-indicator--connecting .luna-phase-dot:nth-child(1) {
+  animation: luna-dot-bounce 1.1s ease-in-out infinite;
+}
+.luna-phase-indicator--connecting .luna-phase-dot:nth-child(2) {
+  animation: luna-dot-bounce 1.1s ease-in-out 0.15s infinite;
+}
+.luna-phase-indicator--connecting .luna-phase-dot:nth-child(3) {
+  animation: luna-dot-bounce 1.1s ease-in-out 0.3s infinite;
+}
+
+.luna-phase-think-core {
+  animation: luna-think-pulse 1.4s ease-in-out infinite;
+}
+.luna-phase-think-ring {
+  animation: luna-think-ring 1.4s ease-in-out infinite;
+}
+
+.luna-phase-write-bar {
+  height: 12px;
+  transform-origin: bottom;
+}
+.luna-phase-write-bar:nth-child(1) {
+  animation: luna-write-bar 0.85s ease-in-out infinite;
+}
+.luna-phase-write-bar:nth-child(2) {
+  animation: luna-write-bar 0.85s ease-in-out 0.12s infinite;
+}
+.luna-phase-write-bar:nth-child(3) {
+  animation: luna-write-bar 0.85s ease-in-out 0.24s infinite;
+}
+
+.luna-phase-translate-a,
+.luna-phase-translate-b,
+.luna-phase-translate-arrow {
+  animation: luna-translate-pulse 1.2s ease-in-out infinite;
+}
+.luna-phase-translate-b {
+  animation-delay: 0.2s;
+}
+.luna-phase-translate-arrow {
+  animation-delay: 0.1s;
+}
+
+.luna-phase-tool-ring {
+  animation: luna-tool-spin 2.4s linear infinite;
+}
+
+.luna-phase-wait-ping {
+  animation: luna-wait-ping 1.6s ease-in-out infinite;
+}
+
+.luna-turn-banner {
+  animation: luna-turn-banner-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.luna-turn-banner-shimmer {
+  background: linear-gradient(
+    180deg,
+    transparent,
+    color-mix(in oklab, var(--color-accent) 55%, transparent),
+    transparent
+  );
+  animation: luna-turn-shimmer 1.4s ease-in-out infinite;
+}
+
+.turn-activity--live {
+  animation: luna-activity-live 2s ease-in-out infinite;
+}
+
+.luna-stream-cursor {
+  animation: luna-stream-cursor 1s step-end infinite;
+}
+
+.luna-composer-status {
+  animation: luna-composer-status-in 0.22s ease-out both;
+}
+
 .luna-sidebar-panel-enter {
   animation: luna-slide-in-left 0.22s ease-out both;
 }
@@ -318,6 +1340,17 @@
   background-color: var(--color-composer-well) !important;
 }
 
+.luna-terminal-host .xterm-helper-textarea {
+  /* xterm captura teclado via textarea oculta */
+  opacity: 0 !important;
+  pointer-events: auto !important;
+}
+
+.luna-terminal-host .xterm {
+  height: 100%;
+  padding: 0;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .chat-scroll-region {
     scroll-behavior: auto;
@@ -333,7 +1366,28 @@
 
   .luna-fade-in,
   .luna-sidebar-panel-enter,
-  .luna-overlay-enter {
-    animation: none;
+  .luna-overlay-enter,
+  .luna-turn-banner,
+  .luna-composer-status,
+  .turn-activity--live,
+  .luna-stream-cursor,
+  .luna-phase-indicator *,
+  .luna-turn-banner-shimmer {
+    animation: none !important;
+  }
+
+  .luna-overlay-scrim,
+  .luna-overlay-backdrop {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
 }
+
+/** Electron/Windows: nunca usar backdrop-filter em overlays (blur corrompe o painel). */
+html.luna-electron .luna-overlay-scrim,
+html.luna-electron .luna-overlay-backdrop,
+html.luna-electron .luna-account-overlay__backdrop {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+

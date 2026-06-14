@@ -5,15 +5,11 @@ import type { ReasoningSegment } from '../types/chat'
 export async function localizeReasoningSegmentText(
   raw: string,
 ): Promise<Pick<ReasoningSegment, 'text' | 'textOriginal' | 'translated' | 'locale'>> {
-  const trimmed = raw.trim()
-  if (!trimmed) {
-    return { text: '' }
-  }
-  const norm = await normalizeReasoningForDisplay(trimmed)
+  const norm = await normalizeReasoningForDisplay(raw)
   return {
     text: norm.text,
     ...(norm.textOriginal ? { textOriginal: norm.textOriginal } : {}),
     ...(norm.translated ? { translated: true } : {}),
-    ...(norm.locale ? { locale: norm.locale } : {}),
+    locale: norm.locale,
   }
 }

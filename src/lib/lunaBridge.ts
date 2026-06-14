@@ -37,10 +37,10 @@ function ipcLlm() {
   return window.llm ?? window.together
 }
 
-export async function bridgeListModels() {
+export async function bridgeListModels(options?: { lunarCloud?: boolean }) {
   if (await preferServer()) return lunaServerListModels()
   const b = ipcLlm()
-  if (b?.listModels) return b.listModels()
+  if (b?.listModels) return b.listModels(options)
   return { ok: false as const, error: 'Lista de modelos indisponível.' }
 }
 
@@ -49,7 +49,7 @@ export async function bridgeLlmChat(
   options?: CompleteLlmOptions,
 ): Promise<LlmChatResult> {
   const payload = buildLlmPayload(messages, options)
-  if (await preferServer()) return lunaServerChat(payload)
+  if (await preferServer()) return lunaServerChat(payload, options?.signal)
   const b = ipcLlm()
   if (!b?.chat) {
     return {
@@ -69,7 +69,7 @@ export async function bridgeLlmChatStream(
   options?: CompleteLlmOptions,
 ): Promise<LlmChatResult> {
   const payload = buildLlmPayload(messages, options)
-  if (await preferServer()) return lunaServerChatStream(payload, callbacks)
+  if (await preferServer()) return lunaServerChatStream(payload, callbacks, options?.signal)
   const b = ipcLlm()
   if (!b?.chatStream) {
     return {
@@ -123,9 +123,15 @@ export async function bridgeRag<T>(
   init?: RequestInit,
 ): Promise<T> {
   if (await preferServer()) {
-    const base = window.lunaServer!.baseUrl.replace(/\/$/, '')
-    const res = await fetch(`${base}${httpPath}`, init)
-    return (await res.json()) as T
+    try {
+      const base = window.lunaServer!.baseUrl.replace(/\/$/, '')
+      const res = await fetch(`${base}${httpPath}`, init)
+      if (res.ok) {
+        return (await res.json()) as T
+      }
+    } catch {
+      /* servidor indisponível — tenta IPC abaixo */
+    }
   }
   return ipcFn()
 }
@@ -199,6 +205,16 @@ export async function bridgeAgentSetWorkspaceRoot(rootPath: string | null) {
   )
 }
 
+export async function bridgeAgentSetWorkspaceRoots(paths: string[]) {
+  return bridgeTool(
+    () =>
+      window.agentTools?.setWorkspaceRoots(paths) ??
+      Promise.resolve({ ok: false, error: 'Ferramentas indisponíveis.' }),
+    '/v1/tools/set-workspace-roots',
+    { paths },
+  )
+}
+
 export async function bridgeAgentWriteFile(filePath: string, content: string) {
   return bridgeTool(
     () =>
@@ -206,6 +222,36 @@ export async function bridgeAgentWriteFile(filePath: string, content: string) {
       Promise.resolve({ ok: false, error: 'Escrita indisponível.' }),
     '/v1/tools/write-file',
     { path: filePath, content },
+  )
+}
+
+export async function bridgeAgentCreateDirectory(dirPath: string) {
+  return bridgeTool(
+    () =>
+      window.agentTools?.createDirectory(dirPath) ??
+      Promise.resolve({ ok: false, error: 'Criação de pasta indisponível.' }),
+    '/v1/tools/create-directory',
+    { path: dirPath },
+  )
+}
+
+export async function bridgeAgentDeletePath(targetPath: string) {
+  return bridgeTool(
+    () =>
+      window.agentTools?.deletePath(targetPath) ??
+      Promise.resolve({ ok: false, error: 'Eliminação indisponível.' }),
+    '/v1/tools/delete-path',
+    { path: targetPath },
+  )
+}
+
+export async function bridgeAgentRenamePath(fromPath: string, toPath: string) {
+  return bridgeTool(
+    () =>
+      window.agentTools?.renamePath(fromPath, toPath) ??
+      Promise.resolve({ ok: false, error: 'Renomear indisponível.' }),
+    '/v1/tools/rename-path',
+    { from: fromPath, to: toPath },
   )
 }
 

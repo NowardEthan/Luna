@@ -45,7 +45,20 @@ const projectIds = (): Set<string> =>
   new Set(scanProjectPlugins().map((m) => m.id))
 
 export function getPluginOrigin(id: string): PluginOrigin {
+  if (getInstalledPlugin(id)) return 'user'
   return projectIds().has(id) ? 'project' : 'user'
+}
+
+/** Manifestos do projeto + instalações do utilizador (registry sobrepõe o mesmo id). */
+export function collectPluginManifests(): PluginManifest[] {
+  const byId = new Map<string, PluginManifest>()
+  for (const m of scanProjectPlugins()) {
+    if (m?.id) byId.set(m.id, m)
+  }
+  for (const record of readInstalledPlugins()) {
+    if (record.manifest?.id) byId.set(record.manifest.id, record.manifest)
+  }
+  return [...byId.values()]
 }
 
 export function getUserPluginRootPath(id: string): string | undefined {

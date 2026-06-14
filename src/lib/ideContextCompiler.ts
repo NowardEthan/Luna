@@ -6,12 +6,15 @@ import { resolveFileContent } from './workspaceFileContent'
 import { bridgeAgentGitDiff, bridgeAgentReadFile } from './lunaBridge'
 import { loadLunaProjectRules } from './lunaRulesLoader'
 import { ragRetrieve } from './ragClient'
+import { compileForgeSessionMeta } from './forgeSessionMeta'
 
 export type CompileIdeContextInput = {
   snapshot: WorkspaceSnapshot
   mentions?: IdeAttachedContext[]
   userQuery?: string
   ragEnabled?: boolean
+  /** Menos tokens — revisão @ficheiro ou agente com TPM apertado */
+  compact?: boolean
 }
 
 function truncate(s: string, max: number): string {
@@ -49,7 +52,20 @@ async function fileOnDiskExists(path: string): Promise<boolean> {
 export async function compileIdeContextBlock(
   input: CompileIdeContextInput,
 ): Promise<string> {
-  const limits = ideContextLimits()
+  const baseLimits = ideContextLimits()
+  const compact = input.compact === true
+  const limits = compact
+    ? {
+        ...baseLimits,
+        totalMaxChars: 8_000,
+        mentionFileMaxChars: 5_000,
+        activeFileMaxChars: 0,
+        dirtyTabMaxChars: 0,
+        gitDiffMaxChars: 0,
+        ragChunksMaxChars: 0,
+        terminalTailLines: 0,
+      }
+    : baseLimits
   const { snapshot, mentions = [], userQuery = '', ragEnabled = false } = input
   const parts: string[] = []
   let budget = limits.totalMaxChars
@@ -61,10 +77,15 @@ export async function compileIdeContextBlock(
     budget -= slice.length
   }
 
-  push(
-    '**Sessão IDE (trabalho em código)** — pair programming no projecto aberto. ' +
-      'Usa o contexto abaixo antes de `read_file` redundante no ficheiro activo.',
-  )
+  const forgeMeta = compileForgeSessionMeta()
+  if (forgeMeta) {
+    push(forgeMeta)
+  } else {
+    push(
+      '**Sessão IDE (trabalho em código)** — pair programming no projecto aberto. ' +
+        'Usa o contexto abaixo antes de `read_file` redundante no ficheiro activo.',
+    )
+  }
 
   if (snapshot.workspaceRoot) {
     push(`- **Raiz:** \`${snapshot.workspaceRoot}\``)
@@ -85,25 +106,26 @@ export async function compileIdeContextBlock(
     )
   }
 
-  // Bloco factual disco / editor / pendente
-  const factual: string[] = ['**Estado factual (não inventar):**']
-  const pathsToCheck = new Set<string>()
-  if (snapshot.activeFilePath) pathsToCheck.add(snapshot.activeFilePath)
-  for (const p of snapshot.pendingPatches) pathsToCheck.add(p.path)
-  for (const f of snapshot.openFiles) pathsToCheck.add(f.path)
+  if (!compact) {
+    const factual: string[] = ['**Estado factual (não inventar):**']
+    const pathsToCheck = new Set<string>()
+    if (snapshot.activeFilePath) pathsToCheck.add(snapshot.activeFilePath)
+    for (const p of snapshot.pendingPatches) pathsToCheck.add(p.path)
+    for (const f of snapshot.openFiles) pathsToCheck.add(f.path)
 
-  for (const p of pathsToCheck) {
-    const tab = snapshot.openFiles.find((f) => f.path === p)
-    const pending = snapshot.pendingPatches.filter((x) => x.path === p)
-    const onDisk = await fileOnDiskExists(p)
+    for (const p of pathsToCheck) {
+      const tab = snapshot.openFiles.find((f) => f.path === p)
+      const pending = snapshot.pendingPatches.filter((x) => x.path === p)
+      const onDisk = await fileOnDiskExists(p)
+      factual.push(
+        `- \`${p}\`: disco=${onDisk ? 'sim' : 'não'}; editor=${tab ? `aberto${tab.dirty ? ', dirty' : ''}` : 'fechado'}; pendente=${pending.length ? pending.map((x) => x.summary).join('; ') : 'não'}`,
+      )
+    }
     factual.push(
-      `- \`${p}\`: disco=${onDisk ? 'sim' : 'não'}; editor=${tab ? `aberto${tab.dirty ? ', dirty' : ''}` : 'fechado'}; pendente=${pending.length ? pending.map((x) => x.summary).join('; ') : 'não'}`,
+      'Regra: só diz que um ficheiro «está no computador» se existir em **disco** ou tiver sido **aplicado** (patch aceite / auto-apply).',
     )
+    push(factual.join('\n'))
   }
-  factual.push(
-    'Regra: só diz que um ficheiro «está no computador» se existir em **disco** ou tiver sido **aplicado** (patch aceite / auto-apply).',
-  )
-  push(factual.join('\n'))
 
   // @mentions (prioridade máxima)
   for (const m of mentions) {
@@ -139,7 +161,7 @@ export async function compileIdeContextBlock(
   }
 
   // Ficheiro activo
-  if (snapshot.activeFilePath && budget > 500) {
+  if (!compact && snapshot.activeFilePath && budget > 500) {
     const tab = snapshot.openFiles.find(
       (f) => f.path === snapshot.activeFilePath,
     )
@@ -162,17 +184,18 @@ export async function compileIdeContextBlock(
     )
   }
 
-  // Tabs dirty (não activo)
-  for (const f of snapshot.openFiles) {
-    if (!f.dirty || f.path === snapshot.activeFilePath || budget <= 300) continue
-    push(
-      `**Tab dirty:** \`${f.path}\`\n` +
-        fence(f.path, truncate(f.content, limits.dirtyTabMaxChars), f.languageId),
-    )
+  if (!compact) {
+    for (const f of snapshot.openFiles) {
+      if (!f.dirty || f.path === snapshot.activeFilePath || budget <= 300) continue
+      push(
+        `**Tab dirty:** \`${f.path}\`\n` +
+          fence(f.path, truncate(f.content, limits.dirtyTabMaxChars), f.languageId),
+      )
+    }
   }
 
   // Patches pendentes
-  if (snapshot.pendingPatches.length) {
+  if (!compact && snapshot.pendingPatches.length) {
     const patchBlocks: string[] = ['**Alterações pendentes (aguardam aceitar na UI):**']
     for (const p of snapshot.pendingPatches.slice(0, 6)) {
       patchBlocks.push(
@@ -187,6 +210,7 @@ export async function compileIdeContextBlock(
 
   // Terminal tail (se não veio via @)
   if (
+    !compact &&
     !mentions.some((m) => m.kind === 'terminal') &&
     snapshot.terminalLines.length &&
     budget > 400
@@ -200,6 +224,7 @@ export async function compileIdeContextBlock(
 
   // Git diff resumido
   if (
+    !compact &&
     !mentions.some((m) => m.kind === 'git') &&
     snapshot.workspaceRoot &&
     budget > 500
@@ -213,7 +238,7 @@ export async function compileIdeContextBlock(
   }
 
   // Regras (se não @Regras)
-  if (!mentions.some((m) => m.kind === 'rules') && budget > 800) {
+  if (!compact && !mentions.some((m) => m.kind === 'rules') && budget > 800) {
     const rules = await loadLunaProjectRules(
       snapshot.workspaceRoot,
       snapshot.activeFilePath,
@@ -222,7 +247,7 @@ export async function compileIdeContextBlock(
   }
 
   // RAG workspace
-  if (ragEnabled && userQuery.trim() && snapshot.workspaceRoot && budget > 600) {
+  if (!compact && ragEnabled && userQuery.trim() && snapshot.workspaceRoot && budget > 600) {
     try {
       const rag = await ragRetrieve(userQuery.trim())
       if (rag.ok && rag.context?.trim()) {

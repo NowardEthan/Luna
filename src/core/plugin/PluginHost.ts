@@ -15,12 +15,12 @@ import {
   patchPluginSettings,
   readPluginSettings,
 } from './pluginSettingsStorage'
+import { LUNA_IDE_PLUGIN_ID } from '../../plugins/luna-ide/constants'
 import {
+  collectPluginManifests,
   getPluginEntryLoader,
   getPluginOrigin,
   getUserPluginRootPath,
-  scanProjectPlugins,
-  scanUserPlugins,
   type PluginOrigin,
 } from './paths'
 import { assertPluginPermission, canUseWorker } from './permissions'
@@ -29,6 +29,7 @@ import { finishTool } from '../tools/toolResult'
 
 const ENABLED_KEY = 'luna-plugins-enabled'
 const RISK_ACK_KEY = 'luna-plugins-risk-ack'
+const IDE_MIGRATION_KEY = 'luna-ide-addon-migrated-v1'
 
 export type LoadedPlugin = {
   manifest: PluginManifest
@@ -58,11 +59,9 @@ class PluginHostImpl {
 
   async discover(): Promise<void> {
     this.discoveryErrors.length = 0
-    const project = scanProjectPlugins()
-    const projectIds = new Set(project.map((m) => m.id))
-    const user = scanUserPlugins().filter((m) => !projectIds.has(m.id))
-    const manifests = [...project, ...user]
+    const manifests = collectPluginManifests()
     const enabled = readEnabledSet()
+    migrateIdeAddonEnablement(enabled, manifests)
 
     for (const manifest of manifests) {
       if (manifest.lunaApiVersion && manifest.lunaApiVersion !== LUNA_API_VERSION) {
@@ -146,9 +145,26 @@ class PluginHostImpl {
     return this.plugins.get(id)?.enabled ?? false
   }
 
+  scheduleEnabledOnNextLaunch(id: string): void {
+    const enabled = readEnabledSet()
+    enabled.add(id)
+    persistEnabledSet(enabled)
+  }
+
   async setEnabled(id: string, enabled: boolean): Promise<void> {
-    const p = this.plugins.get(id)
-    if (!p || p.loadError) return
+    let p = this.plugins.get(id)
+    if (!p) {
+      await this.discover()
+      p = this.plugins.get(id)
+    }
+    if (!p) {
+      throw new Error(
+        `Add-on «${id}» não encontrado. Reinstale ou recarregue a aplicação.`,
+      )
+    }
+    if (p.loadError) {
+      throw new Error(p.loadError)
+    }
     if (enabled && !readRiskAcknowledged()) {
       throw new Error('Confirme o aviso de segurança nas definições antes de activar plugins.')
     }
@@ -156,6 +172,10 @@ class PluginHostImpl {
     else await this.deactivate(id)
     p.enabled = enabled
     persistEnabled(this.plugins)
+    eventBus.emit('plugin:enabled-changed', { pluginId: id, enabled })
+    if (id === LUNA_IDE_PLUGIN_ID) {
+      eventBus.emit('luna-ide:availability', { active: enabled })
+    }
   }
 
   async activate(id: string): Promise<void> {
@@ -384,6 +404,24 @@ class PluginHostImpl {
         },
       },
     }
+  }
+}
+
+/** Quem já tinha o IDE activo e o add-on instalado mantém-o activado após a migração. */
+function migrateIdeAddonEnablement(
+  enabled: Set<string>,
+  manifests: PluginManifest[],
+): void {
+  try {
+    if (localStorage.getItem(IDE_MIGRATION_KEY) === '1') return
+    const hadIdeMode = localStorage.getItem('luna-workbench-mode') === 'ide'
+    const hasInstalledIde = manifests.some((m) => m.id === 'luna-ide')
+    if (hadIdeMode && hasInstalledIde && readRiskAcknowledged()) {
+      enabled.add('luna-ide')
+    }
+    localStorage.setItem(IDE_MIGRATION_KEY, '1')
+  } catch {
+    /* ignore */
   }
 }
 

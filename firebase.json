@@ -6,9 +6,16 @@
       {
         "source": "/marketplace-catalog.json",
         "headers": [
-          { "key": "Cache-Control", "value": "public,max-age=300" },
+          { "key": "Cache-Control", "value": "public,max-age=60" },
           { "key": "Access-Control-Allow-Origin", "value": "*" },
           { "key": "Access-Control-Allow-Methods", "value": "GET, OPTIONS" }
+        ]
+      },
+      {
+        "source": "/marketplace/**",
+        "headers": [
+          { "key": "Cache-Control", "value": "public,max-age=3600" },
+          { "key": "Access-Control-Allow-Origin", "value": "*" }
         ]
       }
     ]

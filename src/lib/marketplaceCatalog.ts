@@ -1,4 +1,16 @@
 import catalogJson from '../data/marketplace-catalog.json'
+import i18n from '../i18n'
+import { profileSearchText, type MarketplaceListingProfile } from './marketplaceProfile'
+
+export type {
+  MarketplaceListingProfile,
+  MarketplacePublisher,
+  MarketplaceScreenshot,
+  MarketplaceFeature,
+  MarketplaceExample,
+  MarketplaceVersionEntry,
+  MarketplaceDocLink,
+} from './marketplaceProfile'
 
 export type MarketplaceInstallType = 'bundled' | 'disk' | 'url'
 
@@ -23,8 +35,36 @@ export type MarketplaceListing = {
   install: { type: MarketplaceInstallType; url?: string }
   permissions: string[]
   trusted: boolean
+  /** Capa do card e drawer (URL público, ex. Firebase Hosting). */
+  bannerUrl?: string
+  /** Ícone quadrado opcional; se omitido, usa bannerUrl. */
+  iconUrl?: string
   repositoryUrl?: string
   homepageUrl?: string
+  /** Perfil alargado (autor, exemplos, capturas, changelog, etc.). */
+  profile?: MarketplaceListingProfile
+  /** UID Firebase de quem publicou (Conta Lunar). */
+  publishedByUid?: string
+  publishedByEmail?: string
+}
+
+/** Arte estática no Hosting: /marketplace/{pluginId}-banner.png */
+export function marketplaceHostingAssetUrl(
+  projectId: string,
+  fileName: string,
+): string {
+  return `https://${projectId}.web.app/marketplace/${fileName}`
+}
+
+/** URL pública de download (Firebase Storage) para um pacote `.zip` de add-on. */
+export function marketplacePluginStorageUrl(
+  storageBucket: string,
+  pluginId: string,
+  version: string,
+): string {
+  const objectPath = `marketplace/plugins/${pluginId}/${pluginId}-${version}.zip`
+  const encoded = encodeURIComponent(objectPath)
+  return `https://firebasestorage.googleapis.com/v0/b/${storageBucket}/o/${encoded}?alt=media`
 }
 
 export type MarketplaceCatalog = {
@@ -33,15 +73,19 @@ export type MarketplaceCatalog = {
   items: MarketplaceListing[]
 }
 
-export const MARKETPLACE_CATEGORY_LABELS: Record<MarketplaceCategoryId, string> =
-  {
-    starter: 'Para começar',
-    demo: 'Demonstrações',
-    productivity: 'Produtividade',
-    integration: 'Integrações',
-    utility: 'Utilitários',
-    community: 'Comunidade',
-  }
+/** @deprecated Use marketplaceCategoryLabel() for i18n */
+export const MARKETPLACE_CATEGORY_IDS: MarketplaceCategoryId[] = [
+  'starter',
+  'demo',
+  'productivity',
+  'integration',
+  'utility',
+  'community',
+]
+
+export function marketplaceCategoryLabel(id: MarketplaceCategoryId): string {
+  return i18n.t(`marketplace.category.${id}`)
+}
 
 const CATALOG = catalogJson as MarketplaceCatalog
 
@@ -74,6 +118,7 @@ export function filterMarketplaceListings(
       item.author,
       item.pluginId,
       ...item.tags,
+      profileSearchText(item.profile),
     ]
       .join(' ')
       .toLowerCase()
@@ -89,9 +134,6 @@ export function marketplaceCategories(
     set.add(item.category)
   }
   return [...set].sort((a, b) =>
-    (MARKETPLACE_CATEGORY_LABELS[a] ?? a).localeCompare(
-      MARKETPLACE_CATEGORY_LABELS[b] ?? b,
-      'pt',
-    ),
+    marketplaceCategoryLabel(a).localeCompare(marketplaceCategoryLabel(b), i18n.language),
   )
 }

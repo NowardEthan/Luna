@@ -8,6 +8,19 @@ export const LUNA_FS = {
   memoryNotes: 'memoryNotes',
   settings: 'settings',
   pluginInstalls: 'pluginInstalls',
+  financeAccounts: 'financeAccounts',
+  financeCategories: 'financeCategories',
+  financeTransactions: 'financeTransactions',
+  financeBudgets: 'financeBudgets',
+  financeGoals: 'financeGoals',
+  financeRecurring: 'financeRecurring',
+  financeBills: 'financeBills',
+  financeCreditCards: 'financeCreditCards',
+  financePiggyBanks: 'financePiggyBanks',
+  financePiggyBankTx: 'financePiggyBankTx',
+  financeTags: 'financeTags',
+  financeNotifications: 'financeNotifications',
+  financeMeta: 'financeMeta',
 } as const
 
 export function userDoc(uid: string): string {
@@ -32,4 +45,13 @@ export function userSettingsDoc(uid: string): string {
 
 export function marketplaceListingDoc(listingId: string): string {
   return `${LUNA_FS.marketplaceCatalog}/${LUNA_FS.marketplaceListings}/${listingId}`
+}
+
+export function userUsageDoc(uid: string, monthKey: string): string {
+  return `${userDoc(uid)}/usage/${monthKey}`
+}
+
+/** Metadados BYOK (sem chaves — segredos no cofre local Electron). */
+export function userByokConfigDoc(uid: string): string {
+  return `${userDoc(uid)}/byok/config`
 }

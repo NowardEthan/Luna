@@ -86,11 +86,15 @@ export function buildLunaCodeMirrorExtensions(): Extension[] {
     {
       '&': {
         height: '100%',
+        maxHeight: '100%',
         backgroundColor: bg,
         color: fg,
       },
       '&.cm-focused': { outline: 'none' },
       '.cm-scroller': {
+        overflow: 'auto',
+        overscrollBehavior: 'contain',
+        height: '100%',
         fontFamily:
           'Consolas, "Cascadia Mono", "Cascadia Code", "Fira Code", "JetBrains Mono", monospace',
         lineHeight: '1.55',

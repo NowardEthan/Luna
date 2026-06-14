@@ -49,7 +49,7 @@ Em produção, a UI é servida a partir de `dist/` e o servidor continua local.
 
 | Área | O que faz |
 |------|-----------|
-| **Chat** | Conversa geral, anexos de imagem, seleção de modelo, pensamento visível (reasoning) |
+| **Chat** | Conversa com **Luna Core** (PAIA): análise, política, memória e resposta num único pipeline |
 | **IDE** | Explorer, editor CodeMirror, terminal xterm, patches pendentes com aprovação |
 | **Agente** | Até 8 passos por turno (chat) ou 25 (IDE); ferramentas declaradas ao modelo |
 | **Memória** | Notas persistentes + recall semântico em conversas anteriores |
@@ -321,7 +321,40 @@ copy .env.example .env
 
 Copie [`.env.example`](.env.example) para `.env`. O arquivo `.env` **não é versionado**.
 
-### Essencial
+### Luna Core (chat principal)
+
+O chat usa o motor **Luna Core** via Electron IPC — não o seletor multi-LLM.
+
+**Orbit** (`.env`):
+
+```env
+LUNA_CORE_PATH=C:\Users\ethan\Documents\Core\Luna\src\luna-core
+```
+
+**Luna Core** (`src/luna-core/.env` no repositório Core):
+
+```env
+LUNA_API_KEY=sua_chave_groq_ou_openrouter
+LUNA_API_BASE=https://api.groq.com/openai/v1
+```
+
+Compilar e testar o bridge (import nativo no Electron, sem subprocesso `tsx`):
+
+```bash
+npm run luna-core:build
+npm run luna-core:check
+npm run luna-core:check:electron
+```
+
+Para memória longa (SQLite) dentro do Electron:
+
+```bash
+npm run luna-core:rebuild-electron
+```
+
+Roadmap completo: [`docs/luna-core-integration-roadmap.md`](docs/luna-core-integration-roadmap.md).
+
+### Servidor Python (RAG, IDE legado)
 
 ```env
 LUNA_SERVER_PORT=39281
@@ -344,13 +377,7 @@ TAVILY_API_KEY=sua_chave
 # LUNA_DATA_DIR=C:\Users\voce\AppData\Luna\userData
 ```
 
-### Catálogo de modelos no chat
-
-```env
-LUNA_MODELS=openrouter|baidu/cobuddy:free|CoBuddy (free)|groq|openai/gpt-oss-120b|Groq
-```
-
-Consulte `.env.example` para Ollama, reasoning, RAG, limites do IDE e tradução.
+Consulte `.env.example` para Ollama, RAG, limites do IDE e tradução. O catálogo `LUNA_MODELS` é legado (modo IDE) — o chat principal não usa seletor de modelo.
 
 ---
 
@@ -449,6 +476,9 @@ Base: `http://127.0.0.1:39281` (configurável via `LUNA_SERVER_HOST` / `LUNA_SER
 | [`docs/contributing.md`](docs/contributing.md) | Como contribuir |
 | [`docs/luna-brain-v1-spec.md`](docs/luna-brain-v1-spec.md) | Especificação do agente v1 |
 | [`docs/luna-ide-tools.md`](docs/luna-ide-tools.md) | Ferramentas e contexto do modo IDE |
+| [`docs/luna-core-integration-roadmap.md`](docs/luna-core-integration-roadmap.md) | Roadmap Luna Core × Orbit (integração, fases, legado) |
+| [`docs/relatorio-sessao-luna-forge-jun2026.md`](docs/relatorio-sessao-luna-forge-jun2026.md) | Relatório completo da sessão pós-Claude Code (jun/2026) |
+| [`docs/configuracao-ambiente-luna.md`](docs/configuracao-ambiente-luna.md) | Perfis local/cloud, chaves e checklist |
 
 > **Obsoleto:** o servidor Node em `server/app.cjs` / `server/index.cjs` foi substituído por `backend/run_server.py` (FastAPI). Use `npm run server` apenas para o backend Python.
 

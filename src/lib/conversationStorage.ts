@@ -1,4 +1,18 @@
-import type { ChatFolder, Conversation, Message } from '../types/chat'
+import type {
+  ChatFolder,
+  Conversation,
+  ConversationSourceMode,
+  Message,
+} from '../types/chat'
+import { normalizeWorkspacePath } from './workspaceSessions'
+import { sanitizeCloudSyncMeta } from './cloudSyncSanitize'
+import { isValidCustomIconDataUrl } from '../features/history/folderCustomIcon'
+import {
+  isFolderColorId,
+  isFolderIconId,
+  MAX_CONVERSATION_TAGS,
+  normalizeTag,
+} from '../features/history/folderTree'
 
 export const STORAGE_KEY = 'chat-ia:conversations:v1'
 
@@ -64,16 +78,61 @@ export type StoredState = {
   conversations: Conversation[]
   folders: ChatFolder[]
   activeId: string
+  /** Última conversa activa por scope (`__chat__` ou path normalizado do workspace). */
+  activeIdByScope?: Record<string, string>
+  /** Workspaces IDE abertos recentemente (paths absolutos). */
+  recentWorkspaces?: string[]
 }
 
-function sanitizeFolder(raw: unknown): ChatFolder | null {
+function sanitizeFolder(
+  raw: unknown,
+  validParentIds: Set<string>,
+): ChatFolder | null {
   if (!raw || typeof raw !== 'object') return null
   const o = raw as Record<string, unknown>
   if (typeof o.id !== 'string' || typeof o.name !== 'string') return null
   const createdAt = typeof o.createdAt === 'number' ? o.createdAt : Date.now()
   const name = o.name.replace(/\s+/g, ' ').trim().slice(0, 80)
   if (!name.length) return null
-  return { id: o.id, name, createdAt }
+  const parentId =
+    typeof o.parentId === 'string' &&
+    o.parentId.length > 0 &&
+    o.parentId !== o.id &&
+    validParentIds.has(o.parentId)
+      ? o.parentId
+      : null
+  const icon = isFolderIconId(o.icon) ? o.icon : undefined
+  const color = isFolderColorId(o.color) ? o.color : undefined
+  const customIcon =
+    typeof o.customIcon === 'string' && isValidCustomIconDataUrl(o.customIcon)
+      ? o.customIcon
+      : undefined
+  const cloudSync = sanitizeCloudSyncMeta(o.cloudSync)
+  return {
+    id: o.id,
+    name,
+    createdAt,
+    parentId,
+    ...(icon ? { icon } : {}),
+    ...(color ? { color } : {}),
+    ...(customIcon ? { customIcon } : {}),
+    ...(cloudSync ? { cloudSync } : {}),
+  }
+}
+
+function sanitizeTags(raw: unknown): string[] | undefined {
+  if (!Array.isArray(raw)) return undefined
+  const seen = new Set<string>()
+  const tags: string[] = []
+  for (const item of raw) {
+    if (typeof item !== 'string') continue
+    const t = normalizeTag(item)
+    if (!t || seen.has(t)) continue
+    seen.add(t)
+    tags.push(t)
+    if (tags.length >= MAX_CONVERSATION_TAGS) break
+  }
+  return tags.length ? tags : undefined
 }
 
 export function sanitizeState(parsed: unknown): StoredState | null {
@@ -93,6 +152,7 @@ export function sanitizeState(parsed: unknown): StoredState | null {
     const raw = c as Conversation & {
       folderId?: string | null
       titlePinned?: boolean
+      tags?: unknown
     }
     const title =
       typeof raw.title === 'string' && raw.title.length > 0
@@ -103,6 +163,7 @@ export function sanitizeState(parsed: unknown): StoredState | null {
         ? raw.folderId
         : null
     const titlePinned = raw.titlePinned === true
+    const tags = sanitizeTags(raw.tags)
     let memory = raw.memory
     if (memory && typeof memory === 'object') {
       const mo = memory as Record<string, unknown>
@@ -130,29 +191,105 @@ export function sanitizeState(parsed: unknown): StoredState | null {
     } else {
       memory = undefined
     }
-    return [{ ...raw, title, folderId, titlePinned, memory }]
+    const cloudSync = sanitizeCloudSyncMeta(
+      (raw as Record<string, unknown>).cloudSync,
+    )
+    const lunaSessaoId =
+      typeof raw.lunaSessaoId === 'string' && raw.lunaSessaoId.length > 0
+        ? raw.lunaSessaoId
+        : raw.id
+
+    const sourceMode: ConversationSourceMode | undefined =
+      raw.sourceMode === 'ide' ? 'ide' : raw.sourceMode === 'chat' ? 'chat' : undefined
+    const workspaceRoot =
+      typeof raw.workspaceRoot === 'string' && raw.workspaceRoot.trim().length > 0
+        ? raw.workspaceRoot.trim()
+        : sourceMode === 'ide'
+          ? null
+          : undefined
+
+    return [
+      {
+        ...raw,
+        title,
+        folderId,
+        titlePinned,
+        lunaSessaoId,
+        memory,
+        ...(sourceMode ? { sourceMode } : {}),
+        ...(workspaceRoot !== undefined ? { workspaceRoot } : {}),
+        ...(tags ? { tags } : {}),
+        ...(cloudSync ? { cloudSync } : {}),
+      },
+    ]
   })
   if (!conversations.length) return null
 
-  const foldersList = Array.isArray(o.folders)
-    ? (o.folders as unknown[])
-        .map(sanitizeFolder)
-        .filter((f): f is ChatFolder => f != null)
-    : []
+  const rawFolders = Array.isArray(o.folders) ? (o.folders as unknown[]) : []
+  const folderIds = new Set(
+    rawFolders
+      .map((f) =>
+        f && typeof f === 'object' && typeof (f as ChatFolder).id === 'string'
+          ? (f as ChatFolder).id
+          : null,
+      )
+      .filter((id): id is string => id != null),
+  )
 
-  const folderIds = new Set(foldersList.map((f) => f.id))
+  const foldersList = rawFolders
+    .map((f) => sanitizeFolder(f, folderIds))
+    .filter((f): f is ChatFolder => f != null)
+
+  // Segunda passagem: parentId só válido se o pai existir na lista sanitizada
+  const validIds = new Set(foldersList.map((f) => f.id))
+  const foldersNormalized = foldersList.map((f) => ({
+    ...f,
+    parentId:
+      f.parentId && validIds.has(f.parentId) && f.parentId !== f.id
+        ? f.parentId
+        : null,
+  }))
   const normalizedConvos = conversations.map((c) => ({
     ...c,
-    folderId: c.folderId && folderIds.has(c.folderId) ? c.folderId : null,
+    folderId: c.folderId && validIds.has(c.folderId) ? c.folderId : null,
   }))
 
   const activeId = normalizedConvos.some((c) => c.id === o.activeId)
     ? o.activeId
     : normalizedConvos[0].id
+
+  const activeIdByScope: Record<string, string> = {}
+  if (o.activeIdByScope && typeof o.activeIdByScope === 'object') {
+    for (const [key, val] of Object.entries(
+      o.activeIdByScope as Record<string, unknown>,
+    )) {
+      if (typeof val !== 'string' || !val.trim()) continue
+      if (!normalizedConvos.some((c) => c.id === val)) continue
+      activeIdByScope[key] = val
+    }
+  }
+
+  const recentWorkspaces = Array.isArray(o.recentWorkspaces)
+    ? (o.recentWorkspaces as unknown[])
+        .filter((p): p is string => typeof p === 'string' && p.trim().length > 0)
+        .map((p) => p.trim())
+        .filter(
+          (p, i, arr) =>
+            arr.findIndex(
+              (x) => normalizeWorkspacePath(x) === normalizeWorkspacePath(p),
+            ) === i,
+        )
+        .slice(0, 12)
+    : undefined
+
   return {
     conversations: sortByUpdated(normalizedConvos),
-    folders: foldersList,
+    folders: foldersNormalized,
     activeId,
+    ...(Object.keys(activeIdByScope).length
+      ? { activeIdByScope }
+      : {}),
+    ...(recentWorkspaces?.length ? { recentWorkspaces } : {}),
   }
 }
 

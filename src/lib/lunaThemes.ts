@@ -14,9 +14,35 @@ export const LUNA_THEME_CSS_KEYS = [
   '--color-accent',
   '--color-accent-muted',
   '--color-accent-fg',
+  '--color-success',
+  '--color-success-muted',
+  '--color-danger',
+  '--color-danger-muted',
+  '--color-warning',
+  '--color-warning-muted',
   '--color-focus',
   '--color-composer-well',
 ] as const
+
+/** Estados (sync, erros, avisos) — paleta escura. */
+const LUNA_STATUS_DARK: Record<string, string> = {
+  '--color-success': '#34d399',
+  '--color-success-muted': '#1a2a22',
+  '--color-danger': '#f87171',
+  '--color-danger-muted': '#2a1c20',
+  '--color-warning': '#fbbf24',
+  '--color-warning-muted': '#2a2418',
+}
+
+/** Estados — paleta clara (fundos suaves, ícones mais escuros). */
+const LUNA_STATUS_LIGHT: Record<string, string> = {
+  '--color-success': '#047857',
+  '--color-success-muted': '#d1fae5',
+  '--color-danger': '#b91c1c',
+  '--color-danger-muted': '#fee2e2',
+  '--color-warning': '#b45309',
+  '--color-warning-muted': '#fef3c7',
+}
 
 export type LunaThemeId =
   | 'luna-dark'
@@ -41,24 +67,25 @@ export type LunaThemeMeta = {
   cssVars: Record<string, string>
 }
 
-/** Valores por defeito (escuro) — espelham index.css. */
+/** Valores por defeito — base cinza neutra (VS Code), acento violeta Luna. Espelham index.css. */
 export const LUNA_DARK_CSS_VARS: Record<string, string> = {
-  '--color-canvas': '#161618',
-  '--color-sidebar': '#121214',
-  '--color-surface': '#1e1e22',
-  '--color-raised': '#26262c',
-  '--color-raised-hover': '#303038',
-  '--color-popover': '#232328',
-  '--color-line': '#34343a',
-  '--color-line-subtle': '#2a2a30',
-  '--color-fg': '#ececef',
-  '--color-fg-dim': '#a8a8b3',
-  '--color-fg-muted': '#6f6f7a',
-  '--color-accent': '#5eb3f6',
-  '--color-accent-muted': 'rgba(94, 179, 246, 0.16)',
-  '--color-accent-fg': '#0f1419',
-  '--color-focus': 'rgba(94, 179, 246, 0.42)',
-  '--color-composer-well': '#0e0e10',
+  '--color-canvas': '#1e1e1e',
+  '--color-sidebar': '#181818',
+  '--color-surface': '#252525',
+  '--color-raised': '#2d2d2d',
+  '--color-raised-hover': '#383838',
+  '--color-popover': '#252525',
+  '--color-line': '#3c3c3c',
+  '--color-line-subtle': '#2a2a2a',
+  '--color-fg': '#d4d4d4',
+  '--color-fg-dim': '#9d9d9d',
+  '--color-fg-muted': '#6e6e6e',
+  '--color-accent': '#8b7cf8',
+  '--color-accent-muted': '#1c1829',
+  '--color-accent-fg': '#ffffff',
+  '--color-focus': '#8b7cf8',
+  '--color-composer-well': '#141414',
+  ...LUNA_STATUS_DARK,
 }
 
 export const LUNA_LIGHT_CSS_VARS: Record<string, string> = {
@@ -74,10 +101,11 @@ export const LUNA_LIGHT_CSS_VARS: Record<string, string> = {
   '--color-fg-dim': '#4a4a56',
   '--color-fg-muted': '#737380',
   '--color-accent': '#2563eb',
-  '--color-accent-muted': 'rgba(37, 99, 235, 0.12)',
+  '--color-accent-muted': '#e5edf9',
   '--color-accent-fg': '#ffffff',
-  '--color-focus': 'rgba(37, 99, 235, 0.35)',
+  '--color-focus': '#5b8fd4',
   '--color-composer-well': '#fafafa',
+  ...LUNA_STATUS_LIGHT,
 }
 
 const LUNA_MIDNIGHT_CSS_VARS: Record<string, string> = {
@@ -93,10 +121,11 @@ const LUNA_MIDNIGHT_CSS_VARS: Record<string, string> = {
   '--color-fg-dim': '#9ba7b4',
   '--color-fg-muted': '#6e7681',
   '--color-accent': '#58a6ff',
-  '--color-accent-muted': 'rgba(88, 166, 255, 0.18)',
+  '--color-accent-muted': '#1a2a3d',
   '--color-accent-fg': '#0d1117',
-  '--color-focus': 'rgba(88, 166, 255, 0.4)',
+  '--color-focus': '#4a7ab0',
   '--color-composer-well': '#0a0d12',
+  ...LUNA_STATUS_DARK,
 }
 
 const LUNA_SOLAR_CSS_VARS: Record<string, string> = {
@@ -112,10 +141,11 @@ const LUNA_SOLAR_CSS_VARS: Record<string, string> = {
   '--color-fg-dim': '#5c5042',
   '--color-fg-muted': '#8a7d6e',
   '--color-accent': '#c2410c',
-  '--color-accent-muted': 'rgba(194, 65, 12, 0.12)',
+  '--color-accent-muted': '#f5e8df',
   '--color-accent-fg': '#fff7ed',
-  '--color-focus': 'rgba(194, 65, 12, 0.32)',
+  '--color-focus': '#c46a3a',
   '--color-composer-well': '#f7f2ea',
+  ...LUNA_STATUS_LIGHT,
 }
 
 const LUNA_FOREST_CSS_VARS: Record<string, string> = {
@@ -131,10 +161,11 @@ const LUNA_FOREST_CSS_VARS: Record<string, string> = {
   '--color-fg-dim': '#9dada4',
   '--color-fg-muted': '#6d8178',
   '--color-accent': '#4ade80',
-  '--color-accent-muted': 'rgba(74, 222, 128, 0.14)',
+  '--color-accent-muted': '#1e2f26',
   '--color-accent-fg': '#0f1412',
-  '--color-focus': 'rgba(74, 222, 128, 0.38)',
+  '--color-focus': '#3d8f5c',
   '--color-composer-well': '#0c0f0e',
+  ...LUNA_STATUS_DARK,
 }
 
 const LUNA_DUSK_CSS_VARS: Record<string, string> = {
@@ -150,10 +181,11 @@ const LUNA_DUSK_CSS_VARS: Record<string, string> = {
   '--color-fg-dim': '#b5a9c8',
   '--color-fg-muted': '#7f7394',
   '--color-accent': '#a78bfa',
-  '--color-accent-muted': 'rgba(167, 139, 250, 0.16)',
+  '--color-accent-muted': '#2a2438',
   '--color-accent-fg': '#1a1228',
-  '--color-focus': 'rgba(167, 139, 250, 0.4)',
+  '--color-focus': '#7a62b8',
   '--color-composer-well': '#120f18',
+  ...LUNA_STATUS_DARK,
 }
 
 const LUNA_OCEAN_CSS_VARS: Record<string, string> = {
@@ -169,10 +201,11 @@ const LUNA_OCEAN_CSS_VARS: Record<string, string> = {
   '--color-fg-dim': '#94aab8',
   '--color-fg-muted': '#647d8c',
   '--color-accent': '#22d3ee',
-  '--color-accent-muted': 'rgba(34, 211, 238, 0.14)',
+  '--color-accent-muted': '#1a2a32',
   '--color-accent-fg': '#0a1218',
-  '--color-focus': 'rgba(34, 211, 238, 0.38)',
+  '--color-focus': '#3a8a9a',
   '--color-composer-well': '#0b0f14',
+  ...LUNA_STATUS_DARK,
 }
 
 const LUNA_CONTRAST_CSS_VARS: Record<string, string> = {
@@ -188,10 +221,16 @@ const LUNA_CONTRAST_CSS_VARS: Record<string, string> = {
   '--color-fg-dim': '#e0e0e0',
   '--color-fg-muted': '#b0b0b0',
   '--color-accent': '#ffff00',
-  '--color-accent-muted': 'rgba(255, 255, 0, 0.2)',
+  '--color-accent-muted': '#2a2a00',
   '--color-accent-fg': '#000000',
-  '--color-focus': 'rgba(255, 255, 0, 0.55)',
+  '--color-focus': '#cccc00',
   '--color-composer-well': '#000000',
+  '--color-success': '#00ff66',
+  '--color-success-muted': '#0a1f14',
+  '--color-danger': '#ff5555',
+  '--color-danger-muted': '#1f0a0a',
+  '--color-warning': '#ffcc00',
+  '--color-warning-muted': '#1f1a0a',
 }
 
 const LUNA_ROSE_CSS_VARS: Record<string, string> = {
@@ -207,17 +246,18 @@ const LUNA_ROSE_CSS_VARS: Record<string, string> = {
   '--color-fg-dim': '#6b4f58',
   '--color-fg-muted': '#947a84',
   '--color-accent': '#e11d48',
-  '--color-accent-muted': 'rgba(225, 29, 72, 0.1)',
+  '--color-accent-muted': '#f8e8ec',
   '--color-accent-fg': '#fff1f2',
-  '--color-focus': 'rgba(225, 29, 72, 0.3)',
+  '--color-focus': '#d44a6a',
   '--color-composer-well': '#fdf6f8',
+  ...LUNA_STATUS_LIGHT,
 }
 
 export const LUNA_THEMES: Record<LunaThemeId, LunaThemeMeta> = {
   'luna-dark': {
     id: 'luna-dark',
-    label: 'Escuro',
-    hint: 'Workbench escuro (predefinição)',
+    label: 'Noite Profunda',
+    hint: 'Identidade visual da Luna — violeta índigo (predefinição)',
     colorScheme: 'dark',
     cssVars: LUNA_DARK_CSS_VARS,
   },

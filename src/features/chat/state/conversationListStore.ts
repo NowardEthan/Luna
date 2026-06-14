@@ -8,12 +8,31 @@ import {
 } from 'react'
 import type { ChatFolder, Conversation } from '../../../types/chat'
 import {
+  MAX_CONVERSATION_TAGS,
+  normalizeTag,
+} from '../../history/folderTree'
+import type { UserMemoryState } from '../../../types/memory'
+import { contextualWelcomeMessages } from '../contextualChatWelcome'
+import {
   deriveTitle,
   nextId,
   seedStoreAfterDelete,
   sortByUpdated,
   welcomeMessages,
 } from './conversationPersistence'
+
+export type CreateConversationOpts = {
+  folderId?: string | null
+  sourceMode?: Conversation['sourceMode']
+  workspaceRoot?: string | null
+  welcomeContext?: {
+    conversations: Conversation[]
+    folders: ChatFolder[]
+    userMemory: UserMemoryState
+    cloudSyncAvailable: boolean
+    variant: 'chat' | 'ide' | 'finances'
+  }
+}
 
 export type ConversationListActions = {
   setConversations: Dispatch<SetStateAction<Conversation[]>>
@@ -25,10 +44,16 @@ export function useConversationListStore(
   onStoreReset?: (state: {
     activeId: string
     folders: ChatFolder[]
+    activeIdByScope?: Record<string, string>
+    recentWorkspaces?: string[]
   }) => void,
 ) {
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [activeId, setActiveId] = useState('')
+  const [activeIdByScope, setActiveIdByScope] = useState<
+    Record<string, string>
+  >({})
+  const [recentWorkspaces, setRecentWorkspaces] = useState<string[]>([])
 
   const active = useMemo(
     () => conversations.find((c) => c.id === activeId),
@@ -84,21 +109,38 @@ export function useConversationListStore(
   )
 
   const createConversation = useCallback(
-    (opts?: { folderId?: string | null }) => {
+    (opts?: CreateConversationOpts) => {
       const id = nextId()
-      const msgs = welcomeMessages(nextId)
       const want = opts?.folderId ?? null
       const folderId =
         want && folders.some((f) => f.id === want) ? want : null
+      const msgs = opts?.welcomeContext
+        ? contextualWelcomeMessages(nextId, {
+            ...opts.welcomeContext,
+            conversationId: id,
+            folderId,
+          })
+        : welcomeMessages(nextId)
+      const sourceMode =
+        opts?.sourceMode ?? (opts?.welcomeContext?.variant === 'ide' ? 'ide' : 'chat')
+      const workspaceRoot =
+        sourceMode === 'ide' ? (opts?.workspaceRoot ?? null) : undefined
+
       const convo: Conversation = {
         id,
+        lunaSessaoId: id,
         title: deriveTitle(msgs),
-        folderId,
+        folderId: sourceMode === 'ide' ? null : folderId,
+        sourceMode,
+        ...(workspaceRoot !== undefined ? { workspaceRoot } : {}),
         messages: msgs,
         updatedAt: Date.now(),
       }
       setConversations((prev) => sortByUpdated([...prev, convo]))
       setActiveId(id)
+      if (typeof window !== 'undefined' && window.lunaCore?.prepararSessao) {
+        void window.lunaCore.prepararSessao(id)
+      }
       return id
     },
     [folders],
@@ -161,6 +203,48 @@ export function useConversationListStore(
     setActiveId(id)
   }, [])
 
+  const rememberActiveForScope = useCallback((scopeKey: string, id: string) => {
+    if (!scopeKey.trim() || !id.trim()) return
+    setActiveIdByScope((prev) =>
+      prev[scopeKey] === id ? prev : { ...prev, [scopeKey]: id },
+    )
+  }, [])
+
+  const pushRecentWorkspace = useCallback((workspaceRoot: string) => {
+    const trimmed = workspaceRoot.trim()
+    if (!trimmed) return
+    setRecentWorkspaces((prev) => {
+      const key = trimmed.replace(/\\/g, '/').toLowerCase()
+      const next = [
+        trimmed,
+        ...prev.filter(
+          (p) => p.replace(/\\/g, '/').toLowerCase() !== key,
+        ),
+      ]
+      return next.slice(0, 12)
+    })
+  }, [])
+
+  const setConversationTags = useCallback(
+    (conversationId: string, tags: string[]) => {
+      const seen = new Set<string>()
+      const normalized: string[] = []
+      for (const raw of tags) {
+        const t = normalizeTag(raw)
+        if (!t || seen.has(t)) continue
+        seen.add(t)
+        normalized.push(t)
+        if (normalized.length >= MAX_CONVERSATION_TAGS) break
+      }
+      updateConversation(conversationId, (c) => ({
+        ...c,
+        tags: normalized.length ? normalized : undefined,
+        updatedAt: Date.now(),
+      }))
+    },
+    [updateConversation],
+  )
+
   const clearActiveConversationMemory = useCallback(() => {
     if (!activeId) return
     updateConversation(activeId, (c) => {
@@ -175,6 +259,12 @@ export function useConversationListStore(
     setConversations,
     activeId,
     setActiveId,
+    activeIdByScope,
+    setActiveIdByScope,
+    recentWorkspaces,
+    setRecentWorkspaces,
+    pushRecentWorkspace,
+    rememberActiveForScope,
     active,
     messages,
     updateConversation,
@@ -182,6 +272,7 @@ export function useConversationListStore(
     renameConversation,
     togglePinConversation,
     moveConversationToFolder,
+    setConversationTags,
     deleteConversationById,
     removeActiveConversation,
     selectConversation,

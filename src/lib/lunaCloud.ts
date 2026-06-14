@@ -29,21 +29,26 @@ function defaultMarketplaceCatalogUrl(projectId: string): string {
   return `https://${projectId}.web.app/marketplace-catalog.json`
 }
 
+function storageMarketplaceCatalogUrl(bucket: string): string {
+  const encoded = encodeURIComponent('marketplace/marketplace-catalog.json')
+  return `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${encoded}?alt=media`
+}
+
 export function readLunaCloudConfig(): LunaCloudConfig {
   const projectId = envString('VITE_FIREBASE_PROJECT_ID')
   const apiKey = envString('VITE_FIREBASE_API_KEY')
   const firebase = Boolean(projectId && apiKey)
 
   const explicitCatalogUrl = envString('VITE_LUNA_MARKETPLACE_CATALOG_URL')
-  const remoteInDev = envFlag('VITE_LUNA_MARKETPLACE_REMOTE')
-  // Em dev não pede Hosting por defeito (404/CORS até `firebase deploy` + flag explícita).
-  const autoHostingUrl =
-    projectId &&
-    (import.meta.env.PROD || remoteInDev)
-      ? defaultMarketplaceCatalogUrl(projectId)
-      : null
+  const storageBucket = envString('VITE_FIREBASE_STORAGE_BUCKET')
+  const preferStorage = envFlag('VITE_LUNA_MARKETPLACE_CATALOG_STORAGE')
+  const storageCatalogUrl =
+    storageBucket && preferStorage ? storageMarketplaceCatalogUrl(storageBucket) : null
+  const autoHostingUrl = projectId
+    ? defaultMarketplaceCatalogUrl(projectId)
+    : null
   const marketplaceCatalogUrl =
-    explicitCatalogUrl ?? autoHostingUrl ?? null
+    explicitCatalogUrl ?? storageCatalogUrl ?? autoHostingUrl ?? null
 
   return {
     firebase,

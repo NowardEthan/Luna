@@ -25,7 +25,7 @@ export function buildAgentStep(
   raw: unknown,
   extras?: {
     citations?: RagCitation[]
-    llmProvider?: 'groq' | 'together' | 'ollama'
+    llmProvider?: 'groq'
   },
 ): AgentStepRecord {
   const label = labelFor(tool)

@@ -125,6 +125,20 @@ function updateEnvFile(cfg, serviceAccountRel) {
     serviceAccountRel.replace(/\\/g, '/'),
   )
 
+  const projectNumber =
+    cfg.messagingSenderId || cfg.projectNumber || ''
+  if (projectNumber && !lines.some((l) => l.startsWith('GOOGLE_OAUTH_WEB_CLIENT_ID='))) {
+    lines.push(
+      '# Google Cloud → Credenciais → Web client → copiar ID completo para a linha abaixo',
+    )
+    lines.push(
+      `# GOOGLE_OAUTH_WEB_CLIENT_ID=${projectNumber}-XXXX.apps.googleusercontent.com`,
+    )
+    lines.push(
+      '# Redirect URI no Google Cloud: http://127.0.0.1:5167/auth-landing',
+    )
+  }
+
   fs.writeFileSync(ENV_PATH, lines.join('\n'))
 }
 

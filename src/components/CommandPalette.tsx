@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 export type CommandItem = {
   id: string
@@ -14,6 +15,7 @@ type Props = {
 }
 
 export function CommandPalette({ open, onClose, commands }: Props) {
+  const { t } = useTranslation()
   const [query, setQuery] = useState('')
 
   useEffect(() => {
@@ -47,20 +49,20 @@ export function CommandPalette({ open, onClose, commands }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-[88] flex items-start justify-center bg-black/50 pt-[12vh] p-4"
+      className="luna-overlay-scrim fixed inset-0 z-[88] flex items-start justify-center pt-[12vh] p-4"
       role="presentation"
       onClick={closeAndReset}
     >
       <div
         role="dialog"
-        aria-label="Paleta de comandos"
-        className="w-full max-w-lg overflow-hidden rounded-xl border border-line bg-surface shadow-2xl"
+        aria-label={t('commandPalette.aria')}
+        className="luna-dialog w-full max-w-lg"
         onClick={(e) => e.stopPropagation()}
       >
         <input
           type="search"
           autoFocus
-          placeholder="Procurar comando…"
+          placeholder={t('commandPalette.placeholder')}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           className="w-full border-b border-line bg-transparent px-4 py-3 text-body text-fg placeholder:text-fg-muted focus:outline-none"
@@ -71,7 +73,7 @@ export function CommandPalette({ open, onClose, commands }: Props) {
               <li key={c.id}>
                 <button
                   type="button"
-                  className="w-full px-4 py-2.5 text-left text-ui text-fg hover:bg-white/[0.06]"
+                  className="w-full px-4 py-2.5 text-left text-ui text-fg hover:bg-surface"
                   onClick={() => {
                     c.run()
                     closeAndReset()
@@ -82,7 +84,7 @@ export function CommandPalette({ open, onClose, commands }: Props) {
               </li>
             ))
           ) : (
-            <li className="px-4 py-3 text-ui text-fg-muted">Nenhum comando encontrado</li>
+            <li className="px-4 py-3 text-ui text-fg-muted">{t('commandPalette.empty')}</li>
           )}
         </ul>
       </div>

@@ -23,5 +23,5 @@
     "noFallthroughCasesInSwitch": true
   },
   "include": ["src"],
-  "exclude": [".luna", "src/**/*.test.ts", "packages"]
+  "exclude": [".luna", "src/_archive", "src/**/*.test.ts", "packages"]
 }

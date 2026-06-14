@@ -1,6 +1,6 @@
 import type { PluginManifest } from '../../packages/luna-sdk/src'
 import { pluginHost } from '../core/plugin/PluginHost'
-import { addInstalledPlugin } from '../core/plugin/installRegistry'
+import { addInstalledPlugin, getInstalledPlugin } from '../core/plugin/installRegistry'
 import { eventBus } from '../core/events/EventBus'
 
 export type PluginInstallSuccess = {
@@ -52,6 +52,9 @@ export async function applyPluginInstallResult(
   })
 
   if (result.needsReload) {
+    if (options?.enable && options.riskAck) {
+      pluginHost.scheduleEnabledOnNextLaunch(manifest.id)
+    }
     window.location.reload()
     return { ok: true, manifest, reloaded: true }
   }
@@ -61,7 +64,6 @@ export async function applyPluginInstallResult(
 
   if (options?.enable && options.riskAck) {
     await pluginHost.setEnabled(manifest.id, true)
-    eventBus.emit('plugin:activated', { pluginId: manifest.id })
   }
 
   return { ok: true, manifest, reloaded: false }
@@ -69,5 +71,16 @@ export async function applyPluginInstallResult(
 
 export function isPluginInstalled(pluginId: string): boolean {
   if (!pluginId) return false
+  if (getInstalledPlugin(pluginId)) return true
   return pluginHost.list().some((p) => p.manifest.id === pluginId)
+}
+
+export async function setAddonEnabled(
+  pluginId: string,
+  enabled: boolean,
+): Promise<void> {
+  await pluginHost.setEnabled(pluginId, enabled)
+  eventBus.emit('plugin:discover:complete', {
+    count: pluginHost.list().length,
+  })
 }

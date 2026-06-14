@@ -1,7 +1,7 @@
 import type { LlmProviderId } from '../types/chat'
 import type { LlmSelection } from './togetherClient'
 
-/** Modelos que expõem thinking/reasoning mesmo sem o toggle «Pensamento». */
+/** Modelos que expõem thinking/reasoning mesmo sem o toggle «Raciocínio». */
 const NATIVE_REASONING_PATTERNS: Partial<Record<LlmProviderId, RegExp[]>> = {
   openrouter: [
     /ring/i,
@@ -14,6 +14,7 @@ const NATIVE_REASONING_PATTERNS: Partial<Record<LlmProviderId, RegExp[]>> = {
   groq: [/gpt-oss/i, /qwen3/i],
   together: [/deepseek.*r1/i, /thinking/i],
   ollama: [/qwen3/i, /deepseek-r1/i],
+  google: [/thinking/i],
 }
 
 export function modelHasNativeReasoning(
@@ -24,6 +25,17 @@ export function modelHasNativeReasoning(
   if (!patterns?.length) return false
   const m = selection.model.toLowerCase()
   return patterns.some((re) => re.test(m))
+}
+
+/** Retorna se o modelo atual aceita ser ligado ou desligado o raciocinio pela UI (Google densos não aceitam). */
+export function modelSupportsReasoningToggle(
+  selection?: LlmSelection | null,
+): boolean {
+  if (!selection?.provider || !selection.model) return true
+  if (selection.provider === 'google') {
+    return /thinking/i.test(selection.model)
+  }
+  return true
 }
 
 /** Pedido explícito de reasoning à API (toggle ligado). */

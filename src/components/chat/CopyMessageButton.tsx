@@ -12,7 +12,7 @@ export function CopyMessageButton({ text, label = 'Copiar mensagem' }: Props) {
       type="button"
       title={label}
       aria-label={label}
-      className="rounded-md p-1 text-fg-muted opacity-0 transition-opacity hover:bg-white/[0.08] hover:text-fg group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+      className="luna-btn-ghost !rounded-md !p-1 text-fg-muted opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
       onClick={() => void copyWithToast(text)}
     >
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="stroke-current" strokeWidth="2" aria-hidden>

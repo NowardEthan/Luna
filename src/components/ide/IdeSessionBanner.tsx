@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useLunaWorkspace } from '../../context/LunaWorkspaceContext'
 import {
   readIdeAutoApply,
@@ -9,36 +10,39 @@ import {
   writeWorkspaceRagSyncEnabled,
 } from '../../lib/workspaceRagSync'
 import { useIdeAgentProgress } from '../../lib/ideAgentProgress'
+import { workspaceDisplayName } from '../../lib/workspaceSessions'
+import { LUNA_FORGE_SHORT } from '../../lib/lunaForgeBrand'
 
 /** Faixa do modo IDE + toggle aplicar patches automaticamente. */
 export function IdeSessionBanner() {
+  const { t } = useTranslation()
   const ws = useLunaWorkspace()
   const agentProgress = useIdeAgentProgress()
   const [autoApply, setAutoApply] = useState(readIdeAutoApply)
   const [ragSync, setRagSync] = useState(readWorkspaceRagSyncEnabled)
   const folder = ws.workspaceRoot
-    ? ws.workspaceRoot.replace(/\\/g, '/').split('/').pop()
+    ? workspaceDisplayName(ws.workspaceRoot)
     : null
 
   return (
-    <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-accent/20 bg-accent/5 px-3 py-1.5">
-      <span className="rounded-md bg-accent/15 px-1.5 py-0.5 text-caption font-semibold uppercase tracking-wide text-accent">
-        Sessão IDE
+    <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-accent bg-accent-muted px-3 py-1.5">
+      <span className="luna-chip px-1.5 py-0.5 text-caption font-semibold uppercase tracking-wide text-accent">
+        {LUNA_FORGE_SHORT}
       </span>
       {agentProgress && agentProgress.round > 0 ? (
         <span
-          className="rounded-md bg-white/[0.04] px-1.5 py-0.5 text-caption text-fg-muted"
+          className="luna-chip px-1.5 py-0.5 text-caption text-fg-muted"
           title={agentProgress.phase}
         >
-          Passo {agentProgress.round}
+          {t('ide.banner.step', { round: agentProgress.round })}
         </span>
       ) : null}
       <p className="min-w-0 flex-1 truncate text-ui text-fg-dim">
         {folder
-          ? `«${folder}» — contexto de código injectado (activo, terminal, git).`
-          : 'Abre uma pasta — a Luna injecta código e ambiente em cada mensagem.'}
+          ? t('ide.banner.folderActive', { folder })
+          : t('ide.banner.noFolder')}
       </p>
-      <label className="flex shrink-0 cursor-pointer items-center gap-1.5 text-caption text-fg-muted">
+      <label className="luna-btn-ghost flex shrink-0 cursor-pointer items-center gap-1.5 px-1.5 py-0.5 text-caption">
         <input
           type="checkbox"
           checked={autoApply}
@@ -48,9 +52,9 @@ export function IdeSessionBanner() {
           }}
           className="size-3 rounded border-line accent-accent"
         />
-        Aplicar patches auto
+        {t('ide.banner.autoApply')}
       </label>
-      <label className="flex shrink-0 cursor-pointer items-center gap-1.5 text-caption text-fg-muted">
+      <label className="luna-btn-ghost flex shrink-0 cursor-pointer items-center gap-1.5 px-1.5 py-0.5 text-caption">
         <input
           type="checkbox"
           checked={ragSync}
@@ -60,8 +64,16 @@ export function IdeSessionBanner() {
           }}
           className="size-3 rounded border-line accent-accent"
         />
-        Sincronizar índice RAG
+        {t('ide.banner.ragSync')}
       </label>
+      <button
+        type="button"
+        onClick={() => ws.closeWorkspace()}
+        className="luna-btn-ghost shrink-0 px-2 py-0.5 text-caption text-fg-muted hover:text-fg"
+        title={t('lunaForge.closeProject')}
+      >
+        {t('lunaForge.closeProject')}
+      </button>
     </div>
   )
 }

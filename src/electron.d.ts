@@ -21,7 +21,7 @@ type LlmStreamCallbacks = {
 }
 
 type LlmBridge = {
-  listModels: () => Promise<
+  listModels: (opts?: { lunarCloud?: boolean }) => Promise<
     | {
         ok: true
         models: Array<{
@@ -88,6 +88,18 @@ declare global {
         | { ok: true; idToken: string; accessToken?: string }
         | { ok: false; error?: string; cancelled?: boolean }
       >
+      oauthComplete?: (result: {
+        ok: boolean
+        error?: string
+        cancelled?: boolean
+      }) => void
+    }
+    /** Compatível com o projeto Luna (`electronAPI.startGoogleLogin`). */
+    electronAPI?: {
+      startGoogleLogin: () => Promise<
+        | { success: true; idToken: string; accessToken?: string }
+        | { success: false; error?: string }
+      >
     }
     translation?: {
       translate: (payload: {
@@ -153,6 +165,150 @@ declare global {
         | { ok: false; error: string; indexed?: number }
       >
     }
+    lunaFiles?: {
+      getPlaces: () => Promise<{
+        ok: boolean
+        places?: { id: string; label: string; path: string; icon: string }[]
+        home?: string
+      }>
+      listDirectory: (
+        dirPath: string,
+        options?: { showHidden?: boolean },
+      ) => Promise<{
+        ok: boolean
+        error?: string
+        path?: string
+        parent?: string
+        entries?: {
+          name: string
+          path: string
+          type: string
+          size?: number
+          modifiedAt?: number
+        }[]
+        truncated?: boolean
+      }>
+      readFileBinary: (
+        filePath: string,
+        maxBytes?: number,
+      ) => Promise<{
+        ok: boolean
+        error?: string
+        path?: string
+        name?: string
+        size?: number
+        mime?: string
+        base64?: string
+      }>
+    }
+    byok?: {
+      canEncrypt: () => Promise<{ ok: boolean; available?: boolean }>
+      saveKey: (payload: {
+        uid: string
+        providerId: string
+        apiKey: string
+      }) => Promise<{ ok: boolean; keyHint?: string; error?: string }>
+      deleteKey: (payload: {
+        uid: string
+        providerId: string
+      }) => Promise<{ ok: boolean; error?: string }>
+      listKeyHints: (
+        uid: string,
+      ) => Promise<{ ok: boolean; hints?: Record<string, boolean>; error?: string }>
+      test: (payload: {
+        providerId: string
+        apiKey: string
+        baseUrl?: string
+        modelMenor?: string
+        modelMaior?: string
+      }) => Promise<{ ok: boolean; error?: string }>
+    }
+    lunaCore: {
+      executarPipeline: (
+        mensagem: string,
+        sessaoId?: string,
+        opcoes?: import('./types/lunaCorePipeline').LunaCorePipelineOptions,
+      ) => Promise<import('./types/lunaCoreResult').LunaCoreResultado>
+      prepararSessao: (
+        sessaoId: string,
+      ) => Promise<{ ok: boolean; sessaoId?: string; error?: string }>
+      refletirSessao: (sessaoId: string) => Promise<{
+        ok: boolean
+        candidatos?: number
+        salvos?: number
+        error?: string
+      }>
+      listarMemoriaLonga: (limit?: number) => Promise<{
+        ok: boolean
+        fatos?: import('./hooks/useLunaCoreMemory').LunaCoreMemoryFact[]
+        error?: string
+      }>
+    }
+    forgeTerminal?: {
+      create: (opts: {
+        cwd?: string
+        cols?: number
+        rows?: number
+      }) => Promise<{
+        ok: boolean
+        error?: string
+        id?: string
+        shell?: string
+        cwd?: string
+      }>
+      write: (
+        id: string,
+        data: string,
+      ) => Promise<{ ok: boolean; error?: string }>
+      resize: (
+        id: string,
+        cols: number,
+        rows: number,
+      ) => Promise<{ ok: boolean; error?: string }>
+      kill: (id: string) => Promise<{ ok: boolean; error?: string }>
+      onData: (
+        callback: (payload: {
+          id: string
+          data?: string
+          exitCode?: number
+        }) => void,
+      ) => () => void
+    }
+    forgeLsp?: {
+      setWorkspaceRoot: (
+        rootPath: string | null,
+      ) => Promise<{ ok: boolean; error?: string; path?: string }>
+      openDocument: (doc: {
+        path: string
+        languageId: string
+        text: string
+        version?: number
+      }) => Promise<{ ok: boolean; error?: string }>
+      changeDocument: (doc: {
+        path: string
+        text: string
+        version: number
+      }) => Promise<{ ok: boolean; error?: string }>
+      closeDocument: (filePath: string) => Promise<{ ok: boolean; error?: string }>
+      completion: (pos: {
+        path: string
+        line: number
+        character: number
+      }) => Promise<{ ok: boolean; error?: string; result?: unknown }>
+      hover: (pos: {
+        path: string
+        line: number
+        character: number
+      }) => Promise<{ ok: boolean; error?: string; result?: unknown }>
+      definition: (pos: {
+        path: string
+        line: number
+        character: number
+      }) => Promise<{ ok: boolean; error?: string; result?: unknown }>
+      onDiagnostics: (
+        callback: (payload: { path: string; diagnostics: unknown[] }) => void,
+      ) => () => void
+    }
     agentTools?: {
       listDirectory: (dirPath: string) => Promise<{
         ok: boolean
@@ -178,8 +334,15 @@ declare global {
         answer?: string
         results?: { title?: string; url?: string; content?: string }[]
       }>
-      setWorkspaceRoot: (rootPath: string | null) => Promise<{ ok: boolean; error?: string; path?: string | null }>
+      setWorkspaceRoot: (rootPath: string | null) => Promise<{ ok: boolean; error?: string; path?: string | null; paths?: string[] }>
+      setWorkspaceRoots: (paths: string[]) => Promise<{ ok: boolean; error?: string; path?: string | null; paths?: string[] }>
       writeFile: (filePath: string, content: string) => Promise<{ ok: boolean; error?: string; path?: string }>
+      createDirectory: (dirPath: string) => Promise<{ ok: boolean; error?: string; path?: string }>
+      deletePath: (targetPath: string) => Promise<{ ok: boolean; error?: string; path?: string }>
+      renamePath: (
+        fromPath: string,
+        toPath: string,
+      ) => Promise<{ ok: boolean; error?: string; from?: string; to?: string }>
       grep: (
         pattern: string,
         searchPath?: string,
@@ -234,7 +397,45 @@ declare global {
             installedAt: string
           }
       >
+      installFromDirectory: (dirPath: string) => Promise<
+        | { ok: false; canceled?: boolean; error: string }
+        | {
+            ok: true
+            manifest: {
+              id: string
+              name: string
+              version?: string
+              description?: string
+              entry?: string
+              permissions?: string[]
+              trusted?: boolean
+              lunaApiVersion?: string
+            }
+            rootPath: string
+            needsReload?: boolean
+            installedAt: string
+          }
+      >
       installBundled: (pluginId: string) => Promise<
+        | { ok: false; error: string }
+        | {
+            ok: true
+            manifest: {
+              id: string
+              name: string
+              version?: string
+              description?: string
+              entry?: string
+              permissions?: string[]
+              trusted?: boolean
+              lunaApiVersion?: string
+            }
+            rootPath: string
+            needsReload: boolean
+            installedAt: string
+          }
+      >
+      installFromUrl: (url: string) => Promise<
         | { ok: false; error: string }
         | {
             ok: true

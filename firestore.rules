@@ -9,32 +9,100 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == uid;
     }
 
-    function isLunarAccount() {
-      return signedIn()
-        && request.auth.token.firebase.sign_in_provider != 'anonymous';
+    // Igual ao projeto Luna (luna-8787d): dono autenticado, sem gate extra no token.
+    function billingFieldsUnchanged() {
+      return !request.resource.data.diff(resource.data).affectedKeys()
+        .hasAny(['plan', 'billing', 'entitlements']);
     }
 
     match /users/{userId} {
-      allow read, write: if isOwner(userId) && isLunarAccount();
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId)
+        && request.resource.data.plan == 'free';
+      allow update: if isOwner(userId) && billingFieldsUnchanged();
+      allow delete: if isOwner(userId);
 
       match /conversations/{conversationId} {
-        allow read, write: if isOwner(userId) && isLunarAccount();
+        allow read, write: if isOwner(userId);
 
         match /messages/{messageId} {
-          allow read, write: if isOwner(userId) && isLunarAccount();
+          allow read, write: if isOwner(userId);
         }
       }
 
       match /memoryNotes/{noteId} {
-        allow read, write: if isOwner(userId) && isLunarAccount();
+        allow read, write: if isOwner(userId);
       }
 
       match /settings/{docId} {
-        allow read, write: if isOwner(userId) && isLunarAccount();
+        allow read, write: if isOwner(userId);
+      }
+
+      // Metering cloud (P2 leitura · P3 incremento pelo cliente autenticado)
+      match /usage/{monthKey} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId)
+          && request.resource.data.turns is int
+          && request.resource.data.turns >= 1
+          && request.resource.data.turns <= 100000;
+        allow update: if isOwner(userId)
+          && request.resource.data.turns is int
+          && resource.data.turns is int
+          && request.resource.data.turns == resource.data.turns + 1
+          && request.resource.data.turns <= 100000;
       }
 
       match /pluginInstalls/{pluginId} {
-        allow read, write: if isOwner(userId) && isLunarAccount();
+        allow read, write: if isOwner(userId);
+      }
+
+      match /marketplacePublications/{pluginId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      match /financeAccounts/{docId} {
+        allow read, write: if isOwner(userId);
+      }
+      match /financeCategories/{docId} {
+        allow read, write: if isOwner(userId);
+      }
+      match /financeTransactions/{docId} {
+        allow read, write: if isOwner(userId);
+      }
+      match /financeBudgets/{docId} {
+        allow read, write: if isOwner(userId);
+      }
+      match /financeGoals/{docId} {
+        allow read, write: if isOwner(userId);
+      }
+      match /financeRecurring/{docId} {
+        allow read, write: if isOwner(userId);
+      }
+      match /financeBills/{docId} {
+        allow read, write: if isOwner(userId);
+      }
+      match /financeCreditCards/{docId} {
+        allow read, write: if isOwner(userId);
+      }
+      match /financePiggyBanks/{docId} {
+        allow read, write: if isOwner(userId);
+      }
+      match /financePiggyBankTx/{docId} {
+        allow read, write: if isOwner(userId);
+      }
+      match /financeTags/{docId} {
+        allow read, write: if isOwner(userId);
+      }
+      match /financeNotifications/{docId} {
+        allow read, write: if isOwner(userId);
+      }
+      match /financeMeta/{docId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // BYOK — metadados (chaves API ficam no cofre local Electron)
+      match /byok/{docId} {
+        allow read, write: if isOwner(userId);
       }
     }
 

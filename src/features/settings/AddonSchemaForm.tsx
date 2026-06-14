@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import type {
   PluginSettingField,
   PluginSettingsSchema,
@@ -29,6 +30,7 @@ export function AddonSchemaForm({
   disabled,
   onChange,
 }: Props) {
+  const { t } = useTranslation()
   const [values, setValues] = useState(() => readPluginSettings(pluginId))
 
   useEffect(() => {
@@ -49,7 +51,7 @@ export function AddonSchemaForm({
   return (
     <div className="space-y-3">
       <p className="text-caption font-medium uppercase tracking-wide text-fg-muted">
-        Propriedades
+        {t('settings.addons.properties')}
       </p>
       {schema.fields.map((field) => {
         const val = fieldValue(values, field)
@@ -111,4 +113,3 @@ export function AddonSchemaForm({
     </div>
   )
 }
-

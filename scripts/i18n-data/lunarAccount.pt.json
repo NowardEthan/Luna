@@ -1,0 +1,80 @@
+{
+  "modal": {
+    "closeOverlayAria": "Fechar conta Lunar",
+    "badge": "Conta Lunar",
+    "closeAria": "Fechar"
+  },
+  "signIn": {
+    "title": "Entrar na nuvem {{appName}}",
+    "description": "Modelos online, sincronização, loja e ferramentas completas exigem uma Conta Lunar. Podes continuar só com Ollama e dados locais.",
+    "googleBusy": "A abrir Google…",
+    "google": "Entrar com Google",
+    "offline": "Continuar offline (Ollama e local)"
+  },
+  "profile": {
+    "defaultName": "Conta Lunar",
+    "statusCloud": "Na nuvem · {{appName}}",
+    "statusOffline": "Modo offline",
+    "statusNoSession": "Sem sessão",
+    "cloudPaused": "Sessão activa, mas a nuvem está em pausa. Activa o modo nuvem para sincronizar.",
+    "syncing": "A sincronizar…",
+    "syncNow": "Sincronizar agora",
+    "enableCloud": "Activar modo nuvem",
+    "offlineMode": "Modo offline",
+    "signOut": "Terminar sessão",
+    "cloudSummary": "Resumo na nuvem",
+    "colThisPc": "Neste PC",
+    "colFirestore": "Firestore",
+    "metricConversations": "Conversas",
+    "metricFolders": "Pastas",
+    "metricMessages": "Mensagens",
+    "metricSize": "Tamanho",
+    "lastSync": "Última sync: {{date}}{{errorSuffix}}",
+    "syncNever": "ainda não",
+    "cloudHint": "Marca conversas ou pastas com o ícone de nuvem no histórico para enviar só o que quiseres."
+  },
+  "chip": {
+    "accountFallback": "Conta Lunar",
+    "offline": "Modo offline",
+    "signIn": "Entrar na nuvem",
+    "sublabelConnected": "Sincronizado · modelos online",
+    "sublabelOffline": "Só Ollama e local",
+    "sublabelSignIn": "Modelos cloud, sync e loja",
+    "activityAriaConnected": "Conta Lunar activa",
+    "activityAriaSignIn": "Entrar na Conta Lunar",
+    "compactLunar": "Lunar",
+    "compactOffline": "Offline",
+    "compactSignIn": "Entrar na nuvem"
+  },
+  "banner": {
+    "regionAria": "Conta Lunar",
+    "badge": "Conta Lunar",
+    "headline": "Desbloqueia modelos online, sync e a loja completa",
+    "body": "A {{appName}} aloja modelos na nuvem — sem chaves API no teu PC. Preferes só local? Continua com Ollama offline.",
+    "google": "Entrar com Google",
+    "offlineOnly": "Só offline",
+    "dismissAria": "Dispensar aviso"
+  },
+  "storage": {
+    "title": "Armazenamento · {{plan}}",
+    "used": "Usado:",
+    "available": "Disponível:",
+    "progressAria": "Espaço na nuvem utilizado",
+    "atLimit": "Limite do plano {{plan}} atingido. Remove conversas na nuvem para libertar espaço.",
+    "nearLimit": "Quase no limite do plano {{plan}}."
+  },
+  "plan": {
+    "free": "Gratuito",
+    "pro": "Pro",
+    "team": "Equipa"
+  },
+  "error": {
+    "profileSave": "Erro ao guardar perfil.",
+    "firestoreDenied": "Sessão Google OK, mas o Firestore negou acesso. Corre npm run firebase:deploy-rules.",
+    "firebaseNotConfigured": "Firebase não está configurado.",
+    "loginCancelled": "Entrada cancelada.",
+    "signInFailed": "Não foi possível entrar.",
+    "anonDisabled": "Autenticação anónima desactivada (VITE_LUNA_CLOUD_ANON).",
+    "signOutFailed": "Não foi possível terminar sessão."
+  }
+}

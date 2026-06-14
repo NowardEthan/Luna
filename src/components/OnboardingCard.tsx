@@ -1,3 +1,5 @@
+import { Trans, useTranslation } from 'react-i18next'
+
 const STORAGE_KEY = 'luna-onboarding-v1'
 
 type Props = {
@@ -21,25 +23,37 @@ export function dismissOnboarding(): void {
 }
 
 export function OnboardingCard({ onDismiss }: Props) {
+  const { t } = useTranslation()
+
   return (
-    <li className="rounded-2xl border border-accent/30 bg-gradient-to-br from-accent/10 to-surface/40 px-5 py-4 shadow-soft">
-      <h3 className="text-body font-semibold tracking-tight text-fg">Bem-vindo à Luna</h3>
+    <li className="luna-card-vivid px-5 py-4">
+      <h3 className="text-body font-semibold tracking-tight text-fg">{t('onboarding.title')}</h3>
       <ul className="mt-2 list-disc space-y-1 pl-4 text-ui text-fg-dim">
         <li>
-          <strong className="text-fg">Chat</strong> para conversa geral;{' '}
-          <strong className="text-fg">IDE</strong> para editar ficheiros e correr comandos.
+          <Trans
+            i18nKey="onboarding.bullet_chat"
+            components={{ strong: <strong className="text-fg" /> }}
+          />
         </li>
         <li>
-          No IDE usa <code className="rounded bg-raised px-1">@ficheiro</code> e outras menções.
+          <Trans
+            i18nKey="onboarding.bullet_mentions"
+            components={{ code: <code className="rounded bg-raised px-1" /> }}
+          />
         </li>
-        <li>Escolhe o modelo no compositor — atalho <kbd className="rounded bg-raised px-1">Ctrl+K</kbd>.</li>
+        <li>
+          <Trans
+            i18nKey="onboarding.bullet_model"
+            components={{ kbd: <kbd className="rounded bg-raised px-1" /> }}
+          />
+        </li>
       </ul>
       <button
         type="button"
         className="luna-btn-primary mt-4"
         onClick={onDismiss}
       >
-        Entendi
+        {t('onboarding.dismiss')}
       </button>
     </li>
   )

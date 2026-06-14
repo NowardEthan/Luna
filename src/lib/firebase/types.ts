@@ -1,6 +1,27 @@
 import type { Timestamp } from 'firebase/firestore'
 import type { LunaEntitlements, LunaPlanId } from './entitlements'
 
+export type LunaBillingStatus =
+  | 'active'
+  | 'overdue'
+  | 'cancelled'
+  | 'trial'
+  | 'expired'
+
+/** Estado de assinatura Asaas em `users/{uid}.billing` (escrito pelo backend). */
+export type LunaBillingState = {
+  status: LunaBillingStatus
+  period?: 'monthly' | 'annual'
+  asaasCustomerId?: string
+  asaasSubscriptionId?: string
+  nextDueDate?: string
+  trialEndsAt?: string
+  trialUsed?: boolean
+  value?: number
+  lastEvent?: string
+  lastEventAt?: string
+}
+
 /** Perfil mínimo em `users/{uid}`. */
 export type LunaUserProfile = {
   displayName: string | null
@@ -8,6 +29,7 @@ export type LunaUserProfile = {
   photoURL: string | null
   plan: LunaPlanId
   entitlements: LunaEntitlements
+  billing?: LunaBillingState | null
   createdAt: Timestamp | null
   updatedAt: Timestamp | null
 }

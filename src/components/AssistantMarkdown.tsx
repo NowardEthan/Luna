@@ -15,7 +15,11 @@ import type { MemoryNote } from '../types/memory'
 import { MarkdownCodeBlock } from './chat/MarkdownCodeBlock'
 import { normalizeAssistantMarkdown } from '../lib/normalizeAssistantMarkdown'
 
-export type AssistantMarkdownVariant = 'default' | 'compact' | 'reasoning'
+export type AssistantMarkdownVariant =
+  | 'default'
+  | 'compact'
+  | 'reasoning'
+  | 'reasoningCompact'
 
 type Props = {
   content: string
@@ -38,8 +42,10 @@ function buildMdComponents(
   memoryNotesById: Map<string, MemoryNote>,
   messageId?: string,
 ): Components {
-  const reasoning = variant === 'reasoning'
-  const compact = variant === 'compact' || reasoning
+  const reasoning =
+    variant === 'reasoning' || variant === 'reasoningCompact'
+  const compact =
+    variant === 'compact' || variant === 'reasoningCompact' || reasoning
 
   const textSize = reasoning ? 'text-[12px]' : compact ? 'text-[13px]' : ''
   const headingScale = reasoning ? 'text-[13px]' : ''
@@ -246,6 +252,8 @@ const VARIANT_WRAP: Record<AssistantMarkdownVariant, string> = {
   compact: 'assistant-markdown assistant-markdown--compact min-w-0 text-[13px]',
   reasoning:
     'assistant-markdown assistant-markdown--reasoning luna-surface-panel min-w-0 rounded-lg border border-line px-2.5 py-2',
+  reasoningCompact:
+    'assistant-markdown assistant-markdown--reasoning assistant-markdown--compact luna-surface-panel min-w-0 rounded-lg border border-line px-2 py-1.5 text-[12px]',
 }
 
 export function AssistantMarkdown({

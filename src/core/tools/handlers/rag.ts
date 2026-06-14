@@ -1,4 +1,4 @@
-import { ragRetrieve } from '../../../lib/ragClient'
+﻿import { ragRetrieve } from '../../../lib/ragClient'
 import type { RegisteredTool } from '../../registry/types'
 import { finishTool } from '../toolResult'
 
@@ -125,7 +125,7 @@ export const ragTools: RegisteredTool[] = [
     family: 'rag',
     schema: searchDocumentsSchema,
     uiLabel: 'Documentos',
-    uiMeta: { label: 'Documentos', badgeClass: 'bg-sky-500/20 text-sky-200' },
+    uiMeta: { label: 'Documentos', badgeClass: 'bg-accent-muted text-sky-200' },
     handler: ({ args, ctx, effects }) =>
       runRagSearch('search_documents', args, ctx, effects),
   },

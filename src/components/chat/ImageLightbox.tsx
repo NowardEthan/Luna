@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { MessageImageAttachment } from '../../types/chat'
 
 type Props = {
@@ -12,6 +13,7 @@ export function ImageLightbox({
   initialIndex = 0,
   onClose,
 }: Props) {
+  const { t } = useTranslation()
   const [index, setIndex] = useState(
     Math.min(Math.max(0, initialIndex), Math.max(0, images.length - 1)),
   )
@@ -39,16 +41,16 @@ export function ImageLightbox({
 
   return (
     <div
-      className="image-lightbox fixed inset-0 z-[200] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+      className="image-lightbox luna-overlay-scrim fixed inset-0 z-[200] flex items-center justify-center p-4"
       role="dialog"
       aria-modal="true"
-      aria-label="Visualização da imagem"
+      aria-label={t('chatTurn.lightbox_aria')}
       onClick={onClose}
     >
       <button
         type="button"
-        className="absolute right-3 top-3 z-10 flex size-9 items-center justify-center rounded-full border border-white/20 bg-black/50 text-lg text-white/90 transition-colors hover:bg-black/70"
-        aria-label="Fechar"
+        className="luna-modal-close absolute right-3 top-3 z-10 !size-9 text-lg"
+        aria-label={t('chatTurn.close')}
         onClick={onClose}
       >
         ×
@@ -58,8 +60,8 @@ export function ImageLightbox({
         <>
           <button
             type="button"
-            className="absolute left-2 top-1/2 z-10 -translate-y-1/2 rounded-full border border-white/15 bg-black/40 px-2.5 py-3 text-white/90 hover:bg-black/60 sm:left-4"
-            aria-label="Imagem anterior"
+            className="luna-btn-secondary absolute left-2 top-1/2 z-10 -translate-y-1/2 !rounded-full !px-2.5 !py-3 sm:left-4"
+            aria-label={t('chatTurn.prev_image')}
             onClick={(e) => {
               e.stopPropagation()
               goPrev()
@@ -69,8 +71,8 @@ export function ImageLightbox({
           </button>
           <button
             type="button"
-            className="absolute right-2 top-1/2 z-10 -translate-y-1/2 rounded-full border border-white/15 bg-black/40 px-2.5 py-3 text-white/90 hover:bg-black/60 sm:right-4"
-            aria-label="Próxima imagem"
+            className="luna-btn-secondary absolute right-2 top-1/2 z-10 -translate-y-1/2 !rounded-full !px-2.5 !py-3 sm:right-4"
+            aria-label={t('chatTurn.next_image')}
             onClick={(e) => {
               e.stopPropagation()
               goNext()
@@ -78,7 +80,7 @@ export function ImageLightbox({
           >
             ›
           </button>
-          <p className="absolute bottom-4 left-1/2 z-10 -translate-x-1/2 rounded-full bg-black/50 px-3 py-1 text-[11px] text-white/80">
+          <p className="absolute bottom-4 left-1/2 z-10 -translate-x-1/2 rounded-full bg-raised px-3 py-1 text-[11px] text-fg-dim">
             {index + 1} / {images.length}
           </p>
         </>
@@ -91,7 +93,7 @@ export function ImageLightbox({
         <img
           src={current.dataUrl}
           alt={current.name}
-          className="max-h-[min(82vh,820px)] max-w-full rounded-lg object-contain shadow-2xl ring-1 ring-white/10"
+          className="max-h-[min(82vh,820px)] max-w-full rounded-lg object-contain shadow-overlay ring-1 ring-line"
           draggable={false}
         />
         <p className="mt-2 max-w-full truncate px-2 text-center text-[12px] text-white/70">

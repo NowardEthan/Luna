@@ -20,6 +20,10 @@ function dispatchPreferenceChange(name: string) {
 }
 
 export function subscribeUiLocale(onChange: () => void): () => void {
+  if (typeof globalThis.addEventListener !== 'function') {
+    return () => {}
+  }
+
   const onStorage = (e: StorageEvent) => {
     if (
       e.key === STORAGE_LOCALE ||

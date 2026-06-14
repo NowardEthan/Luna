@@ -23,7 +23,7 @@ export function ConfirmDialog() {
 
   return (
     <div
-      className="fixed inset-0 z-[90] flex items-center justify-center bg-black/55 p-4"
+      className="luna-overlay-scrim fixed inset-0 z-[90] flex items-center justify-center p-4"
       role="presentation"
       onClick={() => resolveConfirm(false)}
     >
@@ -31,7 +31,7 @@ export function ConfirmDialog() {
         role="alertdialog"
         aria-labelledby="confirm-title"
         aria-describedby="confirm-desc"
-        className="w-full max-w-md rounded-xl border border-line bg-surface p-4 shadow-2xl"
+        className="luna-dialog w-full max-w-md p-4"
         onClick={(e) => e.stopPropagation()}
       >
         <h2 id="confirm-title" className="text-title font-semibold text-fg">
@@ -43,18 +43,18 @@ export function ConfirmDialog() {
         <div className="mt-4 flex justify-end gap-2">
           <button
             type="button"
-            className="rounded-lg border border-line px-3 py-1.5 text-ui text-fg-dim hover:bg-white/[0.05]"
+            className="luna-btn-secondary !px-3 !py-1.5"
             onClick={() => resolveConfirm(false)}
           >
             {state.cancelLabel}
           </button>
           <button
             type="button"
-            className={`rounded-lg px-3 py-1.5 text-ui font-medium ${
+            className={
               state.destructive
-                ? 'bg-red-600/90 text-white hover:bg-red-600'
-                : 'bg-accent text-accent-fg hover:brightness-110'
-            }`}
+                ? 'luna-btn-primary !bg-danger !px-3 !py-1.5 !text-canvas !shadow-danger/30 hover:!bg-danger/90'
+                : 'luna-btn-primary !px-3 !py-1.5'
+            }
             onClick={() => resolveConfirm(true)}
           >
             {state.confirmLabel}

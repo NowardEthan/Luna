@@ -1,5 +1,11 @@
 import type { RagCitation } from '../types/chat'
 import { bridgeRag } from './lunaBridge'
+import {
+  lunaPickFolder,
+  lunaPickPaths,
+} from './lunaFileExplorerPrompt'
+import { isLunaFileExplorerAvailable } from './lunaFileExplorer'
+import { RAG_INDEXABLE_EXTENSIONS } from './ragFileExtensions'
 
 export type RagStatus =
   | {
@@ -70,6 +76,14 @@ export async function ragIndexFolder(
 }
 
 export async function ragPickFolder(): Promise<PickFolderResult> {
+  if (isLunaFileExplorerAvailable()) {
+    const path = await lunaPickFolder({
+      title: 'Pasta para indexar',
+      confirmLabel: 'Indexar esta pasta',
+    })
+    if (!path) return { canceled: true, path: null }
+    return { canceled: false, path }
+  }
   if (!window.rag?.pickFolder) {
     return { canceled: true, path: null }
   }
@@ -77,6 +91,16 @@ export async function ragPickFolder(): Promise<PickFolderResult> {
 }
 
 export async function ragPickFiles(): Promise<PickFilesResult> {
+  if (isLunaFileExplorerAvailable()) {
+    const paths = await lunaPickPaths({
+      title: 'Arquivos para indexar',
+      confirmLabel: 'Indexar selecionados',
+      multiple: true,
+      accept: { extensions: [...RAG_INDEXABLE_EXTENSIONS], maxFiles: 50 },
+    })
+    if (!paths?.length) return { canceled: true, paths: [] }
+    return { canceled: false, paths }
+  }
   if (!window.rag?.pickFiles) {
     return { canceled: true, paths: [] }
   }

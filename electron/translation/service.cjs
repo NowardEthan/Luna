@@ -55,6 +55,14 @@ function splitForTranslation(text) {
   return parts
 }
 
+/** Luna `pt` → motor `pt-BR` (evita português de Portugal). */
+function googleTarget(lang) {
+  const m = (typeof lang === 'string' ? lang : 'pt').trim().toLowerCase()
+  if (m === 'pt') return 'pt-BR'
+  if (m === 'zh') return 'zh-CN'
+  return m
+}
+
 /**
  * @param {string} text
  * @param {{ to: string, from?: string }} opts
@@ -64,10 +72,10 @@ async function translateText(text, opts) {
   const trimmed = typeof text === 'string' ? text.trim() : ''
   if (!trimmed) return { ok: true, text: '' }
 
-  const to = typeof opts?.to === 'string' ? opts.to.trim() : 'pt'
+  const to = googleTarget(typeof opts?.to === 'string' ? opts.to : 'pt')
   const from =
     typeof opts?.from === 'string' && opts.from.trim()
-      ? opts.from.trim()
+      ? googleTarget(opts.from)
       : undefined
 
   try {

@@ -1,5 +1,10 @@
 import type { AgentStepRecord, Message, ReasoningSegment } from '../types/chat'
-import { showAssistantStatusSpinner } from './assistantMessageUi'
+import {
+  isAnswerStreaming,
+  isReasoningStreaming,
+  readTurnStatusLabel,
+  showAssistantStatusSpinner,
+} from './assistantMessageUi'
 import { reasoningPreviewLine } from './reasoningStreamUi'
 
 export type TurnTimelineReasoningItem = {
@@ -34,10 +39,19 @@ export type TurnTimelineStatusItem = {
   label: string
 }
 
+/** Resposta final — sempre depois do raciocínio na timeline. */
+export type TurnTimelineAnswerItem = {
+  kind: 'answer'
+  id: string
+  inProgress: boolean
+  preview?: string
+}
+
 export type TurnTimelineItem =
   | TurnTimelineReasoningItem
   | TurnTimelineReasoningRoundItem
   | TurnTimelineToolItem
+  | TurnTimelineAnswerItem
   | TurnTimelineStatusItem
 
 export type BuildTurnTimelineOptions = {
@@ -89,13 +103,17 @@ function pushReasoningRound(
       ? m.reasoningTrace?.text?.trim()
       : '') ||
     ''
+  const translating = Boolean(
+    seg?.translating ||
+      (generating && m.reasoningTranslating && m.orchestratorRound === round),
+  )
   const inProgress = Boolean(
     seg?.inProgress ||
       (generating &&
         m.reasoningInProgress &&
         (m.orchestratorRound === round || !text)),
   )
-  if (!text && !inProgress) return
+  if (!text && !inProgress && !translating && !m.lunaPipelineTrace) return
 
   items.push({
     kind: 'reasoning_round',
@@ -106,7 +124,7 @@ function pushReasoningRound(
     translated: seg?.translated,
     locale: seg?.locale,
     inProgress,
-    translating: Boolean(seg?.translating),
+    translating,
   })
 }
 
@@ -216,15 +234,38 @@ export function buildTurnTimelineItems(
     }
   }
 
-  if (
-    generating &&
-    showAssistantStatusSpinner(m) &&
-    !m.streamingActive
-  ) {
+  const hasReasoningEvent =
+    items.some((i) => i.kind === 'reasoning' || i.kind === 'reasoning_round')
+  const answerPreview = m.text.trim()
+  const answerLive =
+    generating && isAnswerStreaming(m) && !isReasoningStreaming(m)
+  const showAnswerEvent =
+    answerLive ||
+    (answerPreview.length > 0 &&
+      (hasReasoningEvent || !generating) &&
+      !isReasoningStreaming(m)) ||
+    (generating &&
+      m.streamingActive === true &&
+      !isReasoningStreaming(m) &&
+      !m.reasoningInProgress)
+
+  if (showAnswerEvent) {
+    items.push({
+      kind: 'answer',
+      id: `${m.id}-answer`,
+      inProgress: answerLive,
+      preview:
+        answerLive || answerPreview
+          ? reasoningPreviewLine(answerPreview || '…', 56)
+          : undefined,
+    })
+  }
+
+  if (generating && showAssistantStatusSpinner(m) && !m.streamingActive) {
     items.push({
       kind: 'status',
       id: `${m.id}-status`,
-      label: m.text.trim() || 'A responder…',
+      label: readTurnStatusLabel(m) || 'A responder…',
     })
   }
 

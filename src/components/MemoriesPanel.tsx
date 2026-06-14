@@ -2,13 +2,20 @@ import { useMemo, useState } from 'react'
 import {
   MEMORY_KIND_META,
   MEMORY_KIND_ORDER,
+  memoryKindFilterPillClass,
   memoryKindOfNote,
+  memoryKindSectionClass,
+  memoryKindSectionCountClass,
+  memoryKindSectionHeadingClass,
   type MemoryKindId,
 } from '../lib/memoryKinds'
+import { lunaFilterPillClass } from '../lib/lunaVisual'
 import type { MemoryNote, MemoryUiPrefs } from '../types/memory'
+import { LunaCoreMemorySection } from './LunaCoreMemorySection'
 import { MemoryNoteListItem } from './MemoryNoteListItem'
 import type { MemoryNotePatch } from '../lib/patchMemoryNote'
 import { EmptyState } from '../ui/EmptyState'
+import { useTranslation } from 'react-i18next'
 
 type Props = {
   open: boolean
@@ -31,6 +38,7 @@ export function MemoriesPanel({
   onUpdateNote,
   onClose,
 }: Props) {
+  const { t } = useTranslation()
   const [filter, setFilter] = useState<FilterId>('all')
   const grouped = useMemo(() => {
     const map = new Map<MemoryKindId, MemoryNote[]>()
@@ -70,158 +78,169 @@ export function MemoriesPanel({
 
   return (
     <>
-      {open ? (
+      {open && !embedded ? (
         <button
           type="button"
-          className="fixed inset-0 z-30 bg-black/50 md:hidden"
-          aria-label="Fechar memórias"
+          className="luna-overlay-scrim fixed inset-0 z-30 md:hidden"
+          aria-label={t('memories.close_aria')}
           onClick={onClose}
         />
       ) : null}
-    <aside
-      className={
-        embedded
-          ? `relative flex h-full w-full flex-col overflow-hidden bg-sidebar ${
-              open ? 'luna-sidebar-panel-enter' : 'pointer-events-none opacity-0'
-            }`
-          : `relative flex shrink-0 flex-col overflow-hidden border-r border-line bg-sidebar transition-[width] duration-200 ease-out max-md:fixed max-md:inset-y-0 max-md:left-11 max-md:z-40 max-md:shadow-xl ${
-              open ? 'w-[300px]' : 'w-0 border-r-0 pointer-events-none max-md:translate-x-[-100%]'
-            }`
-      }
-      aria-hidden={!open}
-      aria-label="Memórias da Luna"
-    >
-      <div
-        className={`flex size-full flex-col transition-opacity duration-150 ${
+      <aside
+        className={
           embedded
-            ? open
-              ? 'opacity-100'
-              : 'opacity-0'
-            : open
-              ? 'min-w-[300px] opacity-100'
-              : 'min-w-0 opacity-0'
-        }`}
+            ? `relative flex h-full w-full flex-col overflow-hidden bg-sidebar ${
+                open ? 'luna-sidebar-panel-enter' : 'pointer-events-none opacity-0'
+              }`
+            : `relative flex shrink-0 flex-col overflow-hidden border-r border-line bg-sidebar transition-[width] duration-200 ease-out max-md:fixed max-md:inset-y-0 max-md:left-11 max-md:z-40 max-md:shadow-xl ${
+                open ? 'w-[300px]' : 'w-0 border-r-0 pointer-events-none max-md:translate-x-[-100%]'
+              }`
+        }
+        aria-hidden={!open}
+        aria-label={t('memories.panel_aria')}
       >
-        <div className="shrink-0 border-b border-line px-2.5 py-2">
-          <span className="text-[12px] font-medium text-fg-dim">Memórias</span>
-          <p className="mt-1 text-[10px] leading-snug text-fg-muted">
-            Factos que a Luna guardou — organizados por tipo e usados como
-            contexto nos próximos chats.
-          </p>
-          {memoryUi?.panelHint ? (
-            <p className="mt-2 rounded-md border border-violet-400/30 bg-violet-500/10 px-2 py-1.5 text-[10px] leading-snug text-fg-dim dark:text-violet-100/90">
-              {memoryUi.panelHint}
-            </p>
-          ) : null}
-        </div>
-
-        {notes.length > 0 ? (
-          <div className="shrink-0 border-b border-line px-2 py-1.5">
-            <div
-              className="flex flex-wrap gap-1"
-              role="tablist"
-              aria-label="Filtrar por tipo"
-            >
-              <button
-                type="button"
-                role="tab"
-                aria-selected={filter === 'all'}
-                onClick={() => setFilter('all')}
-                className={`rounded-md px-2 py-0.5 text-[10px] transition-colors ${
-                  filter === 'all'
-                    ? 'bg-raised text-fg ring-1 ring-line'
-                    : 'text-fg-muted hover:bg-raised-hover hover:text-fg-dim'
-                }`}
-              >
-                Todas
-                <span className="ml-1 tabular-nums text-fg-muted">{notes.length}</span>
-              </button>
-              {MEMORY_KIND_ORDER.map((id) => {
-                const n = counts[id]
-                if (!n) return null
-                const meta = MEMORY_KIND_META[id]
-                return (
-                  <button
-                    key={id}
-                    type="button"
-                    role="tab"
-                    aria-selected={filter === id}
-                    onClick={() => setFilter(id)}
-                    className={`rounded-md px-2 py-0.5 text-[10px] transition-colors ${
-                      filter === id
-                        ? 'bg-raised text-fg ring-1 ring-line'
-                        : 'text-fg-muted hover:bg-raised-hover hover:text-fg-dim'
-                    }`}
-                  >
-                    {meta.label}
-                    <span className="ml-1 tabular-nums text-fg-muted">{n}</span>
-                  </button>
-                )
-              })}
+        <div
+          className={`flex size-full flex-col transition-opacity duration-150 ${
+            embedded
+              ? open
+                ? 'opacity-100'
+                : 'opacity-0'
+              : open
+                ? 'min-w-[300px] opacity-100'
+                : 'min-w-0 opacity-0'
+          }`}
+        >
+          <div className="shrink-0 border-b border-line px-2.5 py-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[12px] font-semibold text-fg">{t('memories.title')}</span>
+              {notes.length > 0 ? (
+                <span className="luna-chip tabular-nums text-[10px] text-fg-dim">
+                  {notes.length}
+                </span>
+              ) : null}
             </div>
+            <p className="mt-1 text-[10px] leading-snug text-fg-muted">
+              {t('memories.description')}
+            </p>
+            {memoryUi?.panelHint ? (
+              <p className="luna-callout-warning mt-2 !text-[10px]">{memoryUi.panelHint}</p>
+            ) : null}
           </div>
-        ) : null}
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
-          {!notes.length ? (
-            <EmptyState
-              title="Sem memórias ainda"
-              description="À medida que conversas, a Luna pode guardar preferências e factos úteis com tipo e etiquetas."
-            />
-          ) : !visibleKinds.length ? (
-            <EmptyState
-              title="Nenhuma nota neste filtro"
-              description="Escolha «Todas» ou outro tipo para ver as memórias guardadas."
-              action={
+          <div className="shrink-0 px-2.5 pt-2">
+            <LunaCoreMemorySection open={open} />
+          </div>
+
+          {notes.length > 0 ? (
+            <div className="shrink-0 border-b border-line px-2 py-2">
+              <div
+                className="flex flex-wrap gap-1"
+                role="tablist"
+                aria-label={t('memories.filter_aria')}
+              >
                 <button
                   type="button"
-                  className="luna-btn-secondary mt-1 px-3 py-1.5 text-ui"
+                  role="tab"
+                  aria-selected={filter === 'all'}
                   onClick={() => setFilter('all')}
+                  className={lunaFilterPillClass('default', filter === 'all')}
                 >
-                  Ver todas
+                  {t('memories.all')}
+                  <span className="ml-1 opacity-80">{notes.length}</span>
                 </button>
-              }
-            />
-          ) : (
-            <div className="space-y-4">
-              {visibleKinds.map((kindId) => {
-                const sectionNotes = grouped.get(kindId) ?? []
-                if (!sectionNotes.length) return null
-                const meta = MEMORY_KIND_META[kindId]
-                const emphasized = memoryUi?.emphasizeKind === kindId
-                return (
-                  <section
-                    key={kindId}
-                    className={`rounded-lg border px-1.5 pb-1.5 pt-1 ${meta.sectionClass} ${
-                      emphasized ? 'ring-1 ring-violet-400/35' : ''
-                    }`}
-                  >
-                    <header className="mb-1 flex items-center justify-between gap-2 px-1 pt-0.5">
-                      <h3 className="text-[10px] font-semibold uppercase tracking-wide text-fg-dim">
-                        {meta.label}
-                      </h3>
-                      <span className="text-[9px] tabular-nums text-fg-muted">
-                        {sectionNotes.length}
-                      </span>
-                    </header>
-                    <ul className="space-y-1.5">
-                      {sectionNotes.map((n) => (
-                        <MemoryNoteListItem
-                          key={n.id}
-                          note={n}
-                          onDeleteNote={onDeleteNote}
-                          onUpdateNote={onUpdateNote}
-                        />
-                      ))}
-                    </ul>
-                  </section>
-                )
-              })}
+                {MEMORY_KIND_ORDER.map((id) => {
+                  const n = counts[id]
+                  if (!n) return null
+                  const meta = MEMORY_KIND_META[id]
+                  const active = filter === id
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      role="tab"
+                      aria-selected={active}
+                      onClick={() => setFilter(id)}
+                      className={memoryKindFilterPillClass(id, active)}
+                    >
+                      {meta.label}
+                      <span className="ml-1 opacity-80">{n}</span>
+                    </button>
+                  )
+                })}
+              </div>
             </div>
-          )}
+          ) : null}
+
+          <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
+            {!notes.length ? (
+              <div className="luna-empty">
+                <EmptyState
+                  title={t('memories.empty_title')}
+                  description={t('memories.empty_desc')}
+                />
+              </div>
+            ) : !visibleKinds.length ? (
+              <div className="luna-empty">
+                <EmptyState
+                  title={t('memories.empty_filter_title')}
+                  description={t('memories.empty_filter_desc')}
+                  action={
+                    <button
+                      type="button"
+                      className="luna-btn-secondary mt-1 px-3 py-1.5 text-ui"
+                      onClick={() => setFilter('all')}
+                    >
+                      {t('memories.view_all')}
+                    </button>
+                  }
+                />
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {visibleKinds.map((kindId) => {
+                  const sectionNotes = grouped.get(kindId) ?? []
+                  if (!sectionNotes.length) return null
+                  const meta = MEMORY_KIND_META[kindId]
+                  const emphasized = memoryUi?.emphasizeKind === kindId
+                  return (
+                    <section
+                      key={kindId}
+                      className={`p-2.5 ${memoryKindSectionClass(kindId, emphasized)}`}
+                    >
+                      <header className="mb-2 flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <h3
+                            className={`text-[11px] uppercase tracking-wide ${memoryKindSectionHeadingClass(kindId)}`}
+                          >
+                            {meta.label}
+                          </h3>
+                          <p className="mt-0.5 text-[9px] leading-snug text-fg-muted">
+                            {meta.description}
+                          </p>
+                        </div>
+                        <span className={memoryKindSectionCountClass(kindId)}>
+                          {sectionNotes.length}
+                        </span>
+                      </header>
+                      <ul className="space-y-1.5">
+                        {sectionNotes.map((n) => (
+                          <MemoryNoteListItem
+                            key={n.id}
+                            note={n}
+                            sectionKind={kindId}
+                            onDeleteNote={onDeleteNote}
+                            onUpdateNote={onUpdateNote}
+                          />
+                        ))}
+                      </ul>
+                    </section>
+                  )
+                })}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
-    </aside>
+      </aside>
     </>
   )
 }

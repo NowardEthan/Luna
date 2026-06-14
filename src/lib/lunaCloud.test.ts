@@ -6,21 +6,11 @@ describe('readLunaCloudConfig', () => {
     vi.unstubAllEnvs()
   })
 
-  it('does not auto-fetch hosting catalog in dev without flag', () => {
+  it('uses hosting URL when Firebase project is configured', () => {
     vi.stubEnv('VITE_FIREBASE_API_KEY', 'key')
     vi.stubEnv('VITE_FIREBASE_PROJECT_ID', 'luna-app')
     vi.stubEnv('VITE_FIREBASE_APP_ID', 'app')
     vi.stubEnv('VITE_LUNA_MARKETPLACE_CATALOG_URL', '')
-    vi.stubEnv('VITE_LUNA_MARKETPLACE_REMOTE', '')
-
-    expect(readLunaCloudConfig().marketplaceCatalogUrl).toBeNull()
-  })
-
-  it('uses hosting URL in dev when VITE_LUNA_MARKETPLACE_REMOTE=1', () => {
-    vi.stubEnv('VITE_FIREBASE_API_KEY', 'key')
-    vi.stubEnv('VITE_FIREBASE_PROJECT_ID', 'luna-app')
-    vi.stubEnv('VITE_FIREBASE_APP_ID', 'app')
-    vi.stubEnv('VITE_LUNA_MARKETPLACE_REMOTE', '1')
 
     expect(readLunaCloudConfig().marketplaceCatalogUrl).toBe(
       'https://luna-app.web.app/marketplace-catalog.json',
@@ -39,5 +29,12 @@ describe('readLunaCloudConfig', () => {
     expect(readLunaCloudConfig().marketplaceCatalogUrl).toBe(
       'https://cdn.example.com/catalog.json',
     )
+  })
+
+  it('returns null catalog URL without Firebase', () => {
+    vi.stubEnv('VITE_FIREBASE_API_KEY', '')
+    vi.stubEnv('VITE_FIREBASE_PROJECT_ID', '')
+
+    expect(readLunaCloudConfig().marketplaceCatalogUrl).toBeNull()
   })
 })

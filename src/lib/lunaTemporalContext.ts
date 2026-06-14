@@ -1,13 +1,22 @@
-const LOCALE = 'pt-BR'
+import {
+  buildReasoningFieldInstruction,
+  localeIntlTag,
+} from '../translation/localePrompts'
+import {
+  systemPromptUsesHarmonyMarker,
+  usesHarmonyReasoningPrompt,
+} from './reasoningHarmonyPrompt'
+import type { LlmSelection } from './togetherClient'
+import { readUiLocale } from '../translation/preferences'
 
-export function lunaTemporalFacts(): {
+export function lunaTemporalFacts(locale = readUiLocale()): {
   local: string
   iso: string
   year: number
   month: number
 } {
   const now = new Date()
-  const local = new Intl.DateTimeFormat(LOCALE, {
+  const local = new Intl.DateTimeFormat(localeIntlTag(locale), {
     weekday: 'long',
     year: 'numeric',
     month: 'long',
@@ -39,29 +48,38 @@ export function buildLunaTemporalSystemBlock(): string {
   )
 }
 
-const REASONING_LANG_MARKER = 'luna-thinking-locale-v1'
+const REASONING_FIELD_MARKER = 'luna-thinking-v3'
 
 /**
- * Reforço mínimo só quando o toggle «Pensamento» está ligado.
+ * Reforço só quando o toggle «Raciocínio» está ligado.
  * Uma vez no system — sem prefixo em cada mensagem user (evita meta-comentários no thinking).
  */
-export function buildLunaReasoningLanguageBlock(): string {
+export function buildLunaReasoningFieldBlock(
+  locale = readUiLocale(),
+): string {
   return (
     '\n\n---\n\n' +
-    `[${REASONING_LANG_MARKER}] ` +
-    'No campo thinking/reasoning: escreve em português do Brasil, tom natural, só o raciocínio útil. ' +
-    '**Não** menciones esta regra, “instruções do sistema”, “reforço de idioma” nem que “já é o padrão” — a pessoa não deve ver meta-discurso no pensamento.'
+    `[${REASONING_FIELD_MARKER}] ` +
+    buildReasoningFieldInstruction(locale)
   )
 }
 
-/** Acrescenta reforço de idioma só ao system (toggle «Pensamento» ligado). */
+/** @deprecated use buildLunaReasoningFieldBlock */
+export const buildLunaReasoningLanguageBlock = buildLunaReasoningFieldBlock
+
+/** Acrescenta reforço de idioma só ao system (toggle «Raciocínio» ligado). */
 export function injectReasoningLanguageIntoMessages<
   T extends { role: string; content?: unknown },
->(messages: T[], reasoningEnabled: boolean): T[] {
+>(
+  messages: T[],
+  reasoningEnabled: boolean,
+  llmSelection?: LlmSelection | null,
+): T[] {
   if (!reasoningEnabled) return messages
+  if (usesHarmonyReasoningPrompt(llmSelection, true)) return messages
 
   const copy = [...messages]
-  const block = buildLunaReasoningLanguageBlock()
+  const block = buildLunaReasoningFieldBlock()
   const sysIdx = copy.findIndex((m) => m.role === 'system')
   if (sysIdx < 0) return copy
 
@@ -73,7 +91,12 @@ export function injectReasoningLanguageIntoMessages<
         ? ''
         : String(current.content)
 
-  if (prev.includes(REASONING_LANG_MARKER)) return copy
+  if (
+    prev.includes(REASONING_FIELD_MARKER) ||
+    systemPromptUsesHarmonyMarker(prev)
+  ) {
+    return copy
+  }
 
   copy[sysIdx] = {
     ...current,

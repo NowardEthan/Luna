@@ -83,7 +83,7 @@ export function insertTurnMessages(
     {
       id: assistantMsgId,
       role: 'assistant',
-      text: 'Pensando…',
+      text: '',
       ...assistantPending,
     },
     ...base.slice(insertAt),

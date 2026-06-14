@@ -3,7 +3,7 @@ const {
   finalizeStreamedChatResult,
 } = require('./chatCompletionSse.cjs')
 
-const DEFAULT_MODEL = 'baidu/cobuddy:free'
+const DEFAULT_MODEL = 'poolside/laguna-m.1:free'
 const DEFAULT_VISION_MODEL = 'google/gemma-4-31b-it:free'
 const DEFAULT_EMBED_MODEL = 'thenlper/gte-base'
 const DEFAULT_BASE = 'https://openrouter.ai/api/v1'
@@ -178,8 +178,15 @@ const REASONING_EFFORTS = new Set([
  * Modelos com thinking nativo (ex. Ring) ignoram effort:none — não desactivar.
  * @param {string} model
  */
+function isOpenRouterFreeModel(model) {
+  return String(model || '')
+    .toLowerCase()
+    .endsWith(':free')
+}
+
 function openRouterModelHasNativeReasoning(model) {
   const m = String(model || '').toLowerCase()
+  if (isOpenRouterFreeModel(m)) return false
   if (/ring|inclusionai\/ring|mai-ds-r|\/thinking|deepseek.*r1/i.test(m)) {
     return true
   }
@@ -206,21 +213,57 @@ function nativeReasoningEffortWhenHidden() {
 }
 
 /**
- * Ring e similares são modelos de reasoning nativo: `effort: none` ou omitir
- * `reasoning` costuma devolver stream vazio → erro «nenhum provedor».
- * Com Pensamento desligado na UI: reasoning interno + exclude (não mostrar tokens).
+ * Reasoning para POST /v1/chat/completions (não usar o schema da API /responses).
+ * Ver docs/openrouter-reasoning.md
  */
+function readConfiguredReasoningEffort(fallback = 'medium') {
+  const effort = String(process.env.OPENROUTER_REASONING_EFFORT || fallback)
+    .trim()
+    .toLowerCase()
+  return REASONING_EFFORTS.has(effort) ? effort : fallback
+}
+
+function formatOpenRouterHttpError(status, detail) {
+  const msg = String(detail || '').trim() || 'Provider returned error'
+  if (status === 402) {
+    return (
+      'OpenRouter recusou o pedido (402 — créditos ou permissões).\n\n' +
+      '• Adiciona créditos em https://openrouter.ai/credits (modelos :free podem exigir saldo ou limite diário).\n' +
+      '• Em https://openrouter.ai/settings/privacy activa «Model training» para modelos gratuitos.\n' +
+      '• Experimenta desligar «Raciocínio» no compositor.\n\n' +
+      `Detalhe técnico: OpenRouter (${status}): ${msg}`
+    )
+  }
+  if (status === 429) {
+    return (
+      'Limite de pedidos do OpenRouter (429). Aguarda alguns minutos ou adiciona créditos.\n\n' +
+      `Detalhe técnico: OpenRouter (${status}): ${msg}`
+    )
+  }
+  return `OpenRouter (${status}): ${msg}`
+}
+
 function applyOpenRouterReasoning(chatBody, payload) {
   const model = String(chatBody.model || '')
+  if (isOpenRouterFreeModel(model)) {
+    delete chatBody.reasoning
+    return
+  }
   const native = openRouterModelHasNativeReasoning(model)
 
   if (payload.reasoning_enabled === true) {
-    const effort = String(process.env.OPENROUTER_REASONING_EFFORT || '')
+    const effort = readConfiguredReasoningEffort('medium')
+    /** @type {Record<string, unknown>} */
+    const reasoning = {
+      effort: effort === 'none' ? 'medium' : effort,
+      exclude: false,
+    }
+    const summary = String(process.env.OPENROUTER_REASONING_SUMMARY || '')
       .trim()
       .toLowerCase()
-    /** @type {Record<string, unknown>} */
-    const reasoning = { enabled: true, exclude: false }
-    if (REASONING_EFFORTS.has(effort)) reasoning.effort = effort
+    if (summary === 'auto' || summary === 'concise' || summary === 'detailed') {
+      reasoning.summary = summary
+    }
     chatBody.reasoning = reasoning
     return
   }
@@ -228,9 +271,8 @@ function applyOpenRouterReasoning(chatBody, payload) {
   if (payload.reasoning_enabled === false) {
     if (native) {
       chatBody.reasoning = {
-        enabled: true,
-        exclude: true,
         effort: nativeReasoningEffortWhenHidden(),
+        exclude: true,
       }
     } else {
       chatBody.reasoning = { effort: 'none' }
@@ -239,7 +281,11 @@ function applyOpenRouterReasoning(chatBody, payload) {
   }
 
   if (native) {
-    chatBody.reasoning = { enabled: true, exclude: false }
+    const effort = readConfiguredReasoningEffort('low')
+    chatBody.reasoning = {
+      effort: effort === 'none' ? 'low' : effort,
+      exclude: false,
+    }
   }
 }
 
@@ -344,7 +390,10 @@ async function openrouterChatStream(raw, emit) {
       } catch {
         /* manter detail */
       }
-      return { ok: false, error: `OpenRouter (${res.status}): ${detail}` }
+      return {
+        ok: false,
+        error: formatOpenRouterHttpError(res.status, detail),
+      }
     }
 
     const streamed = await consumeChatCompletionSse(res, emit, {
@@ -410,7 +459,10 @@ async function openrouterChat(raw) {
       } catch {
         /* manter detail */
       }
-      return { ok: false, error: `OpenRouter (${res.status}): ${detail}` }
+      return {
+        ok: false,
+        error: formatOpenRouterHttpError(res.status, detail),
+      }
     }
 
     const data = JSON.parse(bodyText)

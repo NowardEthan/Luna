@@ -1,4 +1,4 @@
-import {
+﻿import {
   bridgeAgentListDirectory,
   bridgeAgentWebSearch,
 } from '../../../lib/lunaBridge'
@@ -142,7 +142,7 @@ export const filesystemTools: RegisteredTool[] = [
     family: 'filesystem',
     schema: webSearchSchema,
     uiLabel: 'Pesquisa web',
-    uiMeta: { label: 'Web', badgeClass: 'bg-emerald-500/20 text-emerald-200' },
+    uiMeta: { label: 'Web', badgeClass: 'bg-success-muted text-emerald-200' },
     handler: async ({ args }) => {
       const query = String(args.query ?? '').trim()
       const r = await bridgeAgentWebSearch(query)

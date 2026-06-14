@@ -1,4 +1,5 @@
 import { panelRegistry } from '../core/registry/PanelRegistry'
+import i18n from '../i18n'
 
 /** Painéis laterais built-in (histórico e memórias). */
 export function registerBuiltinUi(): void {
@@ -6,14 +7,14 @@ export function registerBuiltinUi(): void {
 
   panelRegistry.register({
     id: 'history',
-    label: 'Histórico',
+    label: i18n.t('panels.history'),
     order: 10,
     render: () => null,
   })
 
   panelRegistry.register({
     id: 'memories',
-    label: 'Memórias',
+    label: i18n.t('panels.memories'),
     order: 20,
     render: () => null,
   })

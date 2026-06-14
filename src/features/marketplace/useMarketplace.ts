@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import i18n from '../../i18n'
 import { eventBus } from '../../core/events/EventBus'
 import {
   applyPluginInstallResult,
@@ -13,9 +14,20 @@ import {
 } from '../../lib/marketplaceCatalog'
 import { fetchRemoteMarketplaceCatalog } from '../../lib/marketplaceRemote'
 import { readLunaCloudConfig } from '../../lib/lunaCloud'
-import { isLunarCloudSession } from '../../lib/lunarGate'
+import { canPickPluginFromDisk, pickAndInstallPlugin } from '../../lib/pluginInstallClient'
 
 const RISK_ACK_KEY = 'luna-plugins-risk-ack'
+export const MARKETPLACE_CATALOG_URL_OVERRIDE_KEY = 'luna-marketplace-catalog-url'
+
+function resolveMarketplaceCatalogUrl(): string | null {
+  try {
+    const override = localStorage.getItem(MARKETPLACE_CATALOG_URL_OVERRIDE_KEY)?.trim()
+    if (override) return override
+  } catch {
+    /* ignore */
+  }
+  return readLunaCloudConfig().marketplaceCatalogUrl
+}
 
 function readRiskAcknowledged(): boolean {
   try {
@@ -39,29 +51,37 @@ export function useMarketplace() {
   )
   const [catalogSource, setCatalogSource] = useState<'local' | 'remote'>('local')
   const [catalogLoading, setCatalogLoading] = useState(false)
+  const [catalogHint, setCatalogHint] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (!isLunarCloudSession()) return
-    const url = readLunaCloudConfig().marketplaceCatalogUrl
-    if (!url) return
+  const loadRemoteCatalog = useCallback((catalogUrl?: string) => {
+    const url = catalogUrl?.trim() || resolveMarketplaceCatalogUrl()
+    if (!url) {
+      setCatalogHint(i18n.t('marketplace.hint.configureFirebase'))
+      return Promise.resolve()
+    }
 
-    let cancelled = false
     setCatalogLoading(true)
-    void fetchRemoteMarketplaceCatalog(url, { quiet: import.meta.env.DEV }).then(
+    setCatalogHint(null)
+    return fetchRemoteMarketplaceCatalog(url, { quiet: import.meta.env.DEV }).then(
       (remote) => {
-      if (cancelled) return
-      setCatalogLoading(false)
+        setCatalogLoading(false)
         if (remote && remote.items.length > 0) {
           setCatalog(remote.items)
           setCatalogSource('remote')
+          return
+        }
+        if (!remote) {
+          setCatalogHint(i18n.t('marketplace.hint.loadFailed', { url }))
+        } else if (remote.items.length === 0) {
+          setCatalogHint(i18n.t('marketplace.hint.emptyRemote'))
         }
       },
     )
-
-    return () => {
-      cancelled = true
-    }
   }, [])
+
+  useEffect(() => {
+    void loadRemoteCatalog()
+  }, [loadRemoteCatalog])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState<MarketplaceCategoryId | 'all'>('all')
@@ -70,7 +90,9 @@ export function useMarketplace() {
   const [statusHint, setStatusHint] = useState<string | null>(null)
   const [installedRevision, setInstalledRevision] = useState(0)
 
-  const canInstallDesktop = Boolean(window.plugins?.installBundled)
+  const canInstallDesktop = Boolean(
+    window.plugins?.installFromUrl || window.plugins?.installBundled,
+  )
   const categories = useMemo(() => marketplaceCategories(catalog), [catalog])
 
   const filtered = useMemo(
@@ -93,6 +115,7 @@ export function useMarketplace() {
       eventBus.on('plugin:discover:complete', bumpInstalled),
       eventBus.on('plugin:activated', bumpInstalled),
       eventBus.on('plugin:deactivated', bumpInstalled),
+      eventBus.on('plugin:enabled-changed', bumpInstalled),
     ]
     return () => unsubs.forEach((u) => u())
   }, [bumpInstalled])
@@ -113,23 +136,28 @@ export function useMarketplace() {
   }, [])
 
   const installFromDisk = useCallback(async () => {
-    if (!window.plugins?.pickAndInstall) {
-      setStatusHint('Instalação local só está disponível na app desktop.')
+    if (!canPickPluginFromDisk()) {
+      setStatusHint(i18n.t('marketplace.hint.desktopOnly'))
       return
     }
     setBusy(true)
     setStatusHint(null)
     try {
-      const picked = await window.plugins.pickAndInstall()
+      const picked = await pickAndInstallPlugin()
       if (!picked.ok) {
         if ('canceled' in picked && picked.canceled) return
-        setStatusHint('error' in picked ? picked.error : 'Instalação cancelada.')
+        setStatusHint(
+          'error' in picked ? picked.error : i18n.t('marketplace.hint.installCancelled'),
+        )
         return
       }
-      const applied = await applyPluginInstallResult(picked, {
-        enable: riskAck,
-        riskAck,
-      })
+      const applied = await applyPluginInstallResult(
+        { ...picked, needsReload: picked.needsReload ?? false },
+        {
+          enable: riskAck,
+          riskAck,
+        },
+      )
       if (!applied.ok) {
         setStatusHint(applied.error)
         return
@@ -140,7 +168,7 @@ export function useMarketplace() {
       }
     } catch (err) {
       setStatusHint(
-        err instanceof Error ? err.message : 'Não foi possível instalar o add-on.',
+        err instanceof Error ? err.message : i18n.t('marketplace.hint.installFailed'),
       )
     } finally {
       setBusy(false)
@@ -153,22 +181,27 @@ export function useMarketplace() {
       setStatusHint(null)
       try {
         if (item.install.type === 'disk') {
-          if (!window.plugins?.pickAndInstall) {
-            setStatusHint('Instalação local só está disponível na app desktop.')
+          if (!canPickPluginFromDisk()) {
+            setStatusHint(i18n.t('marketplace.hint.desktopOnly'))
             return
           }
-          const picked = await window.plugins.pickAndInstall()
+          const picked = await pickAndInstallPlugin()
           if (!picked.ok) {
             if ('canceled' in picked && picked.canceled) return
             setStatusHint(
-              'error' in picked ? picked.error : 'Instalação cancelada.',
+              'error' in picked
+                ? picked.error
+                : i18n.t('marketplace.hint.installCancelled'),
             )
             return
           }
-          const applied = await applyPluginInstallResult(picked, {
-            enable: riskAck,
-            riskAck,
-          })
+          const applied = await applyPluginInstallResult(
+            { ...picked, needsReload: picked.needsReload ?? false },
+            {
+              enable: riskAck,
+              riskAck,
+            },
+          )
           if (!applied.ok) {
             setStatusHint(applied.error)
             return
@@ -181,19 +214,45 @@ export function useMarketplace() {
         }
 
         if (item.install.type === 'url') {
-          setStatusHint('Instalação por URL em breve.')
-          if (item.install.url) {
-            window.open(item.install.url, '_blank', 'noopener,noreferrer')
+          const downloadUrl = item.install.url?.trim()
+          if (!downloadUrl) {
+            setStatusHint(i18n.t('marketplace.hint.noDownloadUrl'))
+            return
+          }
+          if (!window.plugins?.installFromUrl) {
+            setStatusHint(i18n.t('marketplace.hint.remoteNeedsDesktop'))
+            return
+          }
+          const result = await window.plugins.installFromUrl(downloadUrl)
+          if (!result.ok) {
+            setStatusHint(result.error)
+            return
+          }
+          const applied = await applyPluginInstallResult(result, {
+            enable: riskAck,
+            riskAck,
+          })
+          if (!applied.ok) {
+            setStatusHint(applied.error)
+            return
+          }
+          if (!applied.reloaded) {
+            setStatusHint(
+              riskAck
+                ? `«${applied.manifest.name}» instalado e ativado.`
+                : `«${applied.manifest.name}» instalado.`,
+            )
+            bumpInstalled()
           }
           return
         }
 
         if (!window.plugins?.installBundled) {
-          setStatusHint('A loja requer a aplicação desktop Luna.')
+          setStatusHint(i18n.t('marketplace.hint.storeNeedsDesktop'))
           return
         }
         if (!item.pluginId) {
-          setStatusHint('Este item não tem ID de plugin.')
+          setStatusHint(i18n.t('marketplace.hint.noPluginId'))
           return
         }
 
@@ -213,7 +272,7 @@ export function useMarketplace() {
         if (!applied.reloaded) {
           setStatusHint(
             riskAck
-              ? `«${applied.manifest.name}» instalado e activado.`
+              ? `«${applied.manifest.name}» instalado e ativado.`
               : `«${applied.manifest.name}» instalado.`,
           )
           bumpInstalled()
@@ -222,7 +281,7 @@ export function useMarketplace() {
         setStatusHint(
           err instanceof Error
             ? err.message
-            : 'Não foi possível instalar o add-on.',
+            : i18n.t('marketplace.hint.installFailed'),
         )
       } finally {
         setBusy(false)
@@ -235,6 +294,7 @@ export function useMarketplace() {
     catalog,
     catalogSource,
     catalogLoading,
+    catalogHint,
     categories,
     filtered,
     selected,
@@ -253,5 +313,6 @@ export function useMarketplace() {
     installListing,
     installFromDisk,
     clearStatus: () => setStatusHint(null),
+    refreshCatalog: loadRemoteCatalog,
   }
 }

@@ -64,6 +64,43 @@ function groqReasoningDisabled(payload) {
  * (ex. vindas de OpenRouter no loop do agente). Mantém só content + tool_calls.
  * @param {unknown[]} messages
  */
+const HARMONY_REASONING_MARKER = 'luna-harmony-reasoning-v1'
+
+/**
+ * Garante que o primeiro system do GPT-OSS inclui regras do canal analysis
+ * (Harmony) quando o cliente ainda não enviou o prompt estruturado.
+ * @param {unknown[] | undefined} messages
+ * @param {boolean} reasoningOn
+ */
+function augmentGptOssMessagesForAnalysisMonologue(messages, reasoningOn) {
+  if (!reasoningOn || !Array.isArray(messages) || messages.length === 0) return
+  const idx = messages.findIndex((m) => m && m.role === 'system')
+  if (idx < 0) return
+  const cur = messages[idx]
+  const prev =
+    typeof cur.content === 'string'
+      ? cur.content
+      : cur.content == null
+        ? ''
+        : String(cur.content)
+  if (
+    prev.includes(HARMONY_REASONING_MARKER) ||
+    prev.includes('# Canal analysis')
+  ) {
+    return
+  }
+  const prefix =
+    `${HARMONY_REASONING_MARKER}\n` +
+    'You are Luna, the assistant in the Luna v1 app.\n' +
+    'Reasoning: medium\n\n' +
+    '# Canal analysis (raciocínio interno — a pessoa vê no app)\n' +
+    'Escreve só monólogo em primeira pessoa do singular (eu, acho, vou). ' +
+    'Não escrevas plano de tarefa: proibido "precisamos", "ofereça", "forneça", "use markdown", ' +
+    '"o usuário pergunta", listas de requisitos ou mencionar idioma/instruções.\n\n' +
+    '# Resposta final (canal final)\n'
+  messages[idx] = { ...cur, content: prefix + prev }
+}
+
 function sanitizeMessagesForGroqApi(messages) {
   if (!Array.isArray(messages)) return messages
   return messages.map((m) => {
@@ -176,6 +213,7 @@ function buildGroqChatBody(raw) {
   if (isGroqReasoningModel(model)) {
     const effort = String(process.env.GROQ_REASONING_EFFORT || '').trim()
     if (isGptOssGroqModel(model)) {
+      augmentGptOssMessagesForAnalysisMonologue(chatBody.messages, !reasoningOff)
       chatBody.include_reasoning = !reasoningOff
       if (
         !reasoningOff &&

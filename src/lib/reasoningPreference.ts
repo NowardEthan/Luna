@@ -8,7 +8,7 @@ export function readReasoningEnabled(): boolean {
   } catch {
     /* ignore */
   }
-  return false
+  return true
 }
 
 export function writeReasoningEnabled(enabled: boolean): void {

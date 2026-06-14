@@ -1,8 +1,9 @@
+import { useTranslation } from 'react-i18next'
 import {
-  MARKETPLACE_CATEGORY_LABELS,
+  marketplaceCategoryLabel,
   type MarketplaceListing,
 } from '../../lib/marketplaceCatalog'
-import { coverClassForListing } from './marketplaceCover'
+import { MarketplaceListingArt } from './MarketplaceListingArt'
 
 type Props = {
   item: MarketplaceListing
@@ -11,36 +12,31 @@ type Props = {
 }
 
 export function MarketplaceProductCard({ item, installed, onSelect }: Props) {
-  const cover = coverClassForListing(item)
+  const { t } = useTranslation()
 
   return (
     <button
       type="button"
       onClick={onSelect}
-      className="luna-marketplace-card group flex w-full flex-col overflow-hidden rounded-2xl border border-line/80 bg-surface text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-accent/35 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+      className="luna-marketplace-card group flex w-full flex-col overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
     >
-      <div
-        className={`relative aspect-[4/3] w-full bg-gradient-to-br ${cover}`}
-      >
-        <div
-          className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.22),transparent_55%)]"
-          aria-hidden
-        />
-        <div className="absolute left-3 top-3 flex flex-wrap gap-1.5">
+      <div className="relative aspect-[4/3] w-full">
+        <MarketplaceListingArt item={item} variant="card" className="absolute inset-0" />
+        <div className="absolute left-3 top-3 z-10 flex flex-wrap gap-1.5">
           {item.featured ? (
-            <span className="rounded-full bg-black/35 px-2 py-0.5 text-[10px] font-semibold text-white backdrop-blur-sm">
-              Destaque
+            <span className="rounded-full bg-raised px-2 py-0.5 text-[10px] font-semibold text-white ">
+              {t('marketplace.card.featured')}
             </span>
           ) : null}
           {installed ? (
             <span className="rounded-full bg-emerald-500/90 px-2 py-0.5 text-[10px] font-semibold text-white">
-              Instalado
+              {t('marketplace.card.installed')}
             </span>
           ) : null}
         </div>
-        <div className="absolute bottom-3 left-3 right-3">
-          <span className="inline-block max-w-full truncate rounded-lg bg-black/40 px-2 py-1 text-[11px] font-medium text-white backdrop-blur-sm">
-            {MARKETPLACE_CATEGORY_LABELS[item.category]}
+        <div className="absolute bottom-3 left-3 right-3 z-10">
+          <span className="inline-block max-w-full truncate rounded-lg border border-line bg-raised px-2 py-1 text-[11px] font-medium text-fg">
+            {marketplaceCategoryLabel(item.category)}
           </span>
         </div>
       </div>

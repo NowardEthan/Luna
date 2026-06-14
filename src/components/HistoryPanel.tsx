@@ -1,419 +1,1086 @@
-import { useCallback, useMemo, useState } from 'react'
-import type { ChatFolder, Conversation } from '../types/chat'
-import { requestConfirm } from '../lib/confirm'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react'
+
+import { useLunaBadgeNav } from '../context/LunaBadgeNavigation'
+import { isEditableTarget } from '../lib/keyboard'
+
+import type {
+  ChatFolder,
+  Conversation,
+  ConversationSourceMode,
+} from '../types/chat'
+import { filterConversationsForScope } from '../lib/workspaceSessions'
+
 import { ConversationListRow } from '../features/history/ConversationListRow'
-import { matchesSearch, sortConversations } from '../features/history/utils'
+
+import { FolderTreeNodeView } from '../features/history/FolderTreeNode'
+
+import type { FolderUpdatePatch } from '../features/chat/state/folderStore'
+
+import {
+  buildFolderTree,
+  collectAllTags,
+  countConversationsInSubtree,
+  getFolderAncestorIds,
+  type FolderTreeNode,
+} from '../features/history/folderTree'
+import { useHistoryPanelCompact } from '../features/history/useHistoryPanelCompact'
+
+import {
+
+  historyDropZoneAttrs,
+
+  historyDropZoneClass,
+
+  useConversationDragDrop,
+
+} from '../features/history/useConversationDragDrop'
+
+import { matchesHistoryFilters, sortConversations } from '../features/history/utils'
+import { FolderSettingsModal } from '../features/history/FolderSettingsModal'
+import { HistoryBulkActionsBar } from '../features/history/HistoryBulkActionsBar'
+import {
+  conversationIdsForBulkDelete,
+  useHistorySelection,
+} from '../features/history/useHistorySelection'
+import { requestConfirm } from '../lib/confirm'
 import { EmptyState } from '../ui/EmptyState'
+import { useTranslation } from 'react-i18next'
+
+
 
 type Props = {
+
   open: boolean
-  /** Dentro de ResizableSplit — ocupa 100% da largura do painel. */
+
   embedded?: boolean
+
   conversations: Conversation[]
+
   folders: ChatFolder[]
+
   activeId: string | null
+
   onSelect: (id: string) => void
+
   onDelete: (id: string) => void
-  /** Sem argumento = nova conversa fora de pastas; id = dentro da pasta */
+
   onNewConversation: (inFolderId?: string) => void
+
   onRenameConversation: (id: string, title: string) => void
+
   onMoveConversation: (id: string, folderId: string | null) => void
-  onCreateFolder: (name: string) => void
+
+  onSetConversationTags?: (id: string, tags: string[]) => void
+
+  onCreateFolder: (name: string, parentId?: string | null) => void
+
   onRenameFolder: (id: string, name: string) => void
+
+  onUpdateFolder?: (id: string, patch: FolderUpdatePatch) => void
+
   onDeleteFolder: (id: string) => void
+
   onTogglePin?: (id: string) => void
+
+  cloudSyncAvailable?: boolean
+
+  onSetConversationCloudEnabled?: (id: string, enabled: boolean) => void
+
+  onSetFolderCloudEnabled?: (id: string, enabled: boolean) => void
+
   onClose?: () => void
+
+  /** Filtra conversas por universo (chat geral vs workspace IDE). */
+  conversationScope?: {
+    mode: ConversationSourceMode
+    workspaceRoot?: string | null
+  }
+
+  /** IDE: lista plana sem pastas de histórico. */
+  flatList?: boolean
+
+  header?: ReactNode
+
 }
 
-export function HistoryPanel({
-  open,
-  embedded = false,
-  conversations,
-  folders,
-  activeId,
-  onSelect,
-  onDelete,
-  onNewConversation,
-  onRenameConversation,
-  onMoveConversation,
-  onCreateFolder,
-  onRenameFolder,
-  onDeleteFolder,
-  onTogglePin,
-  onClose,
-}: Props) {
-  const [searchQuery, setSearchQuery] = useState('')
-  const [collapsedFolderIds, setCollapsedFolderIds] = useState<Set<string>>(
-    () => new Set(),
-  )
-  const [addingFolder, setAddingFolder] = useState(false)
-  const [newFolderDraft, setNewFolderDraft] = useState('')
-  const [editingConvoId, setEditingConvoId] = useState<string | null>(null)
-  const [convoTitleDraft, setConvoTitleDraft] = useState('')
-  const [editingFolderId, setEditingFolderId] = useState<string | null>(null)
-  const [folderNameDraft, setFolderNameDraft] = useState('')
 
-  const toggleFolderCollapsed = useCallback((id: string) => {
+
+export function HistoryPanel({
+
+  open,
+
+  embedded = false,
+
+  conversations,
+
+  folders,
+
+  activeId,
+
+  onSelect,
+
+  onDelete,
+
+  onNewConversation,
+
+  onRenameConversation,
+
+  onMoveConversation,
+
+  onSetConversationTags,
+
+  onCreateFolder,
+
+  onRenameFolder,
+
+  onUpdateFolder,
+
+  onDeleteFolder,
+
+  onTogglePin,
+
+  cloudSyncAvailable = false,
+
+  onSetConversationCloudEnabled,
+
+  onSetFolderCloudEnabled,
+
+  onClose,
+
+  conversationScope,
+
+  flatList = false,
+
+  header,
+
+}: Props) {
+  const { t } = useTranslation()
+  const [searchQuery, setSearchQuery] = useState('')
+
+  const [activeTagFilters, setActiveTagFilters] = useState<string[]>([])
+
+  const [collapsedFolderIds, setCollapsedFolderIds] = useState<Set<string>>(
+
+    () => new Set(),
+
+  )
+
+  const [addingFolder, setAddingFolder] = useState(false)
+
+  const [newFolderDraft, setNewFolderDraft] = useState('')
+
+  const [editingConvoId, setEditingConvoId] = useState<string | null>(null)
+
+  const [convoTitleDraft, setConvoTitleDraft] = useState('')
+
+  const [settingsFolderId, setSettingsFolderId] = useState<string | null>(null)
+
+  const searchRef = useRef<HTMLInputElement>(null)
+  const { ref: panelMeasureRef } = useHistoryPanelCompact()
+  const badgeNav = useLunaBadgeNav()
+
+  const scopedConversations = useMemo(() => {
+    if (!conversationScope) return conversations
+    return filterConversationsForScope(
+      conversations,
+      conversationScope.mode,
+      conversationScope.workspaceRoot,
+    )
+  }, [conversations, conversationScope])
+
+  const selection = useHistorySelection(
+    flatList ? [] : folders,
+    scopedConversations,
+  )
+  const settingsFolder =
+    settingsFolderId != null
+      ? folders.find((f) => f.id === settingsFolderId) ?? null
+      : null
+
+
+
+  useEffect(() => {
+
+    if (!open) return
+
+    const id = window.requestAnimationFrame(() => searchRef.current?.focus())
+
+    return () => window.cancelAnimationFrame(id)
+
+  }, [open])
+
+  useEffect(() => {
+    const highlight = badgeNav?.highlight
+    if (!open || highlight?.type !== 'folder') return
+    const folderId = highlight.folderId
+    const expandIds = getFolderAncestorIds(folderId, folders)
     setCollapsedFolderIds((prev) => {
       const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
+      for (const id of expandIds) next.delete(id)
       return next
     })
+  }, [badgeNav?.highlight, folders, open])
+
+
+
+  const toggleFolderCollapsed = useCallback((id: string) => {
+
+    setCollapsedFolderIds((prev) => {
+
+      const next = new Set(prev)
+
+      if (next.has(id)) next.delete(id)
+
+      else next.add(id)
+
+      return next
+
+    })
+
   }, [])
+
+
 
   const q = searchQuery.trim().toLowerCase()
 
-  const rootConversations = useMemo(
-    () =>
-      sortConversations(
-        conversations.filter((c) => c.folderId == null && matchesSearch(c, q)),
-      ),
-    [conversations, q],
+  const folderTree = useMemo(
+    () => (flatList ? [] : buildFolderTree(folders)),
+    [folders, flatList],
   )
+
+  const allTags = useMemo(
+    () => collectAllTags(scopedConversations),
+    [scopedConversations],
+  )
+
+
+
+  const filterConvo = useCallback(
+
+    (c: Conversation) => matchesHistoryFilters(c, q, activeTagFilters),
+
+    [q, activeTagFilters],
+
+  )
+
+
+
+  const rootConversations = useMemo(
+
+    () =>
+
+      sortConversations(
+
+        scopedConversations.filter((c) => c.folderId == null && filterConvo(c)),
+
+      ),
+
+    [scopedConversations, filterConvo],
+
+  )
+
+
 
   const conversationsInFolder = useCallback(
+
     (folderId: string) =>
+
       sortConversations(
-        conversations.filter(
-          (c) => c.folderId === folderId && matchesSearch(c, q),
+
+        scopedConversations.filter(
+
+          (c) => c.folderId === folderId && filterConvo(c),
+
         ),
+
       ),
-    [conversations, q],
+
+    [scopedConversations, filterConvo],
+
   )
+
+
 
   const anyVisible = useMemo(
-    () => conversations.some((c) => matchesSearch(c, q)),
-    [conversations, q],
+
+    () => scopedConversations.some((c) => filterConvo(c)),
+
+    [scopedConversations, filterConvo],
+
   )
 
-  const startRenameConvo = useCallback((c: Conversation) => {
-    setEditingConvoId(c.id)
-    setConvoTitleDraft(c.title)
+
+
+  const toggleTagFilter = useCallback((tag: string) => {
+
+    setActiveTagFilters((prev) =>
+
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag],
+
+    )
+
   }, [])
+
+
+
+  const startRenameConvo = useCallback((c: Conversation) => {
+
+    setEditingConvoId(c.id)
+
+    setConvoTitleDraft(c.title)
+
+  }, [])
+
+
 
   const commitRenameConvo = useCallback(() => {
+
     if (!editingConvoId) return
+
     onRenameConversation(editingConvoId, convoTitleDraft)
+
     setEditingConvoId(null)
+
   }, [editingConvoId, convoTitleDraft, onRenameConversation])
 
+
+
   const cancelRenameConvo = useCallback(() => {
+
     setEditingConvoId(null)
+
   }, [])
 
-  const startRenameFolder = useCallback((f: ChatFolder) => {
-    setEditingFolderId(f.id)
-    setFolderNameDraft(f.name)
-  }, [])
 
-  const cancelRenameFolder = useCallback(() => {
-    setEditingFolderId(null)
-  }, [])
 
-  const commitRenameFolder = useCallback(() => {
-    if (!editingFolderId) return
-    const n = folderNameDraft.replace(/\s+/g, ' ').trim()
-    if (n.length) onRenameFolder(editingFolderId, n)
-    setEditingFolderId(null)
-  }, [editingFolderId, folderNameDraft, onRenameFolder])
+  const handleUpdateFolder = useCallback(
+
+    (id: string, patch: FolderUpdatePatch) => {
+
+      if (onUpdateFolder) {
+
+        onUpdateFolder(id, patch)
+
+        return
+
+      }
+
+      if (patch.name) onRenameFolder(id, patch.name)
+
+    },
+
+    [onRenameFolder, onUpdateFolder],
+
+  )
+
+
+
+  const getCurrentFolderId = useCallback(
+
+    (conversationId: string) =>
+
+      conversations.find((c) => c.id === conversationId)?.folderId ?? null,
+
+    [conversations],
+
+  )
+
+
+
+  const dragEnabled =
+    !q &&
+    activeTagFilters.length === 0 &&
+    editingConvoId === null &&
+    !selection.selectionMode
+
+  const visibleConversationIds = useMemo(
+    () => scopedConversations.filter(filterConvo).map((c) => c.id),
+    [conversations, filterConvo],
+  )
+
+  const handleBulkDelete = useCallback(() => {
+    void (async () => {
+      const convoIds = conversationIdsForBulkDelete(
+        selection.selectedConversationIds,
+        selection.selectedFolderIds,
+        folders,
+        conversations,
+      )
+      const folderCount = selection.selectedFolderIds.size
+      const convoCount = convoIds.length
+      if (!folderCount && !convoCount) return
+      const ok = await requestConfirm({
+        title: t('history.delete_selected'),
+        message: [
+          convoCount ? `${convoCount} conversa${convoCount === 1 ? '' : 's'}` : null,
+          folderCount ? `${folderCount} pasta${folderCount === 1 ? '' : 's'}` : null,
+        ]
+          .filter(Boolean)
+          .join(' e ') + '? ' + t('history.delete_warning'),
+        confirmLabel: t('history.delete'),
+        destructive: true,
+      })
+      if (!ok) return
+      for (const id of convoIds) onDelete(id)
+      for (const id of selection.folderIdsToDeleteOrdered) onDeleteFolder(id)
+      selection.exitSelectionMode()
+    })()
+  }, [conversations, folders, onDelete, onDeleteFolder, selection])
+
+  const revealFolderPath = useCallback((folderId: string) => {
+    setCollapsedFolderIds((prev) => {
+      const next = new Set(prev)
+      let current: string | null = folderId
+      const seen = new Set<string>()
+      while (current) {
+        if (seen.has(current)) break
+        seen.add(current)
+        next.delete(current)
+        const f = folders.find((x) => x.id === current)
+        current = f?.parentId ?? null
+      }
+      return next
+    })
+  }, [folders])
+
+  const handleMoveConversation = useCallback(
+    (conversationId: string, folderId: string | null) => {
+      onMoveConversation(conversationId, folderId)
+      if (folderId) revealFolderPath(folderId)
+    },
+    [onMoveConversation, revealFolderPath],
+  )
+
+  const handleBulkMove = useCallback(
+    (folderId: string | null) => {
+      for (const id of selection.selectedConversationIds) {
+        handleMoveConversation(id, folderId)
+      }
+      selection.clearSelection()
+    },
+    [handleMoveConversation, selection],
+  )
+
+  useEffect(() => {
+    if (!open) return
+    const active = conversations.find((c) => c.id === activeId)
+    if (active?.folderId) revealFolderPath(active.folderId)
+  }, [activeId, open, conversations, revealFolderPath])
+
+  const {
+
+    draggingId,
+
+    isDragging,
+
+    ghost,
+
+    gripPointerDown,
+
+    isDropActive,
+
+  } = useConversationDragDrop(
+
+    handleMoveConversation,
+
+    getCurrentFolderId,
+
+    revealFolderPath,
+
+  )
+
+
 
   function renderConversationRow(c: Conversation) {
+
     return (
+
       <ConversationListRow
+
         key={c.id}
+
         conversation={c}
+
         folders={folders}
+
         activeId={activeId}
+
         editing={editingConvoId === c.id}
+
         titleDraft={convoTitleDraft}
+
         onTitleDraftChange={setConvoTitleDraft}
+
         onSelect={onSelect}
+
         onDelete={onDelete}
+
         onRenameCommit={commitRenameConvo}
+
         onRenameCancel={cancelRenameConvo}
+
         onStartRename={startRenameConvo}
-        onMoveConversation={onMoveConversation}
+
+        onMoveConversation={handleMoveConversation}
+
+        onSetConversationTags={onSetConversationTags}
+
         onTogglePin={onTogglePin}
+        cloudSyncAvailable={cloudSyncAvailable}
+        onSetConversationCloudEnabled={onSetConversationCloudEnabled}
+        selectionMode={selection.selectionMode}
+        selected={selection.isConversationSelected(c.id)}
+        onToggleSelect={() => selection.toggleConversation(c.id)}
+
+        isDragging={draggingId === c.id}
+
+        dragSessionActive={isDragging}
+
+        onGripPointerDown={
+
+          dragEnabled ? gripPointerDown(c.id, c.title) : undefined
+
+        }
+
       />
+
     )
+
   }
 
 
+
+  function renderFolderNode(node: FolderTreeNode, depth: number) {
+
+    const inFolder = conversationsInFolder(node.id)
+    const subtreeCount = countConversationsInSubtree(node, conversations)
+
+    const childFolders = node.children.map((child) =>
+
+      renderFolderNode(child, depth + 1),
+
+    )
+
+
+
+    return (
+
+      <FolderTreeNodeView
+
+        key={node.id}
+
+        node={node}
+
+        depth={depth}
+
+        collapsed={collapsedFolderIds.has(node.id)}
+
+        onToggleCollapsed={toggleFolderCollapsed}
+
+        conversationCount={inFolder.length}
+
+        subtreeCount={subtreeCount}
+
+        selectionMode={selection.selectionMode}
+
+        folderSelected={selection.isFolderSelected(node.id)}
+
+        onToggleFolderSelect={() => selection.toggleFolder(node.id)}
+
+        onOpenSettings={() => setSettingsFolderId(node.id)}
+
+        onNewConversation={onNewConversation}
+
+        onDeleteFolder={onDeleteFolder}
+
+        cloudSyncAvailable={cloudSyncAvailable}
+
+        onSetFolderCloudEnabled={onSetFolderCloudEnabled}
+
+        folders={folders}
+
+        conversations={conversations}
+
+        dragEnabled={dragEnabled}
+
+        isDragging={isDragging}
+
+        isDropActive={isDropActive}
+
+        childrenContent={
+
+          <>
+
+            {inFolder.length ? (
+
+              <ul className="space-y-1">
+
+                {inFolder.map((c) => renderConversationRow(c))}
+
+              </ul>
+
+            ) : dragEnabled && isDragging ? (
+              <p className="px-2 py-3 text-center text-[10px] font-medium text-current/85">
+                {t('history.drop_here')}
+              </p>
+            ) : null}
+
+            {childFolders.length ? (
+
+              <ul className="mt-1 flex flex-col gap-2">{childFolders}</ul>
+
+            ) : null}
+
+          </>
+
+        }
+
+      />
+
+    )
+
+  }
+
+
+
   return (
+
     <>
-      {open ? (
+
+      {open && !embedded ? (
+
         <button
+
           type="button"
-          className="fixed inset-0 z-30 bg-black/50 md:hidden"
-          aria-label="Fechar histórico"
+          className="luna-overlay-scrim fixed inset-0 z-30 md:hidden"
+          aria-label={t('history.close_aria')}
           onClick={onClose}
         />
+
       ) : null}
-    <aside
-      className={
-        embedded
-          ? `relative flex h-full w-full flex-col overflow-hidden bg-sidebar ${
-              open ? 'luna-sidebar-panel-enter' : 'pointer-events-none opacity-0'
-            }`
-          : `relative flex shrink-0 flex-col overflow-hidden border-r border-line bg-sidebar transition-[width] duration-200 ease-out max-md:fixed max-md:inset-y-0 max-md:left-11 max-md:z-40 max-md:shadow-xl ${
-              open
-                ? 'w-[288px]'
-                : 'w-0 border-r-0 pointer-events-none max-md:translate-x-[-100%]'
-            }`
-      }
-      aria-hidden={!open}
-      aria-label="Conversas anteriores"
-    >
-      <div
-        className={`flex size-full flex-col transition-opacity duration-150 ${
+
+      <aside
+
+        className={
+
           embedded
-            ? open
-              ? 'opacity-100'
-              : 'opacity-0'
-            : open
-              ? 'min-w-[288px] opacity-100'
-              : 'min-w-0 opacity-0'
-        }`}
+
+            ? `relative flex h-full w-full flex-col overflow-hidden bg-sidebar ${
+
+                open ? 'luna-sidebar-panel-enter' : 'pointer-events-none opacity-0'
+
+              }`
+
+            : `relative flex shrink-0 flex-col overflow-hidden border-r border-line bg-sidebar transition-[width] duration-200 ease-out max-md:fixed max-md:inset-y-0 max-md:left-11 max-md:z-40 max-md:shadow-xl ${
+
+                open
+
+                  ? 'w-[288px]'
+
+                  : 'w-0 border-r-0 pointer-events-none max-md:translate-x-[-100%]'
+
+              }`
+
+        }
+        aria-hidden={!open}
+        aria-label={t('history.panel_aria')}
+        onKeyDownCapture={(e) => {
+
+          if (!isEditableTarget(e.target)) return
+
+          if (e.key === ' ' || e.code === 'Space') {
+
+            e.stopPropagation()
+
+          }
+
+        }}
+
       >
-        <div className="flex shrink-0 flex-col gap-1.5 border-b border-line px-2.5 py-2">
-          <input
-            type="search"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Procurar conversas…"
-            className="w-full rounded-md border border-line bg-canvas px-2 py-1.5 text-ui text-fg placeholder:text-fg-muted focus:outline-none focus:ring-1 focus:ring-focus"
-            aria-label="Procurar conversas"
-          />
-          <div className="flex items-center justify-between gap-2">
-            <span className="truncate text-[12px] font-medium text-fg-dim">
-              Histórico
-            </span>
-            <div className="flex shrink-0 items-center gap-1">
-              <button
-                type="button"
-                onClick={() => onNewConversation()}
-                className="rounded-md px-2 py-0.5 text-[11px] text-accent hover:bg-white/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
-              >
-                + Nova
-              </button>
-            </div>
-          </div>
-          {addingFolder ? (
-            <div className="flex gap-1">
-              <input
-                value={newFolderDraft}
-                onChange={(e) => setNewFolderDraft(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault()
-                    if (!newFolderDraft.trim()) return
-                    onCreateFolder(newFolderDraft)
-                    setNewFolderDraft('')
-                    setAddingFolder(false)
-                  }
-                  if (e.key === 'Escape') {
-                    setNewFolderDraft('')
-                    setAddingFolder(false)
-                  }
-                }}
-                placeholder="Nome da pasta"
-                className="min-w-0 flex-1 rounded border border-line bg-canvas px-2 py-1 text-[11px] text-fg placeholder:text-fg-muted focus:outline-none focus:ring-1 focus:ring-focus"
-                autoFocus
-                maxLength={80}
-                aria-label="Nome da nova pasta"
-              />
-              <button
-                type="button"
-                className="shrink-0 rounded border border-line bg-raised px-2 py-1 text-[11px] text-fg hover:bg-raised-hover"
-                onClick={() => {
-                  if (!newFolderDraft.trim()) return
-                  onCreateFolder(newFolderDraft)
-                  setNewFolderDraft('')
-                  setAddingFolder(false)
-                }}
-              >
-                Criar
-              </button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setAddingFolder(true)}
-              className="w-full rounded-md border border-dashed border-line/80 py-1.5 text-[11px] text-fg-muted transition-colors hover:border-accent/35 hover:bg-white/[0.03] hover:text-fg-dim focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
-            >
-              + Nova pasta
-            </button>
-          )}
-        </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto p-1.5">
-          <ul className="flex flex-col gap-2">
-            {folders.map((folder) => {
-              const collapsed = collapsedFolderIds.has(folder.id)
-              const inFolder = conversationsInFolder(folder.id)
-              const editingFolder = editingFolderId === folder.id
-              return (
-                <li key={folder.id}>
-                  <div className="rounded-md ring-1 ring-line/80 bg-white/[0.02]">
-                    <div className="flex items-center gap-0.5 px-1 py-1">
-                      <button
-                        type="button"
-                        onClick={() => toggleFolderCollapsed(folder.id)}
-                        className="flex size-7 shrink-0 items-center justify-center rounded text-fg-muted hover:bg-white/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
-                        aria-expanded={!collapsed}
-                        aria-label={collapsed ? 'Expandir pasta' : 'Recolher pasta'}
-                      >
-                        <svg
-                          width="14"
-                          height="14"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          className={`stroke-current transition-transform ${collapsed ? '-rotate-90' : ''}`}
-                          strokeWidth="2"
-                          aria-hidden
-                        >
-                          <path d="m6 9 6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      </button>
-                      <div className="min-w-0 flex-1">
-                        {editingFolder ? (
-                          <input
-                            value={folderNameDraft}
-                            onChange={(e) => setFolderNameDraft(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                e.preventDefault()
-                                commitRenameFolder()
-                              }
-                              if (e.key === 'Escape') {
-                                e.preventDefault()
-                                cancelRenameFolder()
-                              }
-                            }}
-                            onBlur={() => commitRenameFolder()}
-                            className="w-full rounded border border-line bg-canvas px-1.5 py-0.5 text-[12px] font-medium text-fg focus:outline-none focus:ring-1 focus:ring-focus"
-                            autoFocus
-                            maxLength={80}
-                            aria-label="Renomear pasta"
-                          />
-                        ) : (
-                          <p className="truncate px-0.5 text-left text-[12px] font-semibold text-fg-dim">
-                            {folder.name}
-                          </p>
-                        )}
-                        <p className="truncate px-0.5 text-[9px] text-fg-muted">
-                          {inFolder.length} conversa{inFolder.length === 1 ? '' : 's'}
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onMouseDown={(e) => {
-                          if (editingFolder) e.preventDefault()
-                        }}
-                        onClick={() =>
-                          editingFolder ? commitRenameFolder() : startRenameFolder(folder)
-                        }
-                        className="flex size-7 shrink-0 items-center justify-center rounded text-fg-muted hover:bg-white/[0.06] hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
-                        title="Renomear pasta"
-                        aria-label={`Renomear pasta ${folder.name}`}
-                      >
-                        {editingFolder ? (
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="stroke-current" strokeWidth="2" aria-hidden>
-                            <path d="M20 6 9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
-                          </svg>
-                        ) : (
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="stroke-current" strokeWidth="2" aria-hidden>
-                            <path d="M12 20h9" strokeLinecap="round" />
-                            <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" strokeLinecap="round" strokeLinejoin="round" />
-                          </svg>
-                        )}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onNewConversation(folder.id)}
-                        className="flex size-7 shrink-0 items-center justify-center rounded text-accent hover:bg-accent/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
-                        title="Nova conversa nesta pasta"
-                        aria-label={`Nova conversa na pasta ${folder.name}`}
-                      >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="stroke-current" strokeWidth="2" aria-hidden>
-                          <line x1="12" y1="5" x2="12" y2="19" />
-                          <line x1="5" y1="12" x2="19" y2="12" />
-                        </svg>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          void (async () => {
-                            const ok = await requestConfirm({
-                              title: 'Excluir pasta',
-                              message: `Excluir a pasta «${folder.name}»? As conversas serão movidas para «Sem pasta».`,
-                              confirmLabel: 'Excluir',
-                              destructive: true,
-                            })
-                            if (ok) onDeleteFolder(folder.id)
-                          })()
-                        }}
-                        className="flex size-7 shrink-0 items-center justify-center rounded text-fg-muted hover:bg-white/[0.07] hover:text-red-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
-                        title="Excluir pasta"
-                        aria-label={`Excluir pasta ${folder.name}`}
-                      >
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" className="stroke-current" strokeWidth="2" aria-hidden>
-                          <path d="M3 6h18" strokeLinecap="round" />
-                          <path d="M8 6V4h8v2" strokeLinecap="round" />
-                          <path d="M19 6l-1 14H6L5 6" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      </button>
-                    </div>
-                    {!collapsed ? (
-                      inFolder.length ? (
-                        <ul className="space-y-1 border-t border-line/50 p-1 pt-1.5">
-                          {inFolder.map((c) => renderConversationRow(c))}
-                        </ul>
-                      ) : (
-                        <p className="border-t border-line/50 px-2 py-2 text-[10px] text-fg-muted">
-                          Nenhuma conversa aqui — use + ao lado do nome da pasta.
-                        </p>
-                      )
-                    ) : null}
-                  </div>
-                </li>
-              )
-            })}
-          </ul>
+        <div
 
-          <div className="mt-3">
-            <p className="mb-1 px-0.5 text-[10px] font-medium uppercase tracking-wide text-fg-muted">
-              Sem pasta
-            </p>
-            <ul className="flex flex-col gap-px">
-              {rootConversations.map((c) => renderConversationRow(c))}
-            </ul>
-          </div>
+          ref={panelMeasureRef}
+        className={`flex size-full min-w-0 flex-col transition-opacity duration-150 ${
 
-          {!conversations.length ? (
-            <EmptyState
-              title="Ainda não há conversas"
-              description="Comece uma nova conversa com a Luna. As conversas ficam guardadas neste computador."
-              action={
-                <button
-                  type="button"
-                  className="luna-btn-primary mt-1 px-3 py-1.5 text-ui"
-                  onClick={() => onNewConversation()}
-                >
-                  Nova conversa
-                </button>
-              }
+            embedded
+
+              ? open
+
+                ? 'opacity-100'
+
+                : 'opacity-0'
+
+              : open
+
+                ? 'min-w-[288px] opacity-100'
+
+                : 'min-w-0 opacity-0'
+
+          }`}
+
+        >
+
+          {header ? <div className="shrink-0">{header}</div> : null}
+
+          <div className="flex shrink-0 flex-col gap-1.5 px-2.5 py-2">
+
+            <input
+              ref={searchRef}
+              id="luna-history-search"
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={t('history.search_placeholder')}
+              className="w-full rounded-full border border-line-subtle bg-surface px-3 py-1.5 text-ui text-fg placeholder:text-fg-muted focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent transition-all duration-200"
+              aria-label={t('history.search_aria')}
+              autoComplete="off"
             />
-          ) : q && !anyVisible ? (
-            <EmptyState
-              title="Nenhum resultado"
-              description="Tente outro termo na pesquisa ou limpe o filtro."
+
+            {allTags.length ? (
+              <div className="flex flex-wrap gap-1" role="group" aria-label={t('history.filter_aria')}>
+                {allTags.map((tag) => {
+
+                  const active = activeTagFilters.includes(tag)
+
+                  return (
+
+                    <button
+
+                      key={tag}
+
+                      type="button"
+
+                      aria-pressed={active}
+
+                      onClick={() => toggleTagFilter(tag)}
+
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
+
+                        active
+
+                          ? 'bg-accent-muted text-accent'
+
+                          : 'bg-raised text-fg-muted hover:bg-raised-hover hover:text-fg-dim'
+
+                      }`}
+
+                    >
+
+                      #{tag}
+
+                    </button>
+
+                  )
+
+                })}
+
+                {activeTagFilters.length ? (
+
+                  <button
+
+                    type="button"
+
+                    className="rounded-full px-2 py-0.5 text-[10px] text-fg-muted underline-offset-2 hover:text-fg hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+
+                    onClick={() => setActiveTagFilters([])}
+                  >
+                    {t('history.clear')}
+                  </button>
+                ) : null}
+
+              </div>
+
+            ) : null}
+
+            <div className="flex items-center justify-between gap-2 mt-1">
+              <span className="truncate text-[12px] font-medium text-fg-dim">
+                {t('history.title')}
+              </span>
+              <div className="flex shrink-0 items-center gap-0.5">
+                {selection.selectionMode ? (
+                  <>
+                    <button type="button" onClick={() => selection.selectAllVisible(visibleConversationIds, [])} className="rounded-md px-2 py-1 text-[10px] text-fg-muted hover:bg-raised-hover hover:text-accent transition-colors">{t('history.select_all')}</button>
+                    <button type="button" onClick={selection.toggleSelectionMode} className="rounded-md px-2 py-1 text-[10px] text-accent hover:bg-raised-hover transition-colors">{t('history.done')}</button>
+                  </>
+                ) : (
+                  <>
+                    <button type="button" onClick={selection.toggleSelectionMode} className="rounded-md px-2 py-1 text-[10px] text-fg-muted hover:bg-raised-hover hover:text-accent transition-colors">{t('history.select')}</button>
+                  </>
+                )}
+              </div>
+
+            </div>
+
+            {addingFolder ? (
+
+              <div className="flex gap-1 mt-1">
+
+                <input
+
+                  value={newFolderDraft}
+
+                  onChange={(e) => setNewFolderDraft(e.target.value)}
+
+                  onKeyDown={(e) => {
+
+                    if (e.key === 'Enter') {
+
+                      e.preventDefault()
+
+                      if (!newFolderDraft.trim()) return
+
+                      onCreateFolder(newFolderDraft)
+
+                      setNewFolderDraft('')
+
+                      setAddingFolder(false)
+
+                    }
+
+                    if (e.key === 'Escape') {
+
+                      setNewFolderDraft('')
+
+                      setAddingFolder(false)
+
+                    }
+
+                  }}
+
+                  placeholder={t('history.panelFolderPlaceholder')}
+
+                  className="min-w-0 flex-1 rounded border border-line bg-canvas px-2 py-1 text-[11px] text-fg placeholder:text-fg-muted focus:outline-none focus:ring-1 focus:ring-focus"
+
+                  autoFocus
+
+                  maxLength={80}
+
+                  aria-label={t('history.panelNewFolderAria')}
+
+                />
+
+                <button
+
+                  type="button"
+
+                  className="shrink-0 rounded border border-line bg-raised px-2 py-1 text-[11px] text-fg hover:bg-raised-hover"
+
+                  onClick={() => {
+
+                    if (!newFolderDraft.trim()) return
+
+                    onCreateFolder(newFolderDraft)
+
+                    setNewFolderDraft('')
+
+                    setAddingFolder(false)
+
+                  }}
+
+                >
+
+                  {t('history.folderCreate')}
+
+                </button>
+
+              </div>
+
+            ) : (
+
+              <button
+
+                type="button"
+
+                onClick={() => setAddingFolder(true)}
+
+                className="w-full rounded-2xl border-2 border-dashed border-accent/45 mt-1 py-2.5 text-[11px] font-medium text-accent transition-colors duration-200 hover:border-accent hover:bg-accent hover:text-accent-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+
+              >
+
+                {t('history.newFolder')}
+
+              </button>
+
+            )}
+
+          </div>
+
+
+
+          <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto p-1.5">
+
+            {isDragging ? (
+
+              <p className="mb-2 px-1 text-[10px] text-fg-muted">
+
+                {t('history.panelDragHint')}
+
+              </p>
+
+            ) : null}
+
+            <ul className="flex flex-col gap-2">
+
+              {folderTree.map((node) => renderFolderNode(node, 0))}
+
+            </ul>
+
+
+
+            <div
+
+              className={`mt-4 pt-2 transition-colors ${historyDropZoneClass(isDropActive({ kind: 'root' }))}`}
+
+              {...(dragEnabled ? historyDropZoneAttrs({ kind: 'root' }) : {})}
+
+            >
+
+              <p className="mb-1 px-0.5 text-[10px] font-medium uppercase tracking-wide text-fg-muted">
+
+                {t('history.noFolder')}
+
+              </p>
+
+              <ul className="flex min-h-[2rem] flex-col gap-px">
+
+                {rootConversations.length ? (
+
+                  rootConversations.map((c) => renderConversationRow(c))
+
+                ) : dragEnabled && isDragging ? (
+
+                  <li className="rounded-md border border-dashed border-accent px-2 py-3 text-center text-[10px] text-fg-muted">
+
+                    {t('history.panelDropRoot')}
+
+                  </li>
+
+                ) : null}
+
+              </ul>
+
+            </div>
+
+
+
+            {!scopedConversations.length ? (
+
+              <EmptyState
+
+                title={
+                  conversationScope?.mode === 'ide'
+                    ? t('ide.workspace.emptyChatsTitle')
+                    : t('history.emptyConversationsTitle')
+                }
+
+                description={
+                  conversationScope?.mode === 'ide'
+                    ? t('ide.workspace.emptyChatsDesc')
+                    : t('history.emptyConversationsDesc')
+                }
+
+                action={
+
+                  <button
+
+                    type="button"
+
+                    className="luna-btn-primary mt-1 px-3 py-1.5 text-ui"
+
+                    onClick={() => onNewConversation()}
+
+                  >
+
+                    {t('history.newConversation')}
+
+                  </button>
+
+                }
+
+              />
+
+            ) : (q || activeTagFilters.length) && !anyVisible ? (
+
+              <EmptyState
+
+                title={t('history.emptyNoResultsTitle')}
+
+                description={t('history.emptyNoResultsDesc')}
+
+              />
+
+            ) : null}
+
+          </div>
+
+          {selection.selectionMode ? (
+            <HistoryBulkActionsBar
+              totalSelected={selection.totalSelected}
+              folders={folders}
+              onDelete={handleBulkDelete}
+              onMoveToFolder={handleBulkMove}
+              onClear={selection.clearSelection}
+              onCancelMode={selection.exitSelectionMode}
             />
           ) : null}
         </div>
-      </div>
-    </aside>
+
+      </aside>
+
+      {ghost ? (
+
+        <div
+
+          className="pointer-events-none fixed z-[200] max-w-[14rem] truncate rounded-lg border border-accent bg-surface px-2.5 py-1.5 text-[11px] font-medium text-fg shadow-overlay"
+
+          style={{
+
+            left: ghost.x + 14,
+
+            top: ghost.y + 10,
+
+          }}
+
+          aria-hidden
+
+        >
+
+          {ghost.title}
+
+        </div>
+
+      ) : null}
+
+      <FolderSettingsModal
+        open={settingsFolder != null}
+        folder={settingsFolder}
+        folders={folders}
+        onClose={() => setSettingsFolderId(null)}
+        onUpdateFolder={handleUpdateFolder}
+        onDeleteFolder={(id) => {
+          onDeleteFolder(id)
+          setSettingsFolderId(null)
+        }}
+        onCreateFolder={(name, parentId) => {
+          onCreateFolder(name, parentId)
+          if (parentId) revealFolderPath(parentId)
+        }}
+        onNewConversation={(folderId) => {
+          onNewConversation(folderId)
+          revealFolderPath(folderId)
+        }}
+      />
+
     </>
   )
 }
+
+

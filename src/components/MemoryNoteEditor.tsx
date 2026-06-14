@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   MEMORY_KIND_META,
   MEMORY_KIND_ORDER,
@@ -19,6 +20,7 @@ type Props = {
 }
 
 export function MemoryNoteEditor({ note, onSave, onCancel }: Props) {
+  const { t } = useTranslation()
   const [title, setTitle] = useState(note.title)
   const [detail, setDetail] = useState(note.detail)
   const [kind, setKind] = useState<MemoryKindId>(memoryKindOfNote(note))
@@ -27,7 +29,7 @@ export function MemoryNoteEditor({ note, onSave, onCancel }: Props) {
   const save = () => {
     const tags = tagsText
       .split(/[,;]+/)
-      .map((t) => t.trim())
+      .map((tag) => tag.trim())
       .filter(Boolean)
     onSave({ title, detail, kind, tags })
   }
@@ -35,37 +37,37 @@ export function MemoryNoteEditor({ note, onSave, onCancel }: Props) {
   return (
     <div className="space-y-2">
       <label className="block">
-        <span className="mb-0.5 block text-[9px] uppercase text-fg-muted">
-          Título
+        <span className="mb-0.5 block text-[9px] font-medium uppercase tracking-wide text-fg-muted">
+          {t('memories.editor.title')}
         </span>
         <input
           type="text"
           value={title}
           maxLength={MAX_NOTE_TITLE_LEN}
           onChange={(e) => setTitle(e.target.value)}
-          className="w-full rounded border border-line bg-canvas px-2 py-1 text-[12px] text-fg"
+          className="luna-field text-[12px]"
         />
       </label>
       <label className="block">
-        <span className="mb-0.5 block text-[9px] uppercase text-fg-muted">
-          Detalhe
+        <span className="mb-0.5 block text-[9px] font-medium uppercase tracking-wide text-fg-muted">
+          {t('memories.editor.detail')}
         </span>
         <textarea
           value={detail}
           maxLength={MAX_NOTE_DETAIL_LEN}
           rows={3}
           onChange={(e) => setDetail(e.target.value)}
-          className="w-full resize-y rounded border border-line bg-canvas px-2 py-1 text-[11px] text-fg-dim"
+          className="luna-field luna-field-muted resize-y text-[11px]"
         />
       </label>
       <label className="block">
-        <span className="mb-0.5 block text-[9px] uppercase text-fg-muted">
-          Tipo
+        <span className="mb-0.5 block text-[9px] font-medium uppercase tracking-wide text-fg-muted">
+          {t('memories.editor.type')}
         </span>
         <select
           value={kind}
           onChange={(e) => setKind(e.target.value as MemoryKindId)}
-          className="w-full rounded border border-line bg-canvas px-2 py-1 text-[11px] text-fg"
+          className="luna-field text-[11px]"
         >
           {MEMORY_KIND_ORDER.map((id) => (
             <option key={id} value={id}>
@@ -75,31 +77,27 @@ export function MemoryNoteEditor({ note, onSave, onCancel }: Props) {
         </select>
       </label>
       <label className="block">
-        <span className="mb-0.5 block text-[9px] uppercase text-fg-muted">
-          Etiquetas (separadas por vírgula)
+        <span className="mb-0.5 block text-[9px] font-medium uppercase tracking-wide text-fg-muted">
+          {t('memories.editor.tags')}
         </span>
         <input
           type="text"
           value={tagsText}
           onChange={(e) => setTagsText(e.target.value)}
-          className="w-full rounded border border-line bg-canvas px-2 py-1 text-[11px] text-fg-dim"
-          placeholder="ex.: react, pt-br"
+          className="luna-field luna-field-muted text-[11px]"
+          placeholder={t('memories.editor.tags_placeholder')}
         />
       </label>
       <div className="flex justify-end gap-1.5 pt-1">
         <button
           type="button"
-          className="rounded px-2 py-1 text-[10px] text-fg-muted hover:bg-white/[0.06]"
+          className="luna-btn-secondary px-2 py-1 text-[10px]"
           onClick={onCancel}
         >
-          Cancelar
+          {t('memories.editor.cancel')}
         </button>
-        <button
-          type="button"
-          className="luna-btn-primary px-2 py-1 text-[10px]"
-          onClick={save}
-        >
-          Guardar
+        <button type="button" className="luna-btn-primary px-2 py-1 text-[10px]" onClick={save}>
+          {t('memories.editor.save')}
         </button>
       </div>
     </div>

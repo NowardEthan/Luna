@@ -57,6 +57,39 @@ function resolveSafePath(requested, allowRoots) {
 }
 
 /**
+ * Pasta escolhida explicitamente pelo utilizador (pode ficar fora das raízes actuais).
+ * @param {string} dirPath
+ * @param {string[]} allowRoots
+ */
+function resolveWorkspaceRootPath(dirPath, allowRoots) {
+  const safe = resolveSafePath(dirPath, allowRoots)
+  if (safe) return safe
+  if (!dirPath || typeof dirPath !== 'string') return null
+  let normalized
+  try {
+    normalized = path.resolve(dirPath.trim())
+  } catch {
+    return null
+  }
+  if (normalized.includes('..')) return null
+  const lower = normalized.toLowerCase()
+  if (
+    lower.includes('\\windows\\') ||
+    lower.includes('/etc/') ||
+    lower.includes('system32')
+  ) {
+    return null
+  }
+  try {
+    const st = fs.statSync(normalized)
+    if (st.isDirectory()) return normalized
+  } catch {
+    /* ignore */
+  }
+  return null
+}
+
+/**
  * @param {string} dir
  * @param {(filePath: string) => void} onFile
  * @param {{ count: number }} state
@@ -98,24 +131,55 @@ function globToRegExp(pattern) {
  * @param {() => string[]} allowRootsFn
  */
 function createIdeAgentTools(electronApp, allowRootsFn) {
-  let userWorkspaceRoot = null
+  /** @type {string[]} */
+  let userWorkspaceRoots = []
+
+  const primaryWorkspaceRoot = () => userWorkspaceRoots[0] ?? null
 
   return {
     setWorkspaceRoot(rootPath) {
       if (!rootPath || typeof rootPath !== 'string') {
-        userWorkspaceRoot = null
-        return { ok: true, path: null }
+        userWorkspaceRoots = []
+        return { ok: true, path: null, paths: [] }
       }
-      const safe = resolveSafePath(rootPath, allowRootsFn())
-      if (!safe) {
-        return { ok: false, error: 'Pasta de workspace não permitida.' }
+      return this.setWorkspaceRoots([rootPath])
+    },
+
+    /**
+     * @param {string[]} paths
+     */
+    setWorkspaceRoots(paths) {
+      if (!Array.isArray(paths)) {
+        return { ok: false, error: 'Lista de pastas inválida.' }
       }
-      userWorkspaceRoot = safe
-      return { ok: true, path: safe }
+      if (!paths.length) {
+        userWorkspaceRoots = []
+        return { ok: true, paths: [], path: null }
+      }
+      const bootstrap = allowRootsFn()
+      const validated = []
+      for (const p of paths) {
+        const safe = resolveWorkspaceRootPath(p, bootstrap)
+        if (!safe) {
+          return {
+            ok: false,
+            error: `Pasta de workspace não permitida: ${String(p)}`,
+          }
+        }
+        if (!validated.some((x) => x.toLowerCase() === safe.toLowerCase())) {
+          validated.push(safe)
+        }
+      }
+      userWorkspaceRoots = validated
+      return { ok: true, paths: validated, path: validated[0] ?? null }
     },
 
     getWorkspaceRoot() {
-      return userWorkspaceRoot
+      return primaryWorkspaceRoot()
+    },
+
+    getWorkspaceRoots() {
+      return [...userWorkspaceRoots]
     },
 
     writeFile(filePath, content) {
@@ -135,6 +199,65 @@ function createIdeAgentTools(electronApp, allowRootsFn) {
       }
     },
 
+    createDirectory(dirPath) {
+      const safe = resolveSafePath(dirPath, allowRootsFn())
+      if (!safe) {
+        return { ok: false, error: 'Caminho não permitido.' }
+      }
+      try {
+        fs.mkdirSync(safe, { recursive: true })
+        return { ok: true, path: safe }
+      } catch (e) {
+        return {
+          ok: false,
+          error: e instanceof Error ? e.message : String(e),
+        }
+      }
+    },
+
+    deletePath(targetPath) {
+      const safe = resolveSafePath(targetPath, allowRootsFn())
+      if (!safe) {
+        return { ok: false, error: 'Caminho não permitido.' }
+      }
+      try {
+        const st = fs.statSync(safe)
+        if (st.isDirectory()) {
+          const entries = fs.readdirSync(safe)
+          if (entries.length > 0) {
+            return { ok: false, error: 'Pasta não está vazia.' }
+          }
+          fs.rmdirSync(safe)
+        } else {
+          fs.unlinkSync(safe)
+        }
+        return { ok: true, path: safe }
+      } catch (e) {
+        return {
+          ok: false,
+          error: e instanceof Error ? e.message : String(e),
+        }
+      }
+    },
+
+    renamePath(fromPath, toPath) {
+      const safeFrom = resolveSafePath(fromPath, allowRootsFn())
+      const safeTo = resolveSafePath(toPath, allowRootsFn())
+      if (!safeFrom || !safeTo) {
+        return { ok: false, error: 'Caminho não permitido.' }
+      }
+      try {
+        fs.mkdirSync(path.dirname(safeTo), { recursive: true })
+        fs.renameSync(safeFrom, safeTo)
+        return { ok: true, from: safeFrom, to: safeTo }
+      } catch (e) {
+        return {
+          ok: false,
+          error: e instanceof Error ? e.message : String(e),
+        }
+      }
+    },
+
     grep(query, searchPath, options = {}) {
       const pattern = String(query ?? '').trim()
       if (!pattern.length) {
@@ -142,8 +265,10 @@ function createIdeAgentTools(electronApp, allowRootsFn) {
       }
       const roots = allowRootsFn()
       const base =
-        resolveSafePath(searchPath || userWorkspaceRoot || roots[0], roots) ||
-        userWorkspaceRoot
+        resolveSafePath(
+          searchPath || primaryWorkspaceRoot() || roots[0],
+          roots,
+        ) || primaryWorkspaceRoot()
       if (!base) {
         return { ok: false, error: 'Caminho de pesquisa inválido.' }
       }
@@ -210,8 +335,10 @@ function createIdeAgentTools(electronApp, allowRootsFn) {
       }
       const roots = allowRootsFn()
       const base =
-        resolveSafePath(searchPath || userWorkspaceRoot || roots[0], roots) ||
-        userWorkspaceRoot
+        resolveSafePath(
+          searchPath || primaryWorkspaceRoot() || roots[0],
+          roots,
+        ) || primaryWorkspaceRoot()
       if (!base) {
         return { ok: false, error: 'Caminho inválido.' }
       }
@@ -257,8 +384,8 @@ function createIdeAgentTools(electronApp, allowRootsFn) {
       }
       const roots = allowRootsFn()
       const workDir =
-        resolveSafePath(cwd || userWorkspaceRoot || roots[0], roots) ||
-        userWorkspaceRoot
+        resolveSafePath(cwd || primaryWorkspaceRoot() || roots[0], roots) ||
+        primaryWorkspaceRoot()
       if (!workDir) {
         return { ok: false, error: 'cwd inválido.' }
       }
@@ -318,8 +445,8 @@ function createIdeAgentTools(electronApp, allowRootsFn) {
     gitStatus(repoPath) {
       const roots = allowRootsFn()
       const dir =
-        resolveSafePath(repoPath || userWorkspaceRoot || roots[0], roots) ||
-        userWorkspaceRoot
+        resolveSafePath(repoPath || primaryWorkspaceRoot() || roots[0], roots) ||
+        primaryWorkspaceRoot()
       if (!dir) {
         return { ok: false, error: 'Repositório inválido.' }
       }
@@ -344,8 +471,8 @@ function createIdeAgentTools(electronApp, allowRootsFn) {
     gitDiff(repoPath, staged = false) {
       const roots = allowRootsFn()
       const dir =
-        resolveSafePath(repoPath || userWorkspaceRoot || roots[0], roots) ||
-        userWorkspaceRoot
+        resolveSafePath(repoPath || primaryWorkspaceRoot() || roots[0], roots) ||
+        primaryWorkspaceRoot()
       if (!dir) {
         return { ok: false, error: 'Repositório inválido.' }
       }
@@ -373,8 +500,8 @@ function createIdeAgentTools(electronApp, allowRootsFn) {
     gitCommit(repoPath, message) {
       const roots = allowRootsFn()
       const dir =
-        resolveSafePath(repoPath || userWorkspaceRoot || roots[0], roots) ||
-        userWorkspaceRoot
+        resolveSafePath(repoPath || primaryWorkspaceRoot() || roots[0], roots) ||
+        primaryWorkspaceRoot()
       if (!dir) {
         return { ok: false, error: 'Repositório inválido.' }
       }

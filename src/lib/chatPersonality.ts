@@ -3,6 +3,7 @@ export type ChatPersonalityId =
   | 'equilibrio'
   | 'tecnico'
   | 'desabafo'
+  | 'gestora'
 
 export const PERSONALITY_STORAGE_KEY = 'luna-chat-personality'
 
@@ -51,12 +52,21 @@ export const CHAT_PERSONALITIES: Record<ChatPersonalityId, ChatPersonality> = {
     systemSuffix:
       'Perfil desabafo: escute de verdade. Valide o que a pessoa sente; não minimize. Evite encher de conselhos, bullets ou perguntas em sequência — incorpora uma dúvida só se couber naturalmente. Sem tom de terapeuta clichê.',
   },
+  gestora: {
+    id: 'gestora',
+    label: 'Gestora',
+    hint: 'Consultora financeira — números, orçamentos e clareza.',
+    temperature: 0.42,
+    systemSuffix:
+      'Perfil gestora: tom profissional e objectivo. Distinga conta bancária, transação pontual e recorrente; use a tool correcta. Nunca assuma que tudo é "conta corrente".',
+  },
 }
 
 export const CHAT_PERSONALITY_ORDER: ChatPersonalityId[] = [
   'conversa',
   'equilibrio',
   'tecnico',
+  'gestora',
   'desabafo',
 ]
 

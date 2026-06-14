@@ -21,16 +21,10 @@ export async function translateText(
   const trimmed = text.trim()
   if (!trimmed) return { ok: true, text: '' }
 
-  const to = request.to
-  const detected = detectLocale(trimmed)
-  const from =
-    request.from ??
-    (detected !== 'unknown' && detected !== to ? detected : undefined)
-
   return invokeTranslation({
     text: trimmed,
-    to,
-    ...(from ? { from } : {}),
+    to: request.to,
+    ...(request.from ? { from: request.from } : {}),
   })
 }
 
@@ -60,30 +54,41 @@ export async function localizeText(
 ): Promise<LocalizedText> {
   const trimmed = raw.trim()
   const locale = options?.to ?? readUiLocale()
-  const minLength = options?.minLength ?? DEFAULT_MIN_LENGTH
+  if (!trimmed) return { text: '', locale }
 
-  if (!trimmed) {
-    return { text: '', locale }
-  }
-
-  const needsTranslate =
-    options?.force === true || shouldLocalize(trimmed, locale, minLength)
-
-  if (!needsTranslate) {
+  if (localesMatchSource(trimmed, locale)) {
     return { text: trimmed, locale }
   }
 
-  const tr = await translateText(trimmed, {
+  const minLength = options?.minLength ?? DEFAULT_MIN_LENGTH
+  const shouldTry =
+    options?.force === true || shouldLocalize(trimmed, locale, minLength)
+
+  if (!shouldTry) {
+    return { text: trimmed, locale }
+  }
+
+  const detected = detectLocale(trimmed)
+  const from =
+    options?.from ??
+    (detected !== 'unknown' && detected !== locale ? detected : undefined)
+
+  const res = await translateText(trimmed, {
     to: locale,
-    ...(options?.from ? { from: options.from } : {}),
+    ...(from ? { from } : {}),
   })
 
-  if (!tr.ok) {
+  if (!res.ok) {
+    return { text: trimmed, locale }
+  }
+
+  const out = res.text.trim()
+  if (!out || out === trimmed) {
     return { text: trimmed, locale }
   }
 
   return {
-    text: tr.text,
+    text: out,
     textOriginal: trimmed,
     translated: true,
     locale,
