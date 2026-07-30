@@ -28,6 +28,22 @@ service cloud.firestore {
         match /messages/{messageId} {
           allow read, write: if isOwner(userId);
         }
+
+        match /messages_trash/{messageId} {
+          allow read, write: if isOwner(userId);
+        }
+      }
+
+      match /collections/{collectionId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      match /conversations_trash/{conversationId} {
+        allow read, write: if isOwner(userId);
+
+        match /messages/{messageId} {
+          allow read, write: if isOwner(userId);
+        }
       }
 
       match /memoryNotes/{noteId} {
@@ -102,6 +118,57 @@ service cloud.firestore {
 
       // BYOK — metadados (chaves API ficam no cofre local Electron)
       match /byok/{docId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      match /rosary_days/{dateKey} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // A Rotina — os blocos do dia. O SERVIDOR escreve com o admin SDK (passa por cima
+      // destas regras), mas o APP lê com as regras normais. Sem esta linha, a Luna criava o
+      // bloco, dizia «criei» (verdade), e o ecrã dele aparecia VAZIO — porque a leitura era
+      // negada e o erro era engolido em silêncio.
+      //
+      // Aconteceu em campo, no primeiro teste. A ferramenta funcionava, a Luna era honesta,
+      // e mesmo assim ele viu uma mentira — porque a permissão de LEITURA não existia.
+      match /routine/{blockId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // O registo do dia (feito / hoje_nao / ignorado) — é o que a faz reparar que ele sumiu.
+      match /routine_log/{entryId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // As rotinas alternativas (Férias, Semana de provas…). Sem esta regra, o app criava a
+      // rotina mas não a conseguia LER — o mesmo muro invisível que já apanhámos com os blocos.
+      match /routine_sets/{setId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // O riscado de HOJE dentro de cada bloco (passos/subtarefas por-dia). Doc à parte do
+      // routine_log de propósito — assim um item riscado nunca é lido pelo core como «ignorado».
+      match /routine_items/{entryId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // O estado do jogo da rotina — a luz acumulada e a ofensiva. Concluir dá luz.
+      match /gamestate/{docId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // A Caixa de Entrada (Ideias) — pensamentos soltos que a Luna guarda (com admin) e o app
+      // lê/arquiva. Sem esta regra, o app não LÊ as ideias (o mesmo muro invisível dos blocos).
+      match /ideias/{ideiaId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // A Estante de Documentos — a Luna cria com o admin SDK (`criar_documento`) e o app LÊ
+      // (cartão no chat + leitor + editor). O MESMO muro invisível dos blocos: sem esta regra o
+      // servidor gravava o documento, a Luna dizia «criei» (verdade), e o cartão nunca aparecia —
+      // porque a leitura do cliente era negada pelo catch-all e o erro morria em silêncio.
+      match /documentos/{documentoId} {
         allow read, write: if isOwner(userId);
       }
     }
