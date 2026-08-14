@@ -1,8 +1,8 @@
-# Relatório de sessão — Integração Luna Core × Orbit / Luna Forge
+﻿# Relatório de sessão — Integração Luna Core × Orbit / Luna Forge
 
 > Documento de continuidade: tudo o que foi feito desde a chegada do Claude Code até ao estado actual (junho/2026).  
 > **Autor da sessão:** Ethan Noward · **Assistência:** Cursor (Auto)  
-> **Repositórios:** [Orbit](C:\Users\ethan\Documents\Projects\Orbit) · [Luna Core](C:\Users\ethan\Documents\Core\Luna\src\luna-core)
+> **Repositórios:** [Orbit](C:\Users\ethan\Documents\Projects\Luna\orbit) · [Luna Core](C:\Users\ethan\Documents\Projects\Luna\core\src\luna-core)
 
 ---
 
@@ -18,8 +18,8 @@ Ethan estava a integrar o **Luna Core** (motor cognitivo PAIA) com o **Orbit** (
 
 | Papel | Caminho | Responsabilidade |
 |-------|---------|------------------|
-| **Luna Core** | `Core/Luna/src/luna-core` | Pipeline PAIA: tálamo → análise → política → memória → resposta; sessões; SQLite; constituição |
-| **Orbit** | `Projects/Orbit` | UI, Electron, Luna Forge (IDE), addons, sync, bridge IPC → Core |
+| **Luna Core** | `Projects/Luna/core/src/luna-core` | Pipeline PAIA: tálamo → análise → política → memória → resposta; sessões; SQLite; constituição |
+| **Orbit** | `Projects/Luna/orbit` | UI, Electron, Luna Forge (IDE), addons, sync, bridge IPC → Core |
 
 ```
 Orbit (UI)
@@ -285,7 +285,7 @@ LLM_PRIMARY=ollama
 LLM_CLOUD_ENABLED=0
 OLLAMA_BASE_URL=http://127.0.0.1:1234/v1
 OLLAMA_MODEL=qwen/qwen2.5-vl-7b
-LUNA_CORE_PATH=C:\Users\ethan\Documents\Core\Luna\src\luna-core
+LUNA_CORE_PATH=C:\Users\ethan\Documents\Projects\Luna\core\src\luna-core
 ```
 
 ---
@@ -390,7 +390,7 @@ Total ponderado: ~90%
 
 ```bash
 # Orbit
-cd C:\Users\ethan\Documents\Projects\Orbit
+cd C:\Users\ethan\Documents\Projects\Luna\orbit
 npm run dev
 npm run luna-core:build
 npm run luna-core:check
@@ -398,7 +398,7 @@ npm run luna-core:check:electron
 npm run luna-core:rebuild-electron   # SQLite no Electron
 
 # Luna Core
-cd C:\Users\ethan\Documents\Core\Luna\src\luna-core
+cd C:\Users\ethan\Documents\Projects\Luna\core\src\luna-core
 npm run build
 npm test
 ```

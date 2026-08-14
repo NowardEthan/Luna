@@ -1,6 +1,64 @@
 import type { LunaPlanId } from '../../lib/firebase/entitlements'
 import { PLANS } from './plans'
 
+// ─────────────────────────────────────────────────────────────────────────────
+//  Tokens (modelo do Lab/Core)
+//  Janela rolling 5h + janela semanal. Alinhado com o quotaService.ts do Lab.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Limite de tokens na janela rolling 5h por plano. null = ilimitado (BYOK). */
+export const WINDOW_TOKEN_LIMITS: Record<LunaPlanId, number | null> = {
+  free: 35_000,
+  plus: 180_000,
+  pro: 450_000,
+  byok: null,
+  team: null,
+}
+
+/** Limite de tokens por semana por plano. null = ilimitado (BYOK). */
+export const WEEKLY_TOKEN_LIMITS: Record<LunaPlanId, number | null> = {
+  free: 150_000,
+  plus: 750_000,
+  pro: 2_250_000,
+  byok: null,
+  team: null,
+}
+
+/** Tamanho da janela rolling em ms (5h). */
+export const WINDOW_MS = 5 * 60 * 60 * 1000
+
+/** Tamanho da semana em ms (7 dias). */
+export const WEEK_MS = 7 * 24 * 60 * 60 * 1000
+
+/** Retorna false para planos que não usam janela rolling (BYOK/owner = ilimitado). */
+export function usesRollingWindow(planId: LunaPlanId): boolean {
+  return planId === 'free' || planId === 'plus' || planId === 'pro'
+}
+
+export function getWindowTokenLimit(planId: LunaPlanId): number | null {
+  return WINDOW_TOKEN_LIMITS[planId] ?? null
+}
+
+export function getWeeklyTokenLimit(planId: LunaPlanId): number | null {
+  return WEEKLY_TOKEN_LIMITS[planId] ?? null
+}
+
+/** Calcula o timestamp de reset da janela rolling de 5h. */
+export function computeWindowResetsAt(windowStartMs: number): number {
+  const now = Date.now()
+  const elapsed = now - windowStartMs
+  if (elapsed >= WINDOW_MS) return now
+  return windowStartMs + WINDOW_MS
+}
+
+/** Calcula o timestamp de reset da janela semanal. */
+export function computeWeeklyResetsAt(weekStartMs: number): number {
+  const now = Date.now()
+  const elapsed = now - weekStartMs
+  if (elapsed >= WEEK_MS) return now
+  return weekStartMs + WEEK_MS
+}
+
 /** Turn quota mensal por plano. null = ilimitado (BYOK). */
 export function getPlanTurnQuota(planId: LunaPlanId): number | null {
   const plan = PLANS.find((p) => p.id === planId)

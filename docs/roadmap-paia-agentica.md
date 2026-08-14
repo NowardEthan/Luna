@@ -1,8 +1,8 @@
-# Roadmap — PAIA Agêntica (V3 Agentes + Forge IDE)
+﻿# Roadmap — PAIA Agêntica (V3 Agentes + Forge IDE)
 
 > **Objetivo:** Transformar o Luna Forge num IDE agentico estilo Cursor/Claude Code, mantendo a filosofia PAIA multi-modelo. O Core gerencia o loop inteiro — ferramentas, planejamento, execução, avaliação e memória. O Orbit é apenas o executor de ferramentas.
 >
-> **Repositórios:** Luna Core (`Core/Luna/src/luna-core`) · Orbit (`Projects/Orbit`)
+> **Repositórios:** Luna Core (`Projects/Luna/core/src/luna-core`) · Orbit (`Projects/Luna/orbit`)
 > **Fase Core:** V3 — Cognição preditiva + Agentes locais (continua o que foi iniciado)
 > **Última atualização:** 2026-06-10
 

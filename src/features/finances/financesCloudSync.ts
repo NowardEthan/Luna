@@ -11,7 +11,7 @@ import { eventBus } from '../../core/events/EventBus'
 import { getLunaAuth, getLunaFirestore } from '../../lib/firebase'
 import { LUNA_FS, userDoc } from '../../lib/firebase/paths'
 import { stripUndefinedForFirestore } from '../../lib/firebase/stripUndefined'
-import { readUsageMode } from '../../lib/lunarAccount'
+import { isRealLunarUser } from '../../lib/lunarAccount'
 import {
   getFinancesState,
   patchMeta,
@@ -124,9 +124,8 @@ async function syncCollection<T extends WithUpdated & { id: string }>(
 }
 
 export function canSyncFinancesCloud(): boolean {
-  if (readUsageMode() === 'offline') return false
   const auth = getLunaAuth()
-  return Boolean(auth?.currentUser && !auth.currentUser.isAnonymous)
+  return isRealLunarUser(auth?.currentUser ?? null)
 }
 
 export async function pullFinancesFromCloud(): Promise<{

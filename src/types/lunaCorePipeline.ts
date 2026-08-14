@@ -1,4 +1,6 @@
 /** Opções do pipeline Luna Core (IPC Orbit → main). */
+import type { LunaLocalLlmProfile } from '../lib/lunaLocalLlmProfile'
+
 export type LunaCorePipelineBilling = {
   planId: string
   usedTurns: number
@@ -46,4 +48,8 @@ export type LunaCorePipelineOptions = {
   byokUid?: string
   /** Metadados do provedor activo (sem chave API). */
   byokMeta?: LunaCoreByokMeta
+  /** Pedir raciocínio explícito ao modelo maior (default: true). */
+  reasoningEnabled?: boolean
+  /** Perfil LM Studio/Ollama da UI (localStorage) — precedência sobre .env. */
+  localLlmProfile?: LunaLocalLlmProfile
 }

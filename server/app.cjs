@@ -1,6 +1,7 @@
 const { createRequestLogger, log } = require('./logger.cjs')
 const { getRecentLogs, getRecentLogsText } = require('./logBuffer.cjs')
 const { logHttpResult } = require('./httpLog.cjs')
+const path = require('path')
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -130,6 +131,47 @@ function createApp(services) {
           text: getRecentLogsText(limit),
         })
         rl?.ok({ count: entries.length })
+        return
+      }
+
+      if (method === 'GET' && pathname === '/v1/diagnostics/llm-runtime') {
+        const { getLlmRuntimeInfo } = require('../electron/llmRuntimeInfo.cjs')
+        const info = getLlmRuntimeInfo({
+          orbitRoot: path.join(__dirname, '..'),
+        })
+        sendJson(res, 200, info)
+        rl?.ok({ mode: info.detectedMode })
+        return
+      }
+
+      if (method === 'GET' && pathname === '/v1/diagnostics/local-models') {
+        const { listLocalModels } = require('../electron/localModelDiscovery.cjs')
+        const baseUrl = url.searchParams.get('baseUrl') || 'http://127.0.0.1:1234/v1'
+        const apiKey = url.searchParams.get('apiKey') || 'lm-studio'
+        const result = await listLocalModels(baseUrl, apiKey)
+        sendJson(res, 200, result)
+        rl?.ok({ count: result.models?.length ?? 0 })
+        return
+      }
+
+      if (method === 'GET' && pathname === '/v1/diagnostics/local-models/test') {
+        const { testLocalLlm } = require('../electron/localModelDiscovery.cjs')
+        const result = await testLocalLlm({
+          baseUrl: url.searchParams.get('baseUrl') || 'http://127.0.0.1:1234/v1',
+          apiKey: url.searchParams.get('apiKey') || 'lm-studio',
+          modeloMaior: url.searchParams.get('modeloMaior') || '',
+        })
+        sendJson(res, 200, result)
+        rl?.ok({ ok: result.ok })
+        return
+      }
+
+      if (method === 'POST' && pathname === '/v1/diagnostics/local-profile/apply') {
+        const { applyLocalProfileToEnv } = require('../electron/applyLocalProfile.cjs')
+        const body = await readJsonBody(req)
+        const result = applyLocalProfileToEnv(body, path.join(__dirname, '..'))
+        sendJson(res, result.ok ? 200 : 400, result)
+        rl?.ok({ ok: result.ok })
         return
       }
 

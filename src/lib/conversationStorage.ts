@@ -16,6 +16,13 @@ import {
 
 export const STORAGE_KEY = 'chat-ia:conversations:v1'
 
+/** Sufixo da chave local por UID — evita vazamento de conversas entre contas
+ *  no mesmo aparelho. Sem UID cai na chave global compartilhada. */
+export function getStorageKey(uid?: string | null): string {
+  if (!uid) return STORAGE_KEY
+  return `${STORAGE_KEY}:${uid}`
+}
+
 /** Primeira vez / fallback após erro de parse */
 export function defaultSeedMessages(generateId: () => string): Message[] {
   return [

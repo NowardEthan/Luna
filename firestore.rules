@@ -116,9 +116,41 @@ service cloud.firestore {
         allow read, write: if isOwner(userId);
       }
 
+      // OrbitLab Finanças (spec FINANCAS-CONCEPT) — coleções novas em pt-BR.
+      // Sem isto o catch-all bloqueia e o app cria/lê em silêncio falho (mesmo muro
+      // que já pegamos com routine/documentos).
+      match /carteiras/{carteiraId} {
+        allow read, write: if isOwner(userId);
+      }
+      match /lancamentos/{lancamentoId} {
+        allow read, write: if isOwner(userId);
+      }
+      match /recorrentes/{recorrenteId} {
+        allow read, write: if isOwner(userId);
+      }
+      match /transferencias/{transferenciaId} {
+        allow read, write: if isOwner(userId);
+      }
+      match /metasFinanceiras/{metaId} {
+        allow read, write: if isOwner(userId);
+      }
+
       // BYOK — metadados (chaves API ficam no cofre local Electron)
       match /byok/{docId} {
         allow read, write: if isOwner(userId);
+      }
+
+      // Canvas da Luna/OrbitLab: workspaces privados do usuario.
+      match /workspaces/{workspaceId} {
+        allow read, write: if isOwner(userId);
+
+        match /elementos/{elementoId} {
+          allow read, write: if isOwner(userId);
+        }
+
+        match /versoes/{versaoId} {
+          allow read, write: if isOwner(userId);
+        }
       }
 
       match /rosary_days/{dateKey} {
@@ -170,12 +202,64 @@ service cloud.firestore {
       // porque a leitura do cliente era negada pelo catch-all e o erro morria em silêncio.
       match /documentos/{documentoId} {
         allow read, write: if isOwner(userId);
+
+        // O histórico de versões do artefato — cada reescrita (pela Luna com admin, ou pelo
+        // Ethan no app) guarda aqui um retrato do estado anterior. Regra à parte de propósito:
+        // no Firestore a regra do documento NÃO cai em cascata na subcoleção, então sem isto
+        // o app lê o artefato mas o «Histórico» viria vazio (leitura negada em silêncio).
+        match /versoes/{versaoId} {
+          allow read, write: if isOwner(userId);
+        }
       }
     }
 
     match /marketplaceCatalog/listings/{listingId} {
       allow read: if resource.data.published == true;
       allow write: if false;
+    }
+
+    // ── Chamados ("Fala com o Ethan") ─────────────────────────────────────────
+    // Canal de suporte de MÃO DUPLA: o usuário abre um chamado, o Ethan (admin) lê
+    // a caixa de entrada e responde. Coleção de TOPO (não vive sob users/{uid}) de
+    // propósito — o admin precisa varrer todos os chamados de uma vez.
+    //
+    // O uid do Ethan é o mesmo do app (ChamadosRepository.ETHAN_UID) e o mesmo
+    // UID_CRIADOR_CANONICO do core. Sem estas regras o catch-all abaixo bloqueia e
+    // o chamado nasce, a Luna/app grava, e a tela aparece vazia (o mesmo muro
+    // invisível que já pegamos com routine/documentos).
+    function ehEthanChamados() {
+      return signedIn()
+        && request.auth.uid == 'aKp1czWVMqWQdJ9nAIcIKgxKNu92';
+    }
+
+    match /chamados/{chamadoId} {
+      // Ler: só o dono do chamado (uid do doc) ou o Ethan. O vizinho não enxerga.
+      allow read: if (signedIn() && request.auth.uid == resource.data.uid)
+        || ehEthanChamados();
+
+      // Criar: qualquer logado, mas o doc TEM que sair com o uid dele — não dá pra
+      // abrir chamado em nome de outro.
+      allow create: if signedIn()
+        && request.resource.data.uid == request.auth.uid;
+
+      // Atualizar: dono (marcar lido, mandar mensagem) ou Ethan (status/responder).
+      allow update: if (signedIn() && request.auth.uid == resource.data.uid)
+        || ehEthanChamados();
+
+      allow delete: if false;
+
+      // A conversa do chamado. A regra do pai NÃO cai em cascata na subcoleção, por
+      // isso o get() aqui: só quem é dono do chamado-pai (ou o Ethan) entra. As
+      // mensagens são imutáveis — ninguém edita o que já foi dito.
+      match /mensagens/{mensagemId} {
+        function donoDoPai() {
+          return signedIn()
+            && get(/databases/$(database)/documents/chamados/$(chamadoId)).data.uid
+               == request.auth.uid;
+        }
+        allow read, create: if donoDoPai() || ehEthanChamados();
+        allow update, delete: if false;
+      }
     }
 
     match /{document=**} {

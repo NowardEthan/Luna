@@ -1,4 +1,4 @@
-# Roadmap — Integração Luna Core × Orbit
+﻿# Roadmap — Integração Luna Core × Orbit
 
 Plano de integração entre o **motor cognitivo** (Luna Core) e o **cliente desktop** (Orbit). Atualizado em junho/2026, após validação manual do chat em produção local.
 
@@ -10,8 +10,8 @@ Plano de integração entre o **motor cognitivo** (Luna Core) e o **cliente desk
 
 | Papel | Repositório | Responsabilidade |
 |-------|-------------|------------------|
-| **Luna Core** | `C:\Users\ethan\Documents\Core\Luna\src\luna-core` | Pipeline PAIA: análise → política → memória → resposta, sessões, memória longa |
-| **Orbit** | `C:\Users\ethan\Documents\Projects\Orbit` | Shell Electron + React: chat, IDE, addons, sync cloud, UI |
+| **Luna Core** | `C:\Users\ethan\Documents\Projects\Luna\core\src\luna-core` | Pipeline PAIA: análise → política → memória → resposta, sessões, memória longa |
+| **Orbit** | `C:\Users\ethan\Documents\Projects\Luna\orbit` | Shell Electron + React: chat, IDE, addons, sync cloud, UI |
 
 O Orbit **não** é mais um cliente multi-LLM genérico. É o ambiente desktop da Luna — um único ponto de entrada para conversar com ela, com identidade, memória e política centralizadas no Core.
 
@@ -115,7 +115,7 @@ LUNA_MODELO_MENOR=...     # modelo dos analisadores
 **Orbit** (`.env`):
 
 ```env
-LUNA_CORE_PATH=C:\Users\ethan\Documents\Core\Luna\src\luna-core
+LUNA_CORE_PATH=C:\Users\ethan\Documents\Projects\Luna\core\src\luna-core
 ```
 
 ---
@@ -318,7 +318,7 @@ O Core recebe `ambiente: "desktop"` via `api.ts`. O Orbit **não** precisa geren
 | [luna-brain-v1-spec.md](./luna-brain-v1-spec.md) | Orbit | Spec do cérebro Luna no Orbit |
 | [ROADMAP.md](https://github.com/...) | Luna Core | Roadmap do motor (`Teses de Arquitetura/old/ROADMAP.md`) |
 | [DIARIO-FASES.md](https://github.com/...) | Luna Core | Diário de execução do Core |
-| [WHITEPAPER-LUNA-PAIA.md](../../Core/Luna/Teses%20de%20Arquitetura/WHITEPAPER-LUNA-PAIA.md) | Luna Core | Arquitetura PAIA e papel do Orbit |
+| [WHITEPAPER-LUNA-PAIA.md](../../Projects/Luna/core/Teses%20de%20Arquitetura/WHITEPAPER-LUNA-PAIA.md) | Luna Core | Arquitetura PAIA e papel do Orbit |
 
 ---
 

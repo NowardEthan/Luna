@@ -11,7 +11,6 @@ import {
 import { getCachedLunarPlan } from '../../lib/lunarPlanCache'
 import { loadUserMemory } from '../../lib/userMemoryStorage'
 import { readCloudSettingsSnapshot } from '../../lib/settingsCloudMap'
-import { readUsageMode } from '../../lib/lunarAccount'
 import { readLunaCloudConfig } from '../../lib/lunaCloud'
 
 const SETTINGS_DOC = 'app'
@@ -64,7 +63,7 @@ export async function fetchRemoteCloudUsage(
   plan: LunaPlanId = getCachedLunarPlan(),
 ): Promise<CloudStorageUsage | null> {
   const cfg = readLunaCloudConfig()
-  if (!cfg.syncEnabled || !cfg.firebase || readUsageMode() === 'offline') {
+  if (!cfg.syncEnabled || !cfg.firebase) {
     return null
   }
 

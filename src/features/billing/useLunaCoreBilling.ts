@@ -2,7 +2,11 @@ import { useMemo } from 'react'
 import { useLunaAuthOptional } from '../auth/AuthProvider'
 import type { LunaPlanId } from '../../lib/firebase/entitlements'
 import type { LunaCoreByokMeta } from '../../types/lunaCorePipeline'
-import { getPlanTurnQuota } from './lunarPlanQuotas'
+import {
+  getPlanTurnQuota,
+  getWindowTokenLimit,
+  getWeeklyTokenLimit,
+} from './lunarPlanQuotas'
 import { getUsageAlertLevel, usageAlertMessage } from './lunaCloudTurnPolicy'
 import { useLunaUsage } from './useLunaUsage'
 import { useByokConfig } from './useByokConfig'
@@ -10,8 +14,10 @@ import { useByokConfig } from './useByokConfig'
 export type LunaCoreBillingSnapshot = {
   planId: LunaPlanId
   uid?: string
-  usedTurns: number
-  turnQuota: number | null
+  windowTokens: number
+  windowLimit: number | null
+  weeklyTokens: number
+  weeklyLimit: number | null
   usagePct: number
   resetDays: number
   usageAlertLevel: ReturnType<typeof getUsageAlertLevel>
@@ -29,9 +35,9 @@ export function useLunaCoreBilling(): LunaCoreBillingSnapshot {
   const byok = useByokConfig()
 
   const planId = auth?.plan ?? 'free'
-  const baseQuota = getPlanTurnQuota(planId)
-  const turnQuota =
-    baseQuota !== null ? baseQuota + usage.bonusTurns : null
+  // Owner: limites ignorados (mesmo padrão do Lab quando API devolve null).
+  const windowLimit = usage.isOwner ? null : getWindowTokenLimit(planId)
+  const weeklyLimit = usage.isOwner ? null : getWeeklyTokenLimit(planId)
   const usageAlertLevel = getUsageAlertLevel(usage.pct)
   const uid = auth?.user?.uid
 
@@ -39,8 +45,10 @@ export function useLunaCoreBilling(): LunaCoreBillingSnapshot {
     () => ({
       planId,
       uid,
-      usedTurns: usage.used,
-      turnQuota,
+      windowTokens: usage.windowTokens,
+      windowLimit,
+      weeklyTokens: usage.weeklyTokens,
+      weeklyLimit,
       usagePct: usage.pct,
       resetDays: usage.resetDays,
       usageAlertLevel,
@@ -60,11 +68,13 @@ export function useLunaCoreBilling(): LunaCoreBillingSnapshot {
     [
       planId,
       uid,
-      usage.used,
-      turnQuota,
+      usage.windowTokens,
+      usage.weeklyTokens,
       usage.pct,
       usage.resetDays,
       usage.bonusTurns,
+      windowLimit,
+      weeklyLimit,
       usageAlertLevel,
       byok.config.activeProviderId,
       byok.config.providers,

@@ -33,6 +33,7 @@ import {
   SIMPLE_CHAT_MODEL_LABEL,
   SIMPLE_CHAT_PROVIDER_LABEL,
 } from '../features/chat/simpleChatLlmConfig'
+import { resolveLocalComposerModelLabel } from '../lib/ideLlmSelection'
 import { useLunaCoreBilling } from '../features/billing/useLunaCoreBilling'
 import { useIdeModelCatalog } from '../features/chat/useIdeModelCatalog'
 import { resolveSelectedOption } from '../lib/llmModelSelection'
@@ -232,6 +233,10 @@ export function AppShell() {
       ? lunaBilling.usageAlertLevel
       : undefined
   const financesModel = useIdeModelCatalog(financesAgentMode)
+  const localComposerLabel = resolveLocalComposerModelLabel()
+  const coreModelLabel =
+    localComposerLabel ??
+    `${SIMPLE_CHAT_PROVIDER_LABEL} · ${SIMPLE_CHAT_MODEL_LABEL}`
   const financesModelLabel = useMemo(() => {
     if (!financesAgentMode) return undefined
     const opt = resolveSelectedOption(
@@ -260,7 +265,7 @@ export function AppShell() {
         conversations: conv.conversations,
         folders: foldersState.folders,
         userMemory: memory.userMemory,
-        cloudSyncAvailable: sync.cloudSyncAvailable,
+        cloudSyncAvailable: true,
         variant: welcomeVariant,
       })
     },
@@ -270,7 +275,6 @@ export function AppShell() {
       conv.conversations,
       foldersState.folders,
       memory.userMemory,
-      sync.cloudSyncAvailable,
       welcomeVariant,
       financesActiveTab,
     ],
@@ -381,9 +385,6 @@ export function AppShell() {
         onUpdateFolder={foldersState.updateFolder}
         onDeleteFolder={foldersState.deleteFolder}
         onTogglePin={conv.togglePinConversation}
-        cloudSyncAvailable={sync.cloudSyncAvailable}
-        onSetConversationCloudEnabled={sync.setConversationCloudEnabled}
-        onSetFolderCloudEnabled={sync.setFolderCloudEnabled}
         onClose={closeSidePanels}
       />
     )
@@ -401,9 +402,6 @@ export function AppShell() {
     foldersState.renameFolder,
     foldersState.updateFolder,
     foldersState.deleteFolder,
-    sync.cloudSyncAvailable,
-    sync.setConversationCloudEnabled,
-    sync.setFolderCloudEnabled,
     nav.workbenchMode,
     workspace.workspaceRoot,
     closeSidePanels,
@@ -490,13 +488,8 @@ export function AppShell() {
             financesAgentMode
               ? financesModelLabel
               : lunaCoreUiMode
-                ? `${SIMPLE_CHAT_PROVIDER_LABEL} · ${SIMPLE_CHAT_MODEL_LABEL}`
+                ? coreModelLabel
                 : undefined
-          }
-          reasoningUnsupportedMsg={
-            lunaCoreUiMode
-              ? 'O raciocínio vem do pipeline Luna Core — este toggle será removido em breve.'
-              : undefined
           }
           workbenchMode={nav.workbenchMode}
           primaryView={nav.primaryView}
@@ -512,9 +505,7 @@ export function AppShell() {
           modelCatalog={financesModel.modelCatalog}
           selectedModelId={financesModel.selectedModelId}
           fixedModelLabel={
-            lunaCoreUiMode
-              ? `${SIMPLE_CHAT_PROVIDER_LABEL} · ${SIMPLE_CHAT_MODEL_LABEL}`
-              : undefined
+            lunaCoreUiMode ? coreModelLabel : undefined
           }
           onOpenLunarAccount={() => { setAccountInitialTab('conta'); lunarAuth.openGate() }}
           onOpenBilling={() => { setAccountInitialTab('planos'); lunarAuth.openGate() }}
@@ -586,7 +577,11 @@ export function AppShell() {
       {lunarAuth.gateOpen ? (
         <LunarGateScreen
           initialTab={accountInitialTab}
-          onClose={() => { lunarAuth.closeGate(); setAccountInitialTab('conta') }}
+          onClose={
+            lunarAuth.isLunarConnected
+              ? () => { lunarAuth.closeGate(); setAccountInitialTab('conta') }
+              : undefined
+          }
         />
       ) : null}
       <ToastHost />

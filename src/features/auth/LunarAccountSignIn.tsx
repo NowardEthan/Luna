@@ -67,16 +67,6 @@ export function LunarAccountSignIn({ onClose, reason }: Props) {
             ? t('lunarAccount.signIn.googleBusy')
             : t('lunarAccount.signIn.google')}
         </button>
-        <button
-          type="button"
-          className="luna-btn-secondary w-full px-4 py-2.5"
-          onClick={() => {
-            auth.continueOffline()
-            onClose?.()
-          }}
-        >
-          {t('lunarAccount.signIn.offline')}
-        </button>
       </div>
 
       {auth.error ? (

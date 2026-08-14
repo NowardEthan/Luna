@@ -29,6 +29,7 @@ import { ReasoningTimelineContent } from './ReasoningTimelineContent'
 import { TimelineRow } from './TimelineRow'
 import { toolStepSubtitle, ToolStepDetailBody } from './toolStepDetails'
 import { LunaPipelineActivityBody } from './LunaPipelineActivityBody'
+import { LunaPipelineTechnicalDetails } from './LunaPipelineTechnicalDetails'
 import { TurnActivityPanel } from './TurnActivityPanel'
 import { TurnTimeline } from './TurnTimeline'
 import { TranslatedMessageBlock } from './TranslatedMessageBlock'
@@ -85,29 +86,54 @@ function renderTimelineItems(
       )
     }
 
-    if (item.kind === 'reasoning_round' && m.lunaPipelineTrace) {
+    if (item.kind === 'reasoning_round' && m.lunaPipelineTrace && item.round === 1) {
       const live = item.inProgress || item.translating
+      const hasNarrative = Boolean(item.text.trim())
+      const title = t('chatTurn.luna_pipeline_internal')
+      const subtitle = live
+        ? t('chatTurn.in_progress')
+        : hasNarrative
+          ? t('chatTurn.luna_decision_done')
+          : t('chatTurn.luna_pipeline_subtitle')
+      const hasBody = live || hasNarrative || Boolean(m.lunaPipelineTrace)
       return (
         <TimelineRow
           key={item.id}
-          title={t('chatTurn.luna_pipeline')}
-          subtitle={
-            live
-              ? t('chatTurn.in_progress')
-              : t('chatTurn.luna_pipeline_subtitle')
-          }
+          title={title}
+          subtitle={subtitle}
           status={live ? 'loading' : 'ok'}
           loadingPhase="thinking"
-          defaultOpen={live}
+          defaultOpen={live || hasNarrative}
           compact
         >
-          <LunaPipelineActivityBody trace={m.lunaPipelineTrace} />
+          {hasBody ? (
+            <div className="space-y-2">
+              {hasNarrative ? (
+                <ReasoningTimelineContent
+                  trace={{ text: item.text }}
+                  inProgress={item.inProgress && !item.translating}
+                  translating={item.translating}
+                  memoryNotes={memoryNotes}
+                  messageId={m.id}
+                  compact
+                />
+              ) : m.lunaPipelineTrace ? (
+                <LunaPipelineActivityBody trace={m.lunaPipelineTrace} />
+              ) : null}
+              {hasNarrative && m.lunaPipelineTrace ? (
+                <LunaPipelineTechnicalDetails trace={m.lunaPipelineTrace} />
+              ) : null}
+            </div>
+          ) : null}
         </TimelineRow>
       )
     }
 
     if (item.kind === 'reasoning_round') {
-      const title = t('chatTurn.step', { round: item.round })
+      const isModelRound = item.round >= 2
+      const title = isModelRound
+        ? t('chatTurn.model_reasoning')
+        : t('chatTurn.step', { round: item.round })
       const subtitle = item.translating
         ? t('chatTurn.translating')
         : item.inProgress
@@ -254,6 +280,12 @@ export function AssistantTurn({ message: m, generating, memoryNotes }: Props) {
     </ChatBubble>
   ) : null
 
+  const hasReasoningContent = Boolean(
+    m.reasoningSegments?.length ||
+      m.lunaPipelineTrace ||
+      m.reasoningTrace?.text?.trim(),
+  )
+
   const activityOpen =
     generating &&
     (m.reasoningInProgress === true ||
@@ -261,6 +293,8 @@ export function AssistantTurn({ message: m, generating, memoryNotes }: Props) {
       m.reasoningTranslating === true ||
       Boolean(m.reasoningSegments?.some((s) => s.inProgress)) ||
       isAnswerStreaming(m))
+
+  const activityDefaultOpen = activityOpen || hasReasoningContent
 
   const activity =
     showTimeline && activityItems.length > 0 ? (
@@ -271,7 +305,7 @@ export function AssistantTurn({ message: m, generating, memoryNotes }: Props) {
             : buildActivitySummary(activityItems)
         }
         stepCount={countActivitySteps(timelineItems)}
-        defaultOpen={activityOpen}
+        defaultOpen={activityDefaultOpen}
         live={activityOpen}
       >
         <TurnTimeline compact>

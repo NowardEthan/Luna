@@ -6,11 +6,9 @@ export function useLunarEntitlements() {
   const auth = useLunaAuth()
 
   return useMemo(() => {
-    const offline = auth.usageMode === 'offline' || !auth.isLunarConnected
     const connected = auth.isLunarConnected
 
     return {
-      offline,
       connected,
       canUseHostedLlm: connected && auth.entitlements.hostedLlm,
       canUseCloudRagEmbed: connected && auth.entitlements.sync,

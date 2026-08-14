@@ -157,10 +157,7 @@ export function SimpleChatComposer({
               <ReasoningToggle
                 enabled={reasoningEnabled}
                 onChange={onReasoningChange}
-                unsupportedMsg={
-                  reasoningUnsupportedMsg ??
-                  'O raciocínio vem do pipeline Luna Core — este toggle será removido em breve.'
-                }
+                unsupportedMsg={reasoningUnsupportedMsg}
               />
             ) : null}
             <p className="text-[10px] font-medium text-fg-muted">

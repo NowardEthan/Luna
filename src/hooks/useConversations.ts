@@ -22,6 +22,7 @@ import type { CreateConversationOpts } from '../features/chat/state/conversation
 import { isCloudSyncEnabled } from '../types/cloudSync'
 import type { LunaWorkbenchMode } from '../lib/workbenchMode'
 import { loadWorkspaceConfig, primaryPath } from '../lib/workspaceConfig'
+import { useLunaAuthOptional } from '../features/auth/AuthProvider'
 
 export type { SendMessageOptions } from '../features/chat/useChatTurn'
 
@@ -29,6 +30,8 @@ export function useConversations() {
   const [hydrated, setHydrated] = useState(false)
   const [folders, setFolders] = useState<ChatFolder[]>([])
   const skipCloudScheduleRef = useRef(false)
+  const auth = useLunaAuthOptional()
+  const uid = auth?.user?.uid ?? null
 
   const list = useConversationListStore(hydrated, folders, (reset) => {
     setFolders(reset.folders)
@@ -39,17 +42,32 @@ export function useConversations() {
 
   useEffect(() => {
     queueMicrotask(() => {
-      const parsed = hydrateFromLocalStorage()
+      // Sem UID (deslogado) → estado limpo. Sem chave global pra evitar
+      // reaparecer conversas da última conta logada neste aparelho.
+      if (!uid) {
+        const init = initialStore(nextId)
+        list.setConversations(init.conversations)
+        setFolders(init.folders)
+        list.setActiveId(init.activeId)
+        list.setActiveIdByScope({})
+        list.setRecentWorkspaces([])
+        setHydrated(true)
+        return
+      }
+      const parsed = hydrateFromLocalStorage(uid)
       if (parsed) {
         const conversations = dedupeConversations(parsed.conversations)
         if (conversations.length !== parsed.conversations.length) {
-          persistToLocalStorage({
-            conversations,
-            folders: parsed.folders,
-            activeId: parsed.activeId,
-            activeIdByScope: parsed.activeIdByScope,
-            recentWorkspaces: parsed.recentWorkspaces,
-          })
+          persistToLocalStorage(
+            {
+              conversations,
+              folders: parsed.folders,
+              activeId: parsed.activeId,
+              activeIdByScope: parsed.activeIdByScope,
+              recentWorkspaces: parsed.recentWorkspaces,
+            },
+            uid,
+          )
         }
         list.setConversations(conversations)
         setFolders(parsed.folders)
@@ -72,8 +90,8 @@ export function useConversations() {
       }
       setHydrated(true)
     })
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- hydrate once on mount
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- hydrate once per uid
+  }, [uid])
 
   useEffect(() => {
     if (!hydrated) return
@@ -84,7 +102,7 @@ export function useConversations() {
       activeIdByScope: list.activeIdByScope,
       recentWorkspaces: list.recentWorkspaces,
     }
-    persistToLocalStorage(snapshot)
+    persistToLocalStorage(snapshot, uid)
     if (skipCloudScheduleRef.current) {
       skipCloudScheduleRef.current = false
       return
@@ -100,18 +118,29 @@ export function useConversations() {
     list.activeIdByScope,
     list.recentWorkspaces,
     hydrated,
+    uid,
   ])
 
   useEffect(() => {
     if (!hydrated) return
     return eventBus.on('lunar:sync:hydrate', () => {
-      const parsed = hydrateFromLocalStorage()
+      const parsed = hydrateFromLocalStorage(uid)
       if (!parsed) return
       list.setConversations(parsed.conversations)
       setFolders(parsed.folders)
       list.setActiveId(parsed.activeId)
     })
-  }, [hydrated, list.setConversations, list.setActiveId])
+  }, [hydrated, list.setConversations, list.setActiveId, uid])
+
+  // Limpa o estado in-memory no logout para evitar flash de dados da conta
+  // antiga até o useEffect de hidratação re-rodar.
+  useEffect(() => {
+    if (uid) return // só limpa se deslogado
+    const reset = initialStore(nextId)
+    list.setConversations(reset.conversations)
+    setFolders(reset.folders)
+    list.setActiveId(reset.activeId)
+  }, [uid, list.setConversations, list.setActiveId])
 
   useEffect(() => {
     if (!hydrated) return
@@ -322,48 +351,22 @@ export function useConversations() {
 
   const setConversationCloudEnabled = useCallback(
     (id: string, enabled: boolean) => {
-      void (async () => {
-        const snapshot = {
-          conversations: list.conversations,
-          folders,
-          activeId: list.activeId,
-        }
-        const next = await cloudSyncService.setConversationCloudEnabled(
-          snapshot,
-          id,
-          enabled,
-        )
-        if (!next) return
-        skipCloudScheduleRef.current = true
-        list.setConversations(next.conversations)
-        setFolders(next.folders)
-        persistToLocalStorage(next)
-      })()
+      // Cloud-first: não há mais opt-out. Mantém a assinatura para
+      // compatibilidade, mas não faz nada.
+      void id
+      void enabled
     },
-    [list.conversations, list.activeId, folders, list.setConversations],
+    [],
   )
 
   const setFolderCloudEnabled = useCallback(
     (folderId: string, enabled: boolean) => {
-      void (async () => {
-        const snapshot = {
-          conversations: list.conversations,
-          folders,
-          activeId: list.activeId,
-        }
-        const next = await cloudSyncService.setFolderCloudEnabled(
-          snapshot,
-          folderId,
-          enabled,
-        )
-        if (!next) return
-        skipCloudScheduleRef.current = true
-        list.setConversations(next.conversations)
-        setFolders(next.folders)
-        persistToLocalStorage(next)
-      })()
+      // Cloud-first: não há mais opt-out. Mantém a assinatura para
+      // compatibilidade, mas não faz nada.
+      void folderId
+      void enabled
     },
-    [list.conversations, list.activeId, folders, list.setConversations],
+    [],
   )
 
   const sortedConversations = useMemo(
@@ -478,6 +481,8 @@ export function useConversations() {
     ],
   )
 
+  // Cloud-first: sync sempre disponível quando o usuário está logado.
+  // syncState mantido para compatibilidade da API exportada.
   const syncState = useMemo(
     () => ({
       cloudSyncAvailable: cloudSyncService.isAvailable(),

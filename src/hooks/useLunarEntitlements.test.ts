@@ -3,8 +3,7 @@ import { requiresLunarAccountForProvider } from '../lib/lunarGate'
 import { canUseProviderWithEntitlements } from './useLunarEntitlements'
 
 describe('useLunarEntitlements helpers', () => {
-  const offline = {
-    offline: true,
+  const disconnected = {
     connected: false,
     canUseHostedLlm: false,
     canUseCloudRagEmbed: false,
@@ -17,8 +16,7 @@ describe('useLunarEntitlements helpers', () => {
   }
 
   const connected = {
-    ...offline,
-    offline: false,
+    ...disconnected,
     connected: true,
     canUseHostedLlm: true,
     canUseCloudRagEmbed: true,
@@ -33,8 +31,8 @@ describe('useLunarEntitlements helpers', () => {
   })
 
   it('canUseProviderWithEntitlements', () => {
-    expect(canUseProviderWithEntitlements('ollama', offline)).toBe(true)
-    expect(canUseProviderWithEntitlements('groq', offline)).toBe(false)
+    expect(canUseProviderWithEntitlements('ollama', disconnected)).toBe(true)
+    expect(canUseProviderWithEntitlements('groq', disconnected)).toBe(false)
     expect(canUseProviderWithEntitlements('groq', connected)).toBe(true)
   })
 })

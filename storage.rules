@@ -27,6 +27,16 @@ service firebase.storage {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
+    // Anexos dos chamados ("Fala com o Ethan"). A pasta é carimbada com o uid do DONO
+    // do chamado (quem abriu) — nunca o autor da mensagem. Assim os DOIS lados (o dono
+    // e o Ethan) leem/escrevem pela mesma pasta, sem precisar consultar o Firestore, que
+    // a regra de Storage não enxerga. O uid do Ethan é o mesmo do resto do app.
+    match /chamados/{ownerId}/{allPaths=**} {
+      allow read, write: if request.auth != null
+        && (request.auth.uid == ownerId
+          || request.auth.uid == 'aKp1czWVMqWQdJ9nAIcIKgxKNu92');
+    }
+
     match /{allPaths=**} {
       allow read, write: if false;
     }

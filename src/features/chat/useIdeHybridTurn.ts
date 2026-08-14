@@ -10,13 +10,15 @@ import { nextId } from '../chat/state/conversationPersistence'
 import {
   applyLunaCoreError,
   applyLunaCoreResult,
-  buildLunaPipelineTrace,
   patchAssistantMessage,
   runLunaCoreTurn,
   type LunaCoreTurnDeps,
 } from './lunaCoreTurnShared'
+import { upsertReasoningSegment, patchAssistantMessage as patchAssistantMsg } from './lib/messagePatch'
 import type { SendMessageOptions } from './useLunaCoreTurn'
 import { compileIdePipelineOptions } from '../../lib/compileIdeContextForTurn'
+import { shouldForceLocalInPipeline } from '../../lib/lunaLlmRuntimeMode'
+import { readLocalLlmProfile } from '../../lib/lunaLocalLlmProfile'
 import { runIdeLightReview } from './runIdeLightReview'
 import { useLunaCoreBilling } from '../billing/useLunaCoreBilling'
 import { readForgeComposerMode } from '../../lib/forgeComposerMode'
@@ -100,12 +102,14 @@ export function useIdeHybridTurn(deps: Deps) {
       updateConversation: deps.updateConversation,
       resolvePipelineOptions,
       turnStatusHint: 'A analisar o workspace e a memória…',
+      reasoningEnabled: deps.reasoningEnabled,
       billing,
     }),
     [
       deps.activeId,
       deps.conversations,
       deps.updateConversation,
+      deps.reasoningEnabled,
       resolvePipelineOptions,
       billing,
     ],
@@ -206,6 +210,22 @@ export function useIdeHybridTurn(deps: Deps) {
             onToolCallComplete: (
               cb: (p: unknown) => void,
             ) => () => void
+            onReasoningRodada: (
+              cb: (p: {
+                rodada: number
+                texto: string
+                emProgresso: boolean
+              }) => void,
+            ) => () => void
+          }
+
+          const reasoningOn = deps.reasoningEnabled
+
+          if (reasoningOn) {
+            patchAssistantMessage(deps.updateConversation, convId, assistantMsgId, {
+              reasoningInProgress: true,
+              orchestratorRound: 1,
+            })
           }
 
           // Regista listeners de progresso antes de chamar
@@ -233,6 +253,39 @@ export function useIdeHybridTurn(deps: Deps) {
             })
           })
 
+          const removeReasoning =
+            reasoningOn && typeof lunaCore.onReasoningRodada === 'function'
+              ? lunaCore.onReasoningRodada(({ rodada, texto, emProgresso }) => {
+                if (ac.signal.aborted) return
+                const raw = texto.trim()
+                patchAssistantMsg(
+                  convId,
+                  assistantMsgId,
+                  deps.updateConversation,
+                  (m) => ({
+                    ...m,
+                    orchestratorRound: rodada,
+                    reasoningInProgress: emProgresso,
+                    reasoningStreamingActive: emProgresso,
+                    turnStatusHint: emProgresso ? 'A pensar…' : undefined,
+                    reasoningSegments: upsertReasoningSegment(m.reasoningSegments, {
+                      round: rodada,
+                      text: raw,
+                      inProgress: emProgresso,
+                    }),
+                    ...(raw
+                      ? {
+                          reasoningTrace: {
+                            text: raw,
+                            provider: 'luna-core',
+                          },
+                        }
+                      : {}),
+                  }),
+                )
+              })
+            : () => {}
+
           try {
             const conv = deps.conversations.find((c) => c.id === convId)
             const snapshotWorkspace = buildSnapshotWorkspace()
@@ -245,8 +298,11 @@ export function useIdeHybridTurn(deps: Deps) {
               sessaoId: conv?.lunaSessaoId ?? undefined,
               detalhe_ambiente: detalheAmbiente,
               snapshotWorkspace,
+              ...(shouldForceLocalInPipeline() ? { forceLocal: true } : {}),
+              localLlmProfile: readLocalLlmProfile(),
               byokUid: billing?.byokUid ?? undefined,
               byokMeta: billing?.byokMeta ?? undefined,
+              reasoningEnabled: reasoningOn,
             })
 
             if (ac.signal.aborted) return
@@ -266,12 +322,15 @@ export function useIdeHybridTurn(deps: Deps) {
               text: resultado.resposta ?? '',
               streamingActive: false,
               turnStatusHint: undefined,
+              reasoningInProgress: false,
+              reasoningStreamingActive: false,
               agentSteps: agentSteps.length > 0 ? agentSteps : undefined,
               agentStepsInProgress: undefined,
             })
           } finally {
             removeStatusHint()
             removeToolComplete()
+            removeReasoning()
           }
           return
         }
@@ -286,11 +345,6 @@ export function useIdeHybridTurn(deps: Deps) {
         })
 
         if (abortSignalAborted(ac)) return
-
-        const lunaPipelineTrace = buildLunaPipelineTrace(resultado)
-        patchAssistantMessage(deps.updateConversation, convId, assistantMsgId, {
-          lunaPipelineTrace,
-        })
 
         applyLunaCoreResult(turnDeps, convId, assistantMsgId, resultado)
       } catch (err) {

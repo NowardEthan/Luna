@@ -28,12 +28,75 @@ const USE_HTTP_SERVER = process.env.LUNA_USE_SERVER !== '0'
 
 Menu.setApplicationMenu(null)
 
-const CHAT_WINDOW = { width: 560, height: 780, minWidth: 400, minHeight: 480 }
-const IDE_WINDOW = { width: 1280, height: 800, minWidth: 900, minHeight: 560 }
+const CHAT_WINDOW = { width: 1280, height: 820, minWidth: 960, minHeight: 680 }
+const IDE_WINDOW = { width: 1440, height: 900, minWidth: 1100, minHeight: 720 }
+const LOGIN_WINDOW = { width: 460, height: 720, minWidth: 460, minHeight: 720 }
 function applyWorkbenchBounds(win, mode) {
   const b = mode === 'ide' ? IDE_WINDOW : CHAT_WINDOW
   win.setMinimumSize(b.minWidth, b.minHeight)
   win.setSize(b.width, b.height, true)
+}
+
+/** Trava/destrava resize + tamanho mínimo da janela. Usado pela tela de login. */
+function applyLockSize(win, locked) {
+  if (locked) {
+    // Salva estado antes de travar — restaura no unlock.
+    try {
+      const wasMaximized = win.isMaximized() || win.isFullScreen()
+      win.__lunaWasMaximized = wasMaximized
+      if (!wasMaximized && !win.isMinimized()) {
+        const b = win.getBounds()
+        win.__lunaLastBounds = b
+      }
+    } catch {
+      /* ignore */
+    }
+    win.__lunaMinWidth = LOGIN_WINDOW.minWidth
+    win.__lunaMinHeight = LOGIN_WINDOW.minHeight
+    win.setResizable(false)
+    win.setMinimumSize(LOGIN_WINDOW.minWidth, LOGIN_WINDOW.minHeight)
+    win.setSize(LOGIN_WINDOW.width, LOGIN_WINDOW.height, true)
+    // Centraliza na tela ao travar.
+    try {
+      win.center()
+    } catch {
+      /* ignore */
+    }
+  } else {
+    // Destrava e expande pro tamanho confortável do app.
+    win.__lunaMinWidth = CHAT_WINDOW.minWidth
+    win.__lunaMinHeight = CHAT_WINDOW.minHeight
+    win.setResizable(true)
+    win.setMinimumSize(CHAT_WINDOW.minWidth, CHAT_WINDOW.minHeight)
+    if (win.__lunaWasMaximized) {
+      try {
+        win.maximize()
+      } catch {
+        /* ignore */
+      }
+    } else {
+      const last = win.__lunaLastBounds
+      if (
+        last &&
+        last.width >= CHAT_WINDOW.minWidth &&
+        last.height >= CHAT_WINDOW.minHeight
+      ) {
+        win.setSize(last.width, last.height, true)
+        try {
+          win.setPosition(last.x, last.y)
+        } catch {
+          /* ignore */
+        }
+      } else {
+        win.setSize(CHAT_WINDOW.width, CHAT_WINDOW.height, true)
+        try {
+          win.center()
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+  }
 }
 
 function createWindow() {
@@ -50,6 +113,24 @@ function createWindow() {
       sandbox: true,
       preload: path.join(__dirname, 'preload.cjs'),
     },
+  })
+
+  // Garante os limites também após criar (reforça o minWidth/minHeight do construtor).
+  try {
+    win.setMinimumSize(CHAT_WINDOW.minWidth, CHAT_WINDOW.minHeight)
+  } catch {
+    /* ignore */
+  }
+
+  // Bloqueia resize abaixo do mínimo (caso o usuário force via DevTools ou outro caminho).
+  win.on('will-resize', (_event, newBounds) => {
+    const minW =
+      win.__lunaMinWidth ?? CHAT_WINDOW.minWidth
+    const minH =
+      win.__lunaMinHeight ?? CHAT_WINDOW.minHeight
+    if (newBounds.width < minW || newBounds.height < minH) {
+      _event.preventDefault()
+    }
   })
 
   win.once('ready-to-show', () => {
@@ -117,8 +198,48 @@ function registerLunaFileExplorerIpc() {
 
   const lunaCore = require('./lunaCoreBridge.cjs')
 
-  ipcMain.handle('lunaCore:executarPipeline', async (_event, mensagem, sessaoId, opcoes) => {
-    return lunaCore.executarPipeline(mensagem, sessaoId, opcoes)
+  ipcMain.handle('lunaCore:executarPipeline', async (event, mensagem, sessaoId, opcoes) => {
+    return lunaCore.executarPipeline(event, mensagem, sessaoId, opcoes)
+  })
+
+  ipcMain.handle('lunaCore:getLlmRuntimeInfo', async () => {
+    try {
+      return lunaCore.getLlmRuntimeInfo()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      console.error('[lunaCore] getLlmRuntimeInfo falhou:', message)
+      return { ok: false, error: message }
+    }
+  })
+
+  ipcMain.handle('lunaCore:listLocalModels', async (_event, opts) => {
+    try {
+      return await lunaCore.listLocalModels(
+        opts?.baseUrl,
+        opts?.apiKey,
+      )
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      return { ok: false, error: message, models: [] }
+    }
+  })
+
+  ipcMain.handle('lunaCore:testLocalLlm', async (_event, opts) => {
+    try {
+      return await lunaCore.testLocalLlm(opts ?? {})
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      return { ok: false, error: message }
+    }
+  })
+
+  ipcMain.handle('lunaCore:applyLocalProfile', async (_event, profile) => {
+    try {
+      return lunaCore.applyLocalProfile(profile ?? {})
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      return { ok: false, error: message }
+    }
   })
 
   ipcMain.handle('lunaCore:prepararSessao', async (_event, sessaoId) => {
@@ -236,6 +357,12 @@ function registerIpc(services) {
     const win = BrowserWindow.fromWebContents(event.sender)
     if (!win) return
     applyWorkbenchBounds(win, mode === 'ide' ? 'ide' : 'chat')
+  })
+
+  ipcMain.handle('window:setLockSize', (event, locked) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win) return
+    applyLockSize(win, Boolean(locked))
   })
 
   registerForgeDesktopIpc()

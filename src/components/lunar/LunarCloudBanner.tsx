@@ -60,13 +60,6 @@ export function LunarCloudBanner({ className = '' }: Props) {
           </button>
           <button
             type="button"
-            className="luna-btn-secondary px-3 py-2"
-            onClick={() => auth.continueOffline()}
-          >
-            {t('lunarAccount.banner.offlineOnly')}
-          </button>
-          <button
-            type="button"
             className="px-2 py-2 text-ui text-fg-muted hover:text-fg"
             aria-label={t('lunarAccount.banner.dismissAria')}
             onClick={() => {

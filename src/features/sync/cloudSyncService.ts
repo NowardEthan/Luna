@@ -4,10 +4,14 @@ import {
   doc,
   getDoc,
   getDocs,
+  onSnapshot,
+  orderBy,
+  query,
   serverTimestamp,
   setDoc,
   writeBatch,
 } from 'firebase/firestore'
+import type { Unsubscribe } from 'firebase/firestore'
 import { eventBus } from '../../core/events/EventBus'
 import type { StoredState } from '../chat/state/conversationPersistence'
 import {
@@ -19,13 +23,18 @@ import type { ChatFolder, Conversation } from '../../types/chat'
 import type { CloudSyncMeta, CloudSyncState } from '../../types/cloudSync'
 import { isCloudSyncEnabled } from '../../types/cloudSync'
 import { getLunaAuth, getLunaFirestore } from '../../lib/firebase'
-import { userDoc } from '../../lib/firebase/paths'
+import {
+  userConversationDoc,
+  userConversationMessageCol,
+  userConversationMessageDoc,
+  userDoc,
+} from '../../lib/firebase/paths'
 import {
   applyCloudSettingsSnapshot,
   readCloudSettingsSnapshot,
 } from '../../lib/settingsCloudMap'
 import { readLunaCloudConfig } from '../../lib/lunaCloud'
-import { readUsageMode } from '../../lib/lunarAccount'
+import { isRealLunarUser } from '../../lib/lunarAccount'
 import { stripUndefinedForFirestore } from '../../lib/firebase/stripUndefined'
 import { loadUserMemory, saveUserMemory } from '../../lib/userMemoryStorage'
 import {
@@ -48,8 +57,20 @@ import {
 import {
   cloudEnabledConversationIds,
   dedupeConversations,
-  normalizeFirestoreConversation,
 } from './conversationSyncDedup'
+import {
+  buildCloudMeta,
+  buildCloudMetaIncrement,
+  conversationFromCloud,
+  messageFromCloud,
+  messageToCloud,
+} from './cloudSyncAdapters'
+import {
+  isLabCompatibleV2Doc,
+  isLegacyConversationDoc,
+  migrateLegacyConversation,
+} from './cloudSyncMigration'
+import type { CloudConversationMeta, CloudMessage } from '../../lib/firebase/types'
 
 const SETTINGS_DOC = 'app'
 const MIGRATION_KEY = 'luna-cloud-migrated'
@@ -77,6 +98,11 @@ function syncErrorMessage(err: unknown): string {
     : raw
 }
 
+/** UID atual do Firebase Auth (null se deslogado). */
+function getCurrentUid(): string | null {
+  return getLunaAuth()?.currentUser?.uid ?? null
+}
+
 class CloudSyncServiceImpl {
   private pushTimer: ReturnType<typeof setTimeout> | null = null
   private maxWaitTimer: ReturnType<typeof setTimeout> | null = null
@@ -87,6 +113,10 @@ class CloudSyncServiceImpl {
   private pushing = false
   private readonly runtime = new Map<string, RuntimeItem>()
   private readonly dirtyConversationIds = new Set<string>()
+
+  // Realtime sync (onSnapshot)
+  private realtimeUnsub: Unsubscribe | null = null
+  private isReceivingRemote = false // Flag para evitar loops de sync
 
   getStatus() {
     return {
@@ -124,9 +154,8 @@ class CloudSyncServiceImpl {
   isAvailable(): boolean {
     const cfg = readLunaCloudConfig()
     if (!cfg.syncEnabled || !cfg.firebase) return false
-    if (readUsageMode() === 'offline') return false
     const user = getLunaAuth()?.currentUser
-    return Boolean(user && !user.isAnonymous)
+    return isRealLunarUser(user)
   }
 
   getRuntimeState(id: string): CloudSyncState | null {
@@ -135,7 +164,7 @@ class CloudSyncServiceImpl {
 
   hasPendingChanges(id: string): boolean {
     if (this.dirtyConversationIds.has(id)) return true
-    const state = this.pendingState ?? hydrateFromLocalStorage()
+    const state = this.pendingState ?? hydrateFromLocalStorage(getCurrentUid())
     if (!state?.folders.some((f) => f.id === id)) return false
     const convIds = collectFolderSubtreeConversationIds(
       id,
@@ -156,7 +185,67 @@ class CloudSyncServiceImpl {
     this.lastPushFinishedAt = 0
     this.runtime.clear()
     this.dirtyConversationIds.clear()
+    this.stopRealtimeSync()
     this.emitTick()
+  }
+
+  // ─── Realtime Sync (onSnapshot) ─────────────────────────────────────────────
+
+  /** Inicia listener onSnapshot para sync em tempo real. */
+  startRealtimeSync(): void {
+    if (!this.isAvailable()) return
+    if (this.realtimeUnsub) return // Já está ativo
+
+    const db = getLunaFirestore()
+    const user = getLunaAuth()?.currentUser
+    if (!db || !user) return
+
+    const uid = user.uid
+    const convCol = collection(db, `${userDoc(uid)}/conversations`)
+
+    this.realtimeUnsub = onSnapshot(
+      convCol,
+      { includeMetadataChanges: false },
+      async (snap) => {
+        // Ignora mudanças que acabamos de fazer (evita loops)
+        if (this.isReceivingRemote) return
+        if (snap.metadata.hasPendingWrites) return // Ainda escrevendo localmente
+
+        const changes = snap.docChanges()
+        if (changes.length === 0) return
+
+        console.info('[cloudSync:realtime] Mudanças detectadas:', changes.length)
+
+        // Marca que estamos recebendo remote pra não fazer push de volta
+        this.isReceivingRemote = true
+
+        try {
+          await this.pullFromCloud()
+        } finally {
+          this.isReceivingRemote = false
+        }
+      },
+      (err) => {
+        console.error('[cloudSync:realtime] Erro no listener:', err)
+        this.stopRealtimeSync()
+      },
+    )
+
+    console.info('[cloudSync:realtime] Listener iniciado')
+  }
+
+  /** Para o listener onSnapshot. */
+  stopRealtimeSync(): void {
+    if (this.realtimeUnsub) {
+      this.realtimeUnsub()
+      this.realtimeUnsub = null
+      console.info('[cloudSync:realtime] Listener parado')
+    }
+  }
+
+  /** Retorna se o realtime sync está ativo. */
+  isRealtimeActive(): boolean {
+    return this.realtimeUnsub !== null
   }
 
   private emitTick(): void {
@@ -213,7 +302,7 @@ class CloudSyncServiceImpl {
   }
 
   private async flushPending(): Promise<void> {
-    const state = hydrateFromLocalStorage() ?? this.pendingState
+    const state = hydrateFromLocalStorage(getCurrentUid()) ?? this.pendingState
     if (!state || this.dirtyConversationIds.size === 0) return
 
     const elapsed = Date.now() - this.lastPushFinishedAt
@@ -229,76 +318,16 @@ class CloudSyncServiceImpl {
     await this.pushToCloud(state, { background: true })
   }
 
+  /** Marca conversa como cloud-enabled (cloud-first: sempre true). */
   async setConversationCloudEnabled(
     state: StoredState,
     conversationId: string,
     enabled: boolean,
   ): Promise<StoredState | null> {
-    const conv = state.conversations.find((c) => c.id === conversationId)
-    if (!conv) return null
-
-    const conversations = state.conversations.map((c) => {
-      if (c.id !== conversationId) return c
-      if (!enabled) {
-        const next = { ...c }
-        delete next.cloudSync
-        return next
-      }
-      return {
-        ...c,
-        cloudSync: { enabled: true } satisfies CloudSyncMeta,
-      }
-    })
-
-    const nextState: StoredState = { ...state, conversations }
-
-    if (!enabled) {
-      this.setRuntime('conversation', conversationId, 'local')
-      await this.removeConversationFromCloud(conversationId)
-      await this.pushSettingsOnly(nextState)
-      return nextState
-    }
-
-    const quota = this.assertQuotaForState(nextState)
-    if (!quota.ok) {
-      this.setRuntime('conversation', conversationId, 'error', quota.message)
-      return {
-        ...state,
-        conversations: state.conversations.map((c) =>
-          c.id === conversationId
-            ? {
-                ...c,
-                cloudSync: {
-                  enabled: true,
-                  lastError: quota.message,
-                },
-              }
-            : c,
-        ),
-      }
-    }
-
-    const ok = await this.pushSingleConversation(
-      conversations.find((c) => c.id === conversationId)!,
-    )
-    await this.pushSettingsOnly(nextState)
-    const synced = Date.now()
-    return {
-      ...nextState,
-      conversations: nextState.conversations.map((c) =>
-        c.id === conversationId
-          ? {
-              ...c,
-              cloudSync: ok
-                ? { enabled: true, lastSyncedAt: synced }
-                : {
-                    enabled: true,
-                    lastError: this.lastError ?? 'Erro ao enviar',
-                  },
-            }
-          : c,
-      ),
-    }
+    // Cloud-first: não há mais opt-out. Mantém o método para compatibilidade.
+    void enabled
+    if (!state.conversations.some((c) => c.id === conversationId)) return null
+    return state
   }
 
   private collectDescendantFolderIds(
@@ -319,79 +348,16 @@ class CloudSyncServiceImpl {
     return ids
   }
 
+  /** Marca pasta como cloud-enabled (cloud-first: sempre true). */
   async setFolderCloudEnabled(
     state: StoredState,
     folderId: string,
     enabled: boolean,
   ): Promise<StoredState | null> {
+    // Cloud-first: não há mais opt-out. Mantém o método para compatibilidade.
+    void enabled
     if (!state.folders.some((f) => f.id === folderId)) return null
-
-    const subtreeFolderIds = this.collectDescendantFolderIds(folderId, state.folders)
-    const convIds = collectFolderSubtreeConversationIds(
-      folderId,
-      state.folders,
-      state.conversations,
-    )
-
-    const conversations = state.conversations.map((c) => {
-      if (!convIds.includes(c.id)) return c
-      if (!enabled) {
-        const next = { ...c }
-        delete next.cloudSync
-        return next
-      }
-      return { ...c, cloudSync: { enabled: true } satisfies CloudSyncMeta }
-    })
-
-    const folders = state.folders.map((f) => {
-      if (!subtreeFolderIds.has(f.id)) return f
-      if (!enabled) {
-        const next = { ...f }
-        delete next.cloudSync
-        return next
-      }
-      return { ...f, cloudSync: { enabled: true } satisfies CloudSyncMeta }
-    })
-
-    const nextState: StoredState = { ...state, conversations, folders }
-
-    if (!enabled) {
-      for (const id of convIds) this.setRuntime('conversation', id, 'local')
-      for (const id of subtreeFolderIds) this.setRuntime('folder', id, 'local')
-      for (const id of convIds) await this.removeConversationFromCloud(id)
-      await this.pushSettingsOnly(nextState)
-      return nextState
-    }
-
-    const quota = this.assertQuotaForState(nextState)
-    if (!quota.ok) {
-      for (const id of convIds) {
-        this.setRuntime('conversation', id, 'error', quota.message)
-      }
-      for (const id of subtreeFolderIds) {
-        this.setRuntime('folder', id, 'error', quota.message)
-      }
-      return nextState
-    }
-
-    const ok = await this.pushToCloud(nextState, { force: true })
-    if (!ok) return nextState
-
-    const synced = Date.now()
-    const stamp = (): CloudSyncMeta => ({
-      enabled: true,
-      lastSyncedAt: synced,
-    })
-
-    return {
-      ...nextState,
-      conversations: nextState.conversations.map((c) =>
-        convIds.includes(c.id) ? { ...c, cloudSync: stamp() } : c,
-      ),
-      folders: nextState.folders.map((f) =>
-        subtreeFolderIds.has(f.id) ? { ...f, cloudSync: stamp() } : f,
-      ),
-    }
+    return state
   }
 
   async pullFromCloud(): Promise<void> {
@@ -408,7 +374,7 @@ class CloudSyncServiceImpl {
 
     try {
       const uid = user.uid
-      const local = hydrateFromLocalStorage()
+      const local = hydrateFromLocalStorage(getCurrentUid())
       const migrated = localStorage.getItem(MIGRATION_KEY) === uid
 
       const convCol = collection(db, `${userDoc(uid)}/conversations`)
@@ -416,8 +382,95 @@ class CloudSyncServiceImpl {
       const remoteConvs: Conversation[] = []
 
       for (const d of convSnap.docs) {
-        const conv = normalizeFirestoreConversation(d.id, d.data())
-        if (conv) remoteConvs.push(conv)
+        const raw = d.data() as Record<string, unknown>
+        const meta = raw as Partial<CloudConversationMeta>
+
+        // Schema v2 (legacy escreve): sem messages inline, subcoleção de messages.
+        // OU conversa Lab/Railway: mesma estrutura mas sem schemaVersion explícito.
+        if (meta.schemaVersion === 2 || isLabCompatibleV2Doc(raw)) {
+          if (meta.deletedAt) continue // soft-deleted, esconde
+
+          // Se o doc não tem schemaVersion=2 (caso Lab), marca pra coerência
+          const normalizedMeta: CloudConversationMeta = {
+            schemaVersion: 2,
+            title: typeof meta.title === 'string' ? meta.title : 'Conversa',
+            preview: typeof meta.preview === 'string' ? meta.preview : '',
+            lunaSessaoId:
+              typeof meta.lunaSessaoId === 'string'
+                ? meta.lunaSessaoId
+                : d.id,
+            createdAt:
+              (meta.createdAt as CloudConversationMeta['createdAt']) ??
+              (serverTimestamp() as unknown as CloudConversationMeta['createdAt']),
+            updatedAt:
+              (meta.updatedAt as CloudConversationMeta['updatedAt']) ??
+              (serverTimestamp() as unknown as CloudConversationMeta['updatedAt']),
+            messageCount: typeof meta.messageCount === 'number' ? meta.messageCount : 0,
+            titleLocked: meta.titleLocked === true,
+            deletedAt: (meta.deletedAt as CloudConversationMeta['deletedAt']) ?? null,
+            deletedMessageIds: Array.isArray(meta.deletedMessageIds)
+              ? (meta.deletedMessageIds as string[])
+              : [],
+            ...(meta.sourceMode && { sourceMode: meta.sourceMode }),
+            ...(meta.workspaceRoot !== undefined && { workspaceRoot: meta.workspaceRoot }),
+            ...(meta.folderId !== undefined && { folderId: meta.folderId }),
+            ...(typeof meta.pinned === 'boolean' && { pinned: meta.pinned }),
+            ...(meta.tags && { tags: meta.tags }),
+            ...(meta.cloudUpdatedAt && {
+              cloudUpdatedAt: meta.cloudUpdatedAt as CloudConversationMeta['cloudUpdatedAt'],
+            }),
+          }
+
+          const msgSnap = await getDocs(
+            query(
+              collection(db, userConversationMessageCol(uid, d.id)),
+              orderBy('createdAt', 'asc'),
+            ),
+          )
+          const messages = msgSnap.docs.map((md) =>
+            messageFromCloud(md.id, md.data() as CloudMessage),
+          )
+          const conv = conversationFromCloud(d.id, normalizedMeta, messages)
+          remoteConvs.push(conv)
+        } else if (isLegacyConversationDoc(raw)) {
+          // Doc legado (schemaVersion < 2, com messages inline).
+          // Migra pra schema novo na primeira puxada. Idempotente.
+          console.info(
+            `[cloudSync] migrando conversa legada ${d.id}...`,
+          )
+          try {
+            await migrateLegacyConversation(db, uid, d.id, raw)
+            // Após migração, lê a versão nova e inclui no resultado
+            const msgSnap = await getDocs(
+              query(
+                collection(db, userConversationMessageCol(uid, d.id)),
+                orderBy('createdAt', 'asc'),
+              ),
+            )
+            const messages = msgSnap.docs.map((md) =>
+              messageFromCloud(md.id, md.data() as CloudMessage),
+            )
+            // Re-lê o doc atualizado (agora schemaVersion=2)
+            const updatedSnap = await getDoc(
+              doc(db, userConversationDoc(uid, d.id)),
+            )
+            const updatedMeta = updatedSnap.data() as CloudConversationMeta | undefined
+            if (updatedMeta) {
+              const conv = conversationFromCloud(d.id, updatedMeta, messages)
+              remoteConvs.push(conv)
+            }
+          } catch (err) {
+            console.warn(
+              `[cloudSync] falha ao migrar ${d.id}:`,
+              err instanceof Error ? err.message : err,
+            )
+          }
+        } else {
+          // Doc vazio ou desconhecido — pula
+          console.warn(
+            `[cloudSync] conversa ${d.id} em formato desconhecido — ignorada`,
+          )
+        }
       }
 
       const settingsRef = doc(db, `${userDoc(uid)}/settings`, SETTINGS_DOC)
@@ -466,7 +519,7 @@ class CloudSyncServiceImpl {
           activeId: activeId ?? merged[0]?.id ?? '',
         }
 
-        persistToLocalStorage(stored)
+        persistToLocalStorage(stored, getCurrentUid())
 
         await this.pruneOrphanCloudDocuments(
           cloudEnabledConversationIds(stored.conversations),
@@ -543,27 +596,25 @@ class CloudSyncServiceImpl {
     return [...map.values()]
   }
 
-  /** Remove documentos Firestore que já não estão no estado local sincronizado. */
-  private async pruneOrphanCloudDocuments(keepIds: Set<string>): Promise<void> {
+  /** Remove documentos Firestore que já não estão no estado local sincronizado.
+   *  ATENÇÃO: BUG HISTÓRICO — esta função apagava conversas Lab que não estavam
+   *  no estado local do legacy (causando perda de dados). Foi DESABILITADA em
+   *  2026-08-09. Substituir por track explícito de deletes em conversa/folder.
+   *
+   *  Por enquanto é no-op com warning quando chamada.
+   */
+  private async pruneOrphanCloudDocuments(_keepIds: Set<string>): Promise<void> {
     if (!this.isAvailable()) return
-    const db = getLunaFirestore()
-    const user = getLunaAuth()?.currentUser
-    if (!db || !user) return
-
-    const convCol = collection(db, `${userDoc(user.uid)}/conversations`)
-    const snap = await getDocs(convCol)
-
-    const deletes: Promise<void>[] = []
-    for (const d of snap.docs) {
-      if (!keepIds.has(d.id)) {
-        deletes.push(
-          deleteDoc(d.ref).catch(() => {
-            /* ignore */
-          }),
-        )
-      }
-    }
-    await Promise.all(deletes)
+    console.warn(
+      '[cloudSync] pruneOrphanCloudDocuments desabilitado (vai causar inconsistência se houver conversas cloud-only)',
+    )
+    // ANTIGO (BUG — apaga conversas Lab-only):
+    //   const db = getLunaFirestore()
+    //   const user = getLunaAuth()?.currentUser
+    //   ...
+    //   for (const d of snap.docs) {
+    //     if (!keepIds.has(d.id)) await deleteDoc(d.ref)
+    //   }
   }
 
   /** Apaga conversa na nuvem (ex.: utilizador apagou localmente). */
@@ -589,7 +640,7 @@ class CloudSyncServiceImpl {
     const user = getLunaAuth()?.currentUser
     if (!db || !user) return false
 
-    const state = hydrateFromLocalStorage() ?? this.pendingState
+    const state = hydrateFromLocalStorage(getCurrentUid()) ?? this.pendingState
     if (state) {
       const quota = this.assertQuotaForState(state)
       if (!quota.ok) {
@@ -600,13 +651,45 @@ class CloudSyncServiceImpl {
 
     this.setRuntime('conversation', conv.id, 'syncing')
     try {
-      await setDoc(
-        doc(db, `${userDoc(user.uid)}/conversations`, conv.id),
-        stripUndefinedForFirestore({
-          ...conv,
-          cloudUpdatedAt: serverTimestamp(),
-        }),
-      )
+      // Schema v2: metadata sem messages; messages na subcoleção
+      const metaRef = doc(db, userConversationDoc(user.uid, conv.id))
+      // P1: se conversa já existe no Firestore, atualiza messageCount via
+      // increment(delta) — alinha com Lab, evita race de sobrescrita absoluta.
+      const existingSnap = await getDoc(metaRef)
+      const remoteCount =
+        existingSnap.exists() && typeof existingSnap.data()?.messageCount === 'number'
+          ? (existingSnap.data() as { messageCount: number }).messageCount
+          : 0
+      const delta = conv.messages.length - remoteCount
+
+      if (existingSnap.exists()) {
+        await setDoc(
+          metaRef,
+          stripUndefinedForFirestore(buildCloudMetaIncrement(conv, delta)) as Record<string, unknown>,
+          { merge: true },
+        )
+      } else {
+        await setDoc(
+          metaRef,
+          stripUndefinedForFirestore(buildCloudMeta(conv)) as Record<string, unknown>,
+        )
+      }
+
+      // Messages: chunks de 449 pra respeitar BATCH_LIMIT (450)
+      const messages = conv.messages
+      for (let i = 0; i < messages.length; i += 449) {
+        const batch = writeBatch(db)
+        const chunk = messages.slice(i, i + 449)
+        chunk.forEach((m, idx) => {
+          const cloudMsg = messageToCloud(m, i + idx)
+          batch.set(
+            doc(db, userConversationMessageDoc(user.uid, conv.id, m.id)),
+            stripUndefinedForFirestore(cloudMsg as unknown as Record<string, unknown>),
+          )
+        })
+        await batch.commit()
+      }
+
       this.clearRuntime('conversation', conv.id)
       this.dirtyConversationIds.delete(conv.id)
       this.lastSyncAt = Date.now()
@@ -699,7 +782,7 @@ class CloudSyncServiceImpl {
     const dedupedConversations = dedupeConversations(state.conversations)
     if (dedupedConversations.length !== state.conversations.length) {
       state = { ...state, conversations: dedupedConversations }
-      persistToLocalStorage(state)
+      persistToLocalStorage(state, getCurrentUid())
       eventBus.emit('lunar:sync:hydrate', {})
     }
 
@@ -751,6 +834,24 @@ class CloudSyncServiceImpl {
 
     try {
       const uid = user.uid
+      // P1: lê messageCount remoto de cada conversa antes do batch pra
+      // decidir entre full create (buildCloudMeta) e increment patch
+      // (buildCloudMetaIncrement). Alinha com Lab que também usa increment.
+      const remoteCounts = new Map<string, number>()
+      await Promise.all(
+        toPush.map(async (c) => {
+          try {
+            const snap = await getDoc(doc(db, userConversationDoc(uid, c.id)))
+            if (snap.exists()) {
+              const cnt = snap.data()?.messageCount
+              remoteCounts.set(c.id, typeof cnt === 'number' ? cnt : 0)
+            }
+          } catch {
+            /* ignore — vai tratar como nova */
+          }
+        }),
+      )
+
       let batch = writeBatch(db)
       let ops = 0
 
@@ -761,17 +862,48 @@ class CloudSyncServiceImpl {
         ops = 0
       }
 
+      // Schema v2: meta + subcoleção de messages
       for (const conv of toPush) {
-        const ref = doc(db, `${userDoc(uid)}/conversations`, conv.id)
-        batch.set(
-          ref,
-          stripUndefinedForFirestore({
-            ...conv,
-            cloudUpdatedAt: serverTimestamp(),
-          }),
-        )
+        const metaRef = doc(db, userConversationDoc(uid, conv.id))
+        const remoteCount = remoteCounts.get(conv.id)
+        if (remoteCount === undefined) {
+          // Conversa nova no Firestore — full create
+          batch.set(
+            metaRef,
+            stripUndefinedForFirestore(buildCloudMeta(conv)) as Record<string, unknown>,
+          )
+        } else {
+          // Conversa já existe — usa increment(delta) pra messageCount
+          const delta = conv.messages.length - remoteCount
+          batch.set(
+            metaRef,
+            stripUndefinedForFirestore(
+              buildCloudMetaIncrement(conv, delta),
+            ) as Record<string, unknown>,
+            { merge: true },
+          )
+        }
         ops++
-        if (ops >= BATCH_LIMIT) await commitBatch()
+
+        for (let i = 0; i < conv.messages.length; i++) {
+          const m = conv.messages[i]
+          batch.set(
+            doc(db, userConversationMessageDoc(uid, conv.id, m.id)),
+            stripUndefinedForFirestore(
+              messageToCloud(m, i) as unknown as Record<string, unknown>,
+            ),
+          )
+          ops++
+
+          if (ops >= BATCH_LIMIT - 2) {
+            // -2 pra dar espaço pro settings + memory abaixo
+            await commitBatch()
+          }
+        }
+
+        if (ops >= BATCH_LIMIT - 2) {
+          await commitBatch()
+        }
       }
 
       const settingsRef = doc(db, `${userDoc(uid)}/settings`, SETTINGS_DOC)
@@ -853,3 +985,16 @@ class CloudSyncServiceImpl {
 }
 
 export const cloudSyncService = new CloudSyncServiceImpl()
+
+// ─── Auth Event Listeners (realtime sync) ────────────────────────────────────
+
+eventBus.on('auth:signed-in', () => {
+  // Inicia realtime sync após login
+  cloudSyncService.startRealtimeSync()
+})
+
+eventBus.on('auth:signed-out', () => {
+  // Para realtime sync ao deslogar
+  cloudSyncService.stopRealtimeSync()
+  cloudSyncService.reset()
+})

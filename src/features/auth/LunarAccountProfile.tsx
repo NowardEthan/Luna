@@ -114,8 +114,18 @@ export function LunarAccountProfile({ onClose }: Props) {
   }
 
   const handleSignOut = async () => {
+    // signOutUser já abre o gate de login — não fechar aqui.
     await auth.signOut()
-    onClose?.()
+  }
+
+  const handleDeleteAccount = async () => {
+    try {
+      // deleteAccount → onAuthStateChanged dispara com user=null → gate abre
+      await auth.deleteAccount()
+    } catch (err) {
+      // erro já foi setado em auth.error pelo provider
+      console.warn('[Luna] Apagar conta:', err)
+    }
   }
 
   return (
@@ -144,18 +154,10 @@ export function LunarAccountProfile({ onClose }: Props) {
               />
               {cloudActive
                 ? t('lunarAccount.profile.statusCloud', { appName: BRAND_APP_NAME })
-                : signedIn
-                  ? t('lunarAccount.profile.statusOffline')
-                  : t('lunarAccount.profile.statusNoSession')}
+                : t('lunarAccount.profile.statusNoSession')}
             </p>
           </div>
         </div>
-
-        {!cloudActive && signedIn ? (
-          <p className="luna-callout-warning" role="status">
-            {t('lunarAccount.profile.cloudPaused')}
-          </p>
-        ) : null}
 
         <div className="mt-auto flex flex-col gap-2">
           {cloudActive && cloud.syncEnabled ? (
@@ -169,37 +171,33 @@ export function LunarAccountProfile({ onClose }: Props) {
                 ? t('lunarAccount.profile.syncing')
                 : t('lunarAccount.profile.syncNow')}
             </button>
-          ) : signedIn ? (
-            <button
-              type="button"
-              className="luna-btn-primary w-full px-4 py-2.5"
-              onClick={() => auth.setUsageModeCloud()}
-            >
-              {t('lunarAccount.profile.enableCloud')}
-            </button>
           ) : null}
 
           <div className="flex gap-2">
-            {cloudActive ? (
-              <button
-                type="button"
-                className="luna-btn-secondary flex-1 px-3 py-2 text-ui"
-                onClick={() => {
-                  auth.continueOffline()
-                  onClose?.()
-                }}
-              >
-                {t('lunarAccount.profile.offlineMode')}
-              </button>
-            ) : null}
             {signedIn ? (
-              <button
-                type="button"
-                className="luna-btn-secondary flex-1 px-3 py-2 text-ui text-danger"
-                onClick={() => void handleSignOut()}
-              >
-                {t('lunarAccount.profile.signOut')}
-              </button>
+              <>
+                <button
+                  type="button"
+                  className="luna-btn-secondary flex-1 px-3 py-2 text-ui text-danger"
+                  onClick={() => void handleSignOut()}
+                >
+                  {t('lunarAccount.profile.signOut')}
+                </button>
+                <button
+                  type="button"
+                  className="luna-btn-secondary px-3 py-2 text-ui text-danger"
+                  aria-label="Apagar conta"
+                  disabled={auth.auraBusy}
+                  onClick={() => {
+                    if (typeof window !== 'undefined' && !window.confirm('Apagar a conta? Esta ação não pode ser desfeita.')) {
+                      return
+                    }
+                    void handleDeleteAccount()
+                  }}
+                >
+                  {t('lunarAccount.profile.deleteAccount') ?? 'Apagar'}
+                </button>
+              </>
             ) : null}
           </div>
         </div>

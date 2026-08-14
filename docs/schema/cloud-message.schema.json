@@ -1,0 +1,246 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://luna.dev/schema/cloud-message.schema.json",
+  "title": "CloudMessage",
+  "description": "Documento de mensagem em users/{uid}/conversations/{conversationId}/messages/{messageId}. Subcoleção. Schema version 2.",
+  "type": "object",
+  "required": ["role", "text", "createdAt"],
+  "additionalProperties": false,
+  "properties": {
+    "role": {
+      "type": "string",
+      "enum": ["user", "assistant"],
+      "description": "Origem da mensagem. PADRÃO: 'assistant'. OrbitLab historicamente usa 'luna' — clientes devem aceitar ambos na leitura, gravar sempre 'assistant'."
+    },
+    "text": {
+      "type": "string",
+      "description": "Conteúdo textual da mensagem. Trim antes de salvar."
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Firebase Timestamp. Escrito APENAS na primeira escrita do doc; preservado em updates subsequentes (regra do Lab pra manter ordenação Railway)."
+    },
+    "reasoning": {
+      "type": "string",
+      "description": "Texto de reasoning do modelo (chain-of-thought mostrado ao usuário)."
+    },
+    "llmProvider": {
+      "type": "string",
+      "description": "Qual provider LLM gerou (openrouter/anthropic/etc). Útil pra histórico multi-provider.",
+      "writeOnly": false
+    },
+    "ragCitations": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/RagCitation" },
+      "description": "Citações RAG quando contexto foi injetado."
+    },
+    "research": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/ResearchStep" },
+      "description": "Passos de pesquisa web executados (Lab only). Cada step tem ferramenta, argumento, sucesso, fontes."
+    },
+    "plano": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/PlanStep" },
+      "description": "Plano de steps que o Luna montou (Lab only)."
+    },
+    "fluxo": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/FluxSegment" },
+      "description": "Segmentos narrativos do turno (narration + action), interleaved com research (Lab only)."
+    },
+    "imagens": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/GeneratedImage" },
+      "description": "Imagens geradas pelo Luna neste turno (Lab only)."
+    },
+    "attachments": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Attachment" },
+      "description": "Anexos do usuário (imagem/arquivo). Storage path: users/{uid}/conversations/{cid}/messages/{mid}/attachments/{aid}/{file}."
+    },
+    "reference": {
+      "oneOf": [
+        { "$ref": "#/$defs/ReferenceMessage" },
+        { "$ref": "#/$defs/ReferenceDocument" },
+        { "$ref": "#/$defs/ReferenceArtefato" }
+      ],
+      "description": "Se a mensagem é reply a outra mensagem/documento/artefato."
+    }
+  },
+  "$defs": {
+    "RagCitation": {
+      "type": "object",
+      "required": ["source", "excerpt"],
+      "additionalProperties": false,
+      "properties": {
+        "source": { "type": "string" },
+        "excerpt": { "type": "string" },
+        "url": { "type": "string" },
+        "score": { "type": "number" }
+      }
+    },
+    "ResearchStep": {
+      "type": "object",
+      "required": ["ferramenta", "argumento", "sucesso"],
+      "additionalProperties": false,
+      "properties": {
+        "ferramenta": {
+          "type": "string",
+          "enum": ["web_search", "ler_url", "ver_imagem", "ver_video", "consultar_atlas"]
+        },
+        "argumento": { "type": "string" },
+        "sucesso": { "type": "boolean" },
+        "fontes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["url"],
+            "additionalProperties": false,
+            "properties": {
+              "url": { "type": "string" },
+              "title": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "PlanStep": {
+      "type": "object",
+      "required": ["texto", "feito"],
+      "additionalProperties": false,
+      "properties": {
+        "texto": { "type": "string" },
+        "feito": { "type": "boolean" }
+      }
+    },
+    "FluxSegment": {
+      "type": "object",
+      "required": ["t"],
+      "additionalProperties": false,
+      "properties": {
+        "t": {
+          "type": "string",
+          "enum": ["n", "a"],
+          "description": "n = narration (texto). a = action (referencia research por índice)."
+        },
+        "texto": { "type": "string" },
+        "i": { "type": "integer" }
+      }
+    },
+    "GeneratedImage": {
+      "type": "object",
+      "required": ["url"],
+      "additionalProperties": false,
+      "properties": {
+        "url": { "type": ["string"] },
+        "prompt": { "type": "string" }
+      }
+    },
+    "Attachment": {
+      "type": "object",
+      "required": ["id", "kind", "name"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "description": "UUID do attachment" },
+        "kind": { "type": "string", "enum": ["image", "file"] },
+        "name": { "type": "string", "description": "Nome original do arquivo" },
+        "size": { "type": "integer", "description": "Bytes" },
+        "mime": { "type": "string" },
+        "uri": {
+          "type": "string",
+          "description": "URL remoto (Storage). Presente apenas após upload completo."
+        }
+      }
+    },
+    "ReferenceMessage": {
+      "type": "object",
+      "required": ["kind", "messageId", "role", "messageIndex"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "const": "message" },
+        "messageId": { "type": "string" },
+        "role": { "type": "string", "enum": ["user", "assistant"] },
+        "messageIndex": { "type": "integer" },
+        "excerpt": { "type": "string" },
+        "fullText": { "type": "string" }
+      }
+    },
+    "ReferenceDocument": {
+      "type": "object",
+      "required": ["kind", "messageId", "role", "messageIndex", "attachmentId"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "const": "document" },
+        "messageId": { "type": "string" },
+        "role": { "type": "string" },
+        "messageIndex": { "type": "integer" },
+        "excerpt": { "type": "string" },
+        "attachmentId": { "type": "string" },
+        "attachmentName": { "type": "string" },
+        "attachmentUri": { "type": "string" }
+      }
+    },
+    "ReferenceArtefato": {
+      "type": "object",
+      "required": ["kind", "messageId", "role", "documentoId"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "const": "artefato" },
+        "messageId": { "type": "string" },
+        "role": { "type": "string", "enum": ["user"] },
+        "messageIndex": { "type": "integer" },
+        "documentoId": { "type": "string" },
+        "titulo": { "type": "string" },
+        "trecho": { "type": "string" },
+        "excerpt": { "type": "string" }
+      }
+    }
+  },
+  "examples": [
+    {
+      "role": "user",
+      "text": "oi luna, como tá o dia?",
+      "createdAt": "2026-08-09T12:00:00Z"
+    },
+    {
+      "role": "assistant",
+      "text": "tudo ótimo! quer planejar algo?",
+      "createdAt": "2026-08-09T12:00:05Z",
+      "reasoning": "user cumprimentou, responder de forma leve",
+      "llmProvider": "openrouter",
+      "research": [],
+      "plano": [],
+      "fluxo": [],
+      "imagens": [],
+      "attachments": []
+    }
+  ],
+  "x-not-synced": {
+    "description": "Campos do Message local do orbit-legacy que NÃO sobem pro Firestore. Ficam só no client desktop.",
+    "fields": [
+      "id (gerado no client; doc.id do Firestore é a fonte de verdade no sync)",
+      "agentSteps",
+      "agentStepsInProgress",
+      "agentPhase",
+      "orchestratorRound",
+      "ideContexts",
+      "visionDescription",
+      "imageAttachments",
+      "memoryBadge",
+      "memoryNoteIds",
+      "memorySavedPreview",
+      "reasoningTrace",
+      "reasoningSegments",
+      "reasoningInProgress",
+      "reasoningStreamingActive",
+      "reasoningTranslating",
+      "streamingActive",
+      "turnStatusHint",
+      "lunaPipelineTrace",
+      "usedLlmFallback",
+      "turnDiagnostics"
+    ]
+  }
+}

@@ -150,7 +150,7 @@ export function AppSidebar({
 
   return (
     <aside
-      className="flex h-full w-60 shrink-0 flex-col overflow-hidden rounded-xl bg-sidebar"
+      className="flex h-full w-full shrink-0 flex-col overflow-hidden bg-sidebar sm:w-60 sm:rounded-xl"
       aria-label="Navegação principal"
     >
       {/* ── Header: logo / mode tabs + new chat ── */}

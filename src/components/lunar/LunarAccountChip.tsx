@@ -36,19 +36,14 @@ export function LunarAccountChip({
   const { t } = useTranslation()
   const auth = useLunaAuth()
   const connected = auth.isLunarConnected
-  const offline = auth.usageMode === 'offline'
 
   const label = connected
     ? auth.user?.displayName || auth.user?.email || t('lunarAccount.chip.accountFallback')
-    : offline
-      ? t('lunarAccount.chip.offline')
-      : t('lunarAccount.chip.signIn')
+    : t('lunarAccount.chip.signIn')
 
   const sublabel = connected
     ? t('lunarAccount.chip.sublabelConnected')
-    : offline
-      ? t('lunarAccount.chip.sublabelOffline')
-      : t('lunarAccount.chip.sublabelSignIn')
+    : t('lunarAccount.chip.sublabelSignIn')
 
   const handleClick = () => {
     if (onOpenAccount) onOpenAccount()
@@ -75,7 +70,7 @@ export function LunarAccountChip({
         <CloudIcon />
         <span
           className={`absolute bottom-1 right-1 size-2 rounded-full border border-sidebar ${
-            connected ? 'bg-emerald-400' : offline ? 'bg-fg-dim' : 'bg-amber-400'
+            connected ? 'bg-emerald-400' : 'bg-amber-400'
           }`}
           aria-hidden
         />
@@ -97,15 +92,13 @@ export function LunarAccountChip({
       >
         <span
           className={`size-1.5 shrink-0 rounded-full ${
-            connected ? 'bg-emerald-400' : offline ? 'bg-fg-dim' : 'bg-amber-400'
+            connected ? 'bg-emerald-400' : 'bg-amber-400'
           }`}
           aria-hidden
         />
         {connected
           ? t('lunarAccount.chip.compactLunar')
-          : offline
-            ? t('lunarAccount.chip.compactOffline')
-            : t('lunarAccount.chip.compactSignIn')}
+          : t('lunarAccount.chip.compactSignIn')}
       </button>
     )
   }

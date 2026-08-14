@@ -69,6 +69,7 @@ export async function syncTrialBilling(): Promise<TrialSyncResult> {
   }
   try {
     const headers = await getLunarAuthHeaders()
+    if (!headers.Authorization) return { ok: false, skipped: true }
     const res = await fetch(`${lunaServerBaseUrl()}/v1/billing/trial/sync`, {
       method: 'POST',
       headers,
@@ -143,6 +144,7 @@ export async function syncAsaasBilling(): Promise<SyncResult> {
   }
   try {
     const headers = await getLunarAuthHeaders()
+    if (!headers.Authorization) return { ok: false, ignored: true }
     const res = await fetch(`${lunaServerBaseUrl()}/v1/billing/sync`, {
       method: 'POST',
       headers,

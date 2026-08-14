@@ -20,7 +20,9 @@ export default defineConfig({
     port: 5173,
     host: '127.0.0.1',
     fs: {
-      allow: ['.', '.luna'],
+      // Permite importar componentes do projeto `orbit` irmão
+      // (ex: AurasigninScreen.tsx usa o LoginScreen de orbit/src/...)
+      allow: ['.', '.luna', '../orbit'],
     },
   },
 })

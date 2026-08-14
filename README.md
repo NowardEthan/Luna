@@ -1,8 +1,16 @@
-# Luna
+# Orbit *(legado)*
+
+> **Este repositório está congelado.** Não há desenvolvimento ativo. O sucessor arquitetural é **Luna Core + Luna Runtime** em `Projects/Luna`. Detalhes: **[LEGACY.md](LEGACY.md)**.
+
+---
+
+# Luna *(nome histórico deste app)*
 
 **Assistente de IA para desktop** com chat, IDE integrado, agente com ferramentas e memória semântica. Projeto **Lunar**.
 
 Interface em português brasileiro · Electron + React + servidor Python (FastAPI).
+
+> Documentação abaixo descreve o **estado legado** do app — mantida apenas como referência.
 
 ---
 
@@ -328,7 +336,7 @@ O chat usa o motor **Luna Core** via Electron IPC — não o seletor multi-LLM.
 **Orbit** (`.env`):
 
 ```env
-LUNA_CORE_PATH=C:\Users\ethan\Documents\Core\Luna\src\luna-core
+LUNA_CORE_PATH=C:\Users\ethan\Documents\Projects\Luna\core\src\luna-core
 ```
 
 **Luna Core** (`src/luna-core/.env` no repositório Core):

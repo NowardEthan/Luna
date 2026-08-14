@@ -2,6 +2,7 @@ import type { ChatFolder, Conversation } from '../../../types/chat'
 import {
   STORAGE_KEY,
   deriveTitle,
+  getStorageKey,
   initialStore,
   sanitizeState,
   welcomeMessages,
@@ -11,6 +12,7 @@ import {
 export {
   STORAGE_KEY,
   deriveTitle,
+  getStorageKey,
   initialStore,
   sanitizeState,
   welcomeMessages,
@@ -52,9 +54,10 @@ export function seedStoreAfterDelete(): {
   }
 }
 
-export function hydrateFromLocalStorage(): StoredState | null {
+/** Carrega do localStorage. Se `uid` mudar, cada conta tem sua própria chave. */
+export function hydrateFromLocalStorage(uid?: string | null): StoredState | null {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    const raw = localStorage.getItem(getStorageKey(uid))
     if (!raw) return null
     return sanitizeState(JSON.parse(raw) as unknown)
   } catch {
@@ -62,9 +65,13 @@ export function hydrateFromLocalStorage(): StoredState | null {
   }
 }
 
-export function persistToLocalStorage(state: StoredState): void {
+/** Persiste no localStorage da conta atual. */
+export function persistToLocalStorage(
+  state: StoredState,
+  uid?: string | null,
+): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+    localStorage.setItem(getStorageKey(uid), JSON.stringify(state))
   } catch {
     /* ignore */
   }

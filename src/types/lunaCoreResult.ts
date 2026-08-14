@@ -4,6 +4,7 @@ export type LunaCoreResposta = {
   texto?: string
   modelo?: string
   latencia_ms?: number
+  raciocinio?: string
 }
 
 export type LunaCoreAnalise = {
@@ -46,6 +47,8 @@ export type LunaCoreResultado = {
   analise?: LunaCoreAnalise
   memoria?: LunaCoreMemoria
   resposta?: LunaCoreResposta
+  /** Narrativa PT do pipeline PAIA — timeline rodada 1. */
+  narrativa_pipeline?: string
   sessao?: { id?: string }
   log_path?: string
   error?: string

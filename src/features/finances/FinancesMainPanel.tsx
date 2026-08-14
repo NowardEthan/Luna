@@ -147,22 +147,22 @@ export function FinancesMainPanel() {
         </p>
       ) : null}
 
-      <div className="flex min-h-0 flex-1 bg-surface">
+      <div className="flex min-h-0 flex-1 flex-col bg-surface md:flex-row">
         <nav
-          className="flex w-48 shrink-0 flex-col gap-1 overflow-y-auto border-r border-line bg-canvas/50 p-3 shadow-inner"
+          className="flex shrink-0 flex-row gap-1 overflow-x-auto border-b border-line bg-canvas/50 p-2 shadow-inner md:w-48 md:flex-col md:gap-1 md:overflow-y-auto md:border-b-0 md:border-r md:p-3"
           aria-label={t('finances.main.navAria')}
         >
           {tabs.map((tabItem) => (
             <button
               key={tabItem.id}
               type="button"
-              className={`group w-full justify-between ${lunaNavItemClass(tab === tabItem.id)}`}
+              className={`group shrink-0 justify-between whitespace-nowrap ${lunaNavItemClass(tab === tabItem.id)}`}
               aria-current={tab === tabItem.id ? 'page' : undefined}
               onClick={() => selectTab(tabItem.id)}
             >
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 md:gap-3">
                 <tabItem.icon className={`h-4 w-4 transition-transform ${tab === tabItem.id ? 'scale-110' : 'group-hover:scale-110'}`} />
-                {tabItem.label}
+                <span className="text-xs">{tabItem.label}</span>
               </div>
               {tabItem.id === 'notifications' && unread > 0 ? (
                 <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold ${tab === tabItem.id ? 'bg-white text-accent' : 'bg-danger text-white'}`}>
@@ -173,23 +173,23 @@ export function FinancesMainPanel() {
           ))}
         </nav>
 
-        <div className="min-h-0 flex-1 overflow-y-auto p-6 bg-canvas/30">
-          <header className="mb-6 flex items-center justify-between">
+        <div className="min-h-0 flex-1 overflow-y-auto p-4 bg-canvas/30 md:p-6">
+          <header className="mb-4 flex flex-wrap items-center justify-between gap-2 md:mb-6">
             <div>
-              <h2 className="text-2xl font-bold tracking-tight text-fg">{t('finances.main.title')}</h2>
-              <p className="mt-1 text-xs text-fg-muted">
+              <h2 className="text-xl font-bold tracking-tight text-fg md:text-2xl">{t('finances.main.title')}</h2>
+              <p className="mt-0.5 text-[11px] text-fg-muted md:mt-1 md:text-xs">
                 {t('finances.main.subtitle')}
               </p>
             </div>
             <button
               type="button"
               title={t('finances.common.askLunaTitle')}
-              className="luna-btn-primary flex size-10 items-center justify-center rounded-full p-0"
+              className="luna-btn-primary flex size-9 items-center justify-center rounded-full p-0 md:size-10"
               onClick={() => {
                 eventBus.emit('luna:chat:open', null)
               }}
             >
-              <LunaIcon className="h-5 w-5" />
+              <LunaIcon className="h-4 w-4 md:h-5 md:w-5" />
             </button>
           </header>
           {tab === 'dashboard' ? <FinancesDashboard /> : null}

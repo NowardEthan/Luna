@@ -20,6 +20,7 @@ type Deps = {
   updateConversation: LunaCoreTurnDeps['updateConversation']
   resolvePipelineOptions?: LunaCoreTurnDeps['resolvePipelineOptions']
   turnStatusHint?: string
+  reasoningEnabled?: boolean
 }
 
 export function useLunaCoreTurn(deps: Deps) {
@@ -60,6 +61,7 @@ export function useLunaCoreTurn(deps: Deps) {
         updateConversation: deps.updateConversation,
         resolvePipelineOptions: deps.resolvePipelineOptions,
         turnStatusHint: deps.turnStatusHint,
+        reasoningEnabled: deps.reasoningEnabled,
         billing,
       }
 

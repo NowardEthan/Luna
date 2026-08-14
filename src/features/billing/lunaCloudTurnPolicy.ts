@@ -1,7 +1,7 @@
 import type { LunaPlanId } from '../../lib/firebase/entitlements'
-import type { LunaUsageBreakdown } from './useLunaUsage'
 
-export type LunaUsageBreakdownKey = keyof LunaUsageBreakdown
+/** Chave de complexidade por breakdown (escrito pelo recordCloudTurn). */
+export type LunaUsageBreakdownKey = 'baixo' | 'moderado' | 'alto' | 'profundo'
 
 /** Turno conta na cota cloud (não local ilimitado, não BYOK). */
 export function shouldCountCloudTurn(params: {

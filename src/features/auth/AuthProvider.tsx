@@ -28,16 +28,18 @@ import {
   startGoogleSignIn,
 } from '../../lib/firebase/googleSignIn'
 import {
+  apagarConta as aurasigninApagarConta,
+  AuthError as AuraAuthError,
+  criarContaAura,
+  entrarComAura,
+  enviarResetSenha,
+} from '../../lib/firebase/aurasignin'
+import {
   ensureUserProfile,
   fetchUserProfileFromServer,
 } from '../../lib/firebase/userProfile'
 import { syncAsaasBilling, syncTrialBilling } from '../billing/billingApi'
-import {
-  isRealLunarUser,
-  readUsageMode,
-  writeUsageMode,
-  type LunaUsageMode,
-} from '../../lib/lunarAccount'
+import { isRealLunarUser } from '../../lib/lunarAccount'
 import { registerLunarTokenGetter } from '../../lib/lunarAuthHeaders'
 import { readLunaCloudConfig } from '../../lib/lunaCloud'
 import i18n from '../../i18n'
@@ -47,7 +49,6 @@ export type LunaAuthContextValue = {
   loading: boolean
   user: User | null
   idToken: string | null
-  usageMode: LunaUsageMode
   isLunarConnected: boolean
   entitlements: LunaEntitlements
   plan: LunaPlanId
@@ -59,10 +60,16 @@ export type LunaAuthContextValue = {
   closeGate: () => void
   signInWithGoogle: () => Promise<void>
   googleSignInBusy: boolean
+  /** Conta Aura (email/senha) — espelho do orbit. */
+  signInWithAura: (email: string, password: string) => Promise<void>
+  createAccountAura: (nome: string, email: string, password: string) => Promise<void>
+  resetPassword: (email: string) => Promise<void>
+  deleteAccount: () => Promise<void>
+  auraBusy: boolean
+  /** Reseta flags de busy (spinner preso). Use quando o gate monta. */
+  resetAuthBusy: () => void
   signInAnonymouslyDev: () => Promise<void>
   signOut: () => Promise<void>
-  continueOffline: () => void
-  setUsageModeCloud: () => void
   getIdToken: () => Promise<string | null>
   /** Recarrega plano/billing do servidor (Asaas + Firestore). */
   refreshAccount: () => Promise<void>
@@ -76,7 +83,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const cloud = useMemo(() => readLunaCloudConfig(), [])
   const [user, setUser] = useState<User | null>(null)
   const [idToken, setIdToken] = useState<string | null>(null)
-  const [usageMode, setUsageMode] = useState<LunaUsageMode>(readUsageMode)
   const [entitlements, setEntitlements] = useState<LunaEntitlements>(
     DEFAULT_LUNA_ENTITLEMENTS,
   )
@@ -86,9 +92,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null)
   const [gateOpen, setGateOpen] = useState(false)
   const [googleSignInBusy, setGoogleSignInBusy] = useState(false)
+  const [auraBusy, setAuraBusy] = useState(false)
 
-  const isLunarConnected =
-    usageMode === 'cloud' && isRealLunarUser(user)
+  const isLunarConnected = isRealLunarUser(user)
 
   const applyUserProfile = useCallback(
     (profile: {
@@ -125,11 +131,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const getter = async () => {
-      if (!user || user.isAnonymous || usageMode === 'offline') return null
+      if (!user || user.isAnonymous) return null
       return user.getIdToken()
     }
     return registerLunarTokenGetter(getter)
-  }, [user, usageMode])
+  }, [user])
 
   useEffect(() => {
     if (!configured) {
@@ -148,8 +154,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false)
       void refreshToken(next)
       if (next && !next.isAnonymous) {
-        writeUsageMode('cloud')
-        setUsageMode('cloud')
         void ensureUserProfile(next).then((profile) => {
           applyUserProfile(profile)
         })
@@ -263,8 +267,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     setGoogleSignInBusy(true)
     try {
-      writeUsageMode('cloud')
-      setUsageMode('cloud')
       const mode = await startGoogleSignIn(auth)
       if (mode === 'popup') setGateOpen(false)
     } catch (err) {
@@ -285,6 +287,69 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setGoogleSignInBusy(false)
     }
   }, [googleSignInBusy])
+
+  const signInWithAura = useCallback(async (email: string, password: string) => {
+    if (auraBusy) return
+    setError(null)
+    setAuraBusy(true)
+    try {
+      await entrarComAura(email, password)
+      setGateOpen(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Não foi possível entrar.')
+    } finally {
+      setAuraBusy(false)
+    }
+  }, [auraBusy])
+
+  const createAccountAura = useCallback(
+    async (nome: string, email: string, password: string) => {
+      if (auraBusy) return
+      setError(null)
+      setAuraBusy(true)
+      try {
+        await criarContaAura(nome, email, password)
+        setGateOpen(false)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Não foi possível criar a conta.')
+      } finally {
+        setAuraBusy(false)
+      }
+    },
+    [auraBusy],
+  )
+
+  const resetPassword = useCallback(async (email: string) => {
+    setError(null)
+    setAuraBusy(true)
+    try {
+      await enviarResetSenha(email)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Não foi possível enviar o email.')
+      throw err
+    } finally {
+      setAuraBusy(false)
+    }
+  }, [])
+
+  const deleteAccount = useCallback(async () => {
+    if (!user || user.isAnonymous) return
+    setError(null)
+    setAuraBusy(true)
+    try {
+      await aurasigninApagarConta()
+      // onAuthStateChanged vai disparar → user fica null → gate força login
+    } catch (err) {
+      if (err instanceof AuraAuthError) {
+        setError(err.message)
+      } else {
+        setError(err instanceof Error ? err.message : 'Não foi possível apagar a conta.')
+      }
+      throw err
+    } finally {
+      setAuraBusy(false)
+    }
+  }, [user])
 
   const signInAnonymouslyDev = useCallback(async () => {
     if (!cloud.anonAuthEnabled) {
@@ -308,13 +373,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [cloud.anonAuthEnabled])
 
+  /** Reseta busy flags — limpa spinner preso de promise pendurada. */
+  const resetAuthBusy = useCallback(() => {
+    setAuraBusy(false)
+    setGoogleSignInBusy(false)
+    setError(null)
+  }, [])
+
   const signOutUser = useCallback(async () => {
     setError(null)
+    setAuraBusy(false)
+    setGoogleSignInBusy(false)
     const auth = getLunaAuth()
     if (!auth) return
     try {
       await signOut(auth)
       setIdToken(null)
+      // Recarrega a janela — tela de login fullscreen assume no boot.
+      // Em Electron isso preserva o frame e a conexão nativa.
+      if (typeof window !== 'undefined') {
+        window.location.reload()
+      }
     } catch (err) {
       setError(
         err instanceof Error
@@ -324,24 +403,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  const continueOffline = useCallback(() => {
-    writeUsageMode('offline')
-    setUsageMode('offline')
-    eventBus.emit('lunar:usage-mode-changed', { mode: 'offline' })
-    setGateOpen(false)
-    void signOutUser()
-  }, [signOutUser])
-
-  const setUsageModeCloud = useCallback(() => {
-    writeUsageMode('cloud')
-    setUsageMode('cloud')
-    eventBus.emit('lunar:usage-mode-changed', { mode: 'cloud' })
-  }, [])
-
   const getIdToken = useCallback(async () => {
-    if (!user || user.isAnonymous || usageMode === 'offline') return null
+    if (!user || user.isAnonymous) return null
     return user.getIdToken()
-  }, [user, usageMode])
+  }, [user])
 
   const value = useMemo<LunaAuthContextValue>(
     () => ({
@@ -349,7 +414,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       user,
       idToken,
-      usageMode,
       isLunarConnected,
       entitlements,
       plan,
@@ -361,10 +425,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       closeGate: () => setGateOpen(false),
       signInWithGoogle,
       googleSignInBusy,
+      signInWithAura,
+      createAccountAura,
+      resetPassword,
+      deleteAccount,
+      auraBusy,
+      resetAuthBusy,
       signInAnonymouslyDev,
       signOut: signOutUser,
-      continueOffline,
-      setUsageModeCloud,
       getIdToken,
       refreshAccount,
       anonAuthAllowed: cloud.anonAuthEnabled && import.meta.env.DEV,
@@ -374,7 +442,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       user,
       idToken,
-      usageMode,
       isLunarConnected,
       entitlements,
       plan,
@@ -383,10 +450,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       gateOpen,
       signInWithGoogle,
       googleSignInBusy,
+      signInWithAura,
+      createAccountAura,
+      resetPassword,
+      deleteAccount,
+      auraBusy,
+      resetAuthBusy,
       signInAnonymouslyDev,
       signOutUser,
-      continueOffline,
-      setUsageModeCloud,
       getIdToken,
       refreshAccount,
       cloud.anonAuthEnabled,

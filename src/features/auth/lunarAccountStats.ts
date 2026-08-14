@@ -16,8 +16,8 @@ export type LunarRemoteCloudStats = {
   estimatedBytes: number
 }
 
-export function readLocalCloudStats(): LunarLocalCloudStats {
-  const state = hydrateFromLocalStorage()
+export function readLocalCloudStats(uid?: string | null): LunarLocalCloudStats {
+  const state = hydrateFromLocalStorage(uid)
   const conversations = state?.conversations ?? []
   const folders = state?.folders ?? []
   const inCloud = conversationsForCloudSync(conversations)

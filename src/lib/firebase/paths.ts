@@ -39,6 +39,14 @@ export function userConversationMessageDoc(
   return `${userConversationDoc(uid, conversationId)}/messages/${messageId}`
 }
 
+/** Path da subcoleção `messages` (sem message id) — usado em collection()/getDocs(). */
+export function userConversationMessageCol(
+  uid: string,
+  conversationId: string,
+): string {
+  return `${userConversationDoc(uid, conversationId)}/messages`
+}
+
 export function userSettingsDoc(uid: string): string {
   return `${userDoc(uid)}/${LUNA_FS.settings}/app`
 }

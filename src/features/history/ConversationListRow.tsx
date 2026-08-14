@@ -2,10 +2,8 @@ import { useMemo, type PointerEvent as ReactPointerEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { ChatFolder, Conversation } from '../../types/chat'
 import { requestConfirm } from '../../lib/confirm'
-import { CloudSyncToggleButton } from './CloudSyncToggleButton'
 import { ConversationTags } from './ConversationTags'
 import { HistoryOverflowMenu, type HistoryMenuItem } from './HistoryOverflowMenu'
-import { isCloudSyncEnabled } from '../../types/cloudSync'
 import { buildFolderTree, flattenFoldersForSelect } from './folderTree'
 import { formatUpdated, rowShell } from './utils'
 
@@ -27,8 +25,6 @@ type Props = {
   onMoveConversation: (id: string, folderId: string | null) => void
   onSetConversationTags?: (id: string, tags: string[]) => void
   onTogglePin?: (id: string) => void
-  cloudSyncAvailable?: boolean
-  onSetConversationCloudEnabled?: (id: string, enabled: boolean) => void
   isDragging?: boolean
   dragSessionActive?: boolean
   onGripPointerDown?: (e: ReactPointerEvent<Element>) => void
@@ -52,8 +48,6 @@ export function ConversationListRow({
   onMoveConversation,
   onSetConversationTags,
   onTogglePin,
-  cloudSyncAvailable = false,
-  onSetConversationCloudEnabled,
   isDragging = false,
   dragSessionActive = false,
   onGripPointerDown,
@@ -89,18 +83,7 @@ export function ConversationListRow({
     })),
   ]
 
-  const cloudEnabled = isCloudSyncEnabled(c.cloudSync)
-
   const menuItems: HistoryMenuItem[] = [
-    ...(cloudSyncAvailable && onSetConversationCloudEnabled
-      ? [
-          {
-            id: 'cloud',
-            label: cloudEnabled ? t('history.removeFromCloud') : t('history.saveToCloud'),
-            onClick: () => onSetConversationCloudEnabled(c.id, !cloudEnabled),
-          },
-        ]
-      : []),
     ...(onTogglePin
       ? [
           {
@@ -203,13 +186,6 @@ export function ConversationListRow({
 
           {!selectionMode ? (
             <>
-              <CloudSyncToggleButton
-                id={c.id}
-                meta={c.cloudSync}
-                available={Boolean(cloudSyncAvailable && onSetConversationCloudEnabled)}
-                itemLabel={c.title}
-                onToggle={(enabled) => onSetConversationCloudEnabled!(c.id, enabled)}
-              />
               <HistoryOverflowMenu
                 items={menuItems}
                 ariaLabel={t('history.actions', { title: c.title })}

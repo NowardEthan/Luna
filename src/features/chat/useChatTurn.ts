@@ -44,6 +44,7 @@ export function useChatTurn(deps: Deps) {
     conversations: deps.conversations,
     updateConversation: deps.updateConversation,
     resolvePipelineOptions: async () => compileChatPipelineOptions(),
+    reasoningEnabled: deps.reasoningEnabled,
   })
 
   const ide = useIdeHybridTurn({

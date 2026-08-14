@@ -89,12 +89,6 @@ type Props = {
 
   onTogglePin?: (id: string) => void
 
-  cloudSyncAvailable?: boolean
-
-  onSetConversationCloudEnabled?: (id: string, enabled: boolean) => void
-
-  onSetFolderCloudEnabled?: (id: string, enabled: boolean) => void
-
   onClose?: () => void
 
   /** Filtra conversas por universo (chat geral vs workspace IDE). */
@@ -145,12 +139,6 @@ export function HistoryPanel({
   onDeleteFolder,
 
   onTogglePin,
-
-  cloudSyncAvailable = false,
-
-  onSetConversationCloudEnabled,
-
-  onSetFolderCloudEnabled,
 
   onClose,
 
@@ -533,8 +521,6 @@ export function HistoryPanel({
         onSetConversationTags={onSetConversationTags}
 
         onTogglePin={onTogglePin}
-        cloudSyncAvailable={cloudSyncAvailable}
-        onSetConversationCloudEnabled={onSetConversationCloudEnabled}
         selectionMode={selection.selectionMode}
         selected={selection.isConversationSelected(c.id)}
         onToggleSelect={() => selection.toggleConversation(c.id)}
@@ -599,10 +585,6 @@ export function HistoryPanel({
         onNewConversation={onNewConversation}
 
         onDeleteFolder={onDeleteFolder}
-
-        cloudSyncAvailable={cloudSyncAvailable}
-
-        onSetFolderCloudEnabled={onSetFolderCloudEnabled}
 
         folders={folders}
 

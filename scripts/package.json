@@ -1,0 +1,12 @@
+{
+  "name": "luna-legacy-admin-scripts",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Scripts administrativos one-off para o Legacy (não usar em produção).",
+  "scripts": {
+    "set-owner": "node set-owner-flag.js"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.0.0"
+  }
+}

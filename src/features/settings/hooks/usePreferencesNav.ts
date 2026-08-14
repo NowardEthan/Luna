@@ -8,6 +8,7 @@ function readStoredSection(): PreferencesSectionId {
     const raw = sessionStorage.getItem(STORAGE_KEY)
     if (
       raw === 'conversation' ||
+      raw === 'llm' ||
       raw === 'appearance' ||
       raw === 'documents' ||
       raw === 'memory' ||

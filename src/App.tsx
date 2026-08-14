@@ -1,10 +1,11 @@
 import { AppProviders } from './shell/AppProviders'
 import { AppShell } from './shell/AppShell'
+import { AuthGate } from './features/auth/AuthGate'
 
 export default function App() {
   return (
     <AppProviders>
-      <AppShell />
+      <AuthGate app={<AppShell />} />
     </AppProviders>
   )
 }

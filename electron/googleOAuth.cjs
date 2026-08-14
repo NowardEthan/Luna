@@ -8,9 +8,9 @@ const { URL } = require('url')
 const { shell } = require('electron')
 
 const OAUTH_PORT = 5167
-/** Mesmo client Web que o projeto Luna (luna-8787d) — comprovado a funcionar. */
+/** Web client do projeto Luna (luna-8787d) — mesmo do OrbitLab/Orbit Mobile. */
 const LUNA_GOOGLE_WEB_CLIENT_ID =
-  '529601808898-nmlorgto19a1smpagh6vj33mn4b1g2qi.apps.googleusercontent.com'
+  '1068126871324-pdg1e88q4j69cnmrd8fomntujoc0cm4c.apps.googleusercontent.com'
 
 const AUTH_LANDING_HTML = `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>Luna</title></head>

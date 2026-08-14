@@ -20,7 +20,9 @@ export function MainLayout({
       {titleBar}
       <div className={`flex min-h-0 flex-1 ${compact ? 'p-0' : 'p-2'}`}>
         <div
-          className={`flex min-h-0 flex-1 min-w-0 ${compact ? 'gap-0' : 'gap-2'}`}
+          className={`flex min-h-0 min-w-0 w-full flex-1 flex-col ${
+            compact ? 'gap-0' : 'gap-2'
+          } sm:flex-row`}
         >
           {sidebar}
           <div

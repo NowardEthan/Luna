@@ -2,6 +2,41 @@
 
 Guia rápido para preencher chaves e alternar **local** ↔ **cloud**.
 
+**Na app:** Definições → **Modelos LLM** — preferência (Automático / Local / Cloud), URL do LM Studio, modelos **menor + maior**, teste de ligação e botão opcional **Aplicar ao .env**.
+
+---
+
+## Configurar Qwen no LM Studio pela UI
+
+1. Abre LM Studio → carrega o modelo (ex. Qwen2.5-VL-7B) → activa **Local Server** na porta `1234`.
+2. Orbit → **Definições → Modelos LLM** → escolhe **Local**.
+3. URL: `http://127.0.0.1:1234/v1` → **Actualizar lista**.
+4. **Modelo menor** — análise, memória, avaliador (pode ser o mesmo Qwen).
+5. **Modelo maior** — chat, agente Forge, planejador.
+6. **Testar ligação** → **Guardar** (runtime imediato via perfil na app).
+7. (Opcional) **Aplicar ao .env** — grava em `luna-core/.env` e `Orbit/.env` para sobreviver a reinstalações.
+
+**Precedência em runtime:** perfil guardado na app → `.env` → defaults do perfil `local.env`.
+
+---
+
+## Esquema (fluxo)
+
+```mermaid
+flowchart TB
+  UI[Orbit UI] -->|IPC| Core[Luna Core pipeline]
+  Core --> Env[".env / npm run luna-env:*"]
+  Env --> Local["LOCAL — LM Studio :1234"]
+  Env --> Cloud["CLOUD — Groq / servidor"]
+  Pref["Preferência UI\n(auto | local | cloud)"] -.->|forceLocal se local| Core
+```
+
+| Camada | O quê |
+|--------|--------|
+| `.env` / perfis | Configuração real (`LUNA_API_BASE`, modelos) |
+| Definições → Modelos LLM | Preferência do utilizador + estado detectado |
+| Conta Lunar (Cloud) | Sync, login, cota — **independente** do LM Studio |
+
 ---
 
 ## 1. O que vai onde

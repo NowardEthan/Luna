@@ -15,8 +15,8 @@ export function FinancesWorkbench({ chatPanel }: Props) {
         storageKey="finances-chat"
         defaultLeadingSize={520}
         defaultLeadingRatio={0.58}
-        minLeading={320}
-        minTrailing={300}
+        minLeading={280}
+        minTrailing={260}
         leading={<FinancesMainPanel />}
         trailing={
           <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden border-l border-line-subtle bg-canvas">

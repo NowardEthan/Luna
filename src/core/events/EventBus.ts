@@ -35,7 +35,6 @@ export type LunaEventMap = {
   }
   'auth:signed-out': Record<string, never>
   'lunar:auth-required': { reason?: string }
-  'lunar:usage-mode-changed': { mode: 'offline' | 'cloud' }
   'lunar:sync:start': Record<string, never>
   'lunar:sync:complete': {
     ok: boolean

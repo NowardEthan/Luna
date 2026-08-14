@@ -8,16 +8,14 @@ import { cloudSyncService } from '../sync/cloudSyncService'
 import { useCloudSyncTick } from '../sync/useCloudSyncTick'
 import { useLunaAuth } from './AuthProvider'
 import { LunarAccountModal } from './LunarAccountModal'
-import { LunarAccountSignIn } from './LunarAccountSignIn'
+import { AurasigninScreen } from './AurasigninScreen'
 import { CloudStorageQuotaBar } from './CloudStorageQuotaBar'
 import { useLunarAccountStats } from './useLunarAccountStats'
 import { PLANS, PLAN_DISPLAY_LABELS } from '../billing/plans'
 import { PlanCard } from '../billing/PlanCard'
 import { useLunaUsage } from '../billing/useLunaUsage'
-import { useLunaUsageHistory } from '../billing/useLunaUsageHistory'
 import type { PlanConfig } from '../billing/plans'
 import { deleteLunarAccount, startAsaasCheckout, startCreditPackCheckout } from '../billing/billingApi'
-import { useSyncPreferences } from '../sync/useSyncPreferences'
 import { Switch } from '../../components/ui/Switch'
 import { requestCpfCnpj } from '../../lib/cpfCnpjPrompt'
 import { ByokProviderSelector } from '../billing/ByokProviderSelector'
@@ -193,8 +191,8 @@ function ContaTab({ onClose }: { onClose?: () => void; planId?: LunaPlanId }) {
   const [deleteConfirm, setDeleteConfirm] = useState(false)
 
   const handleSignOut = async () => {
+    // signOutUser já abre o gate de login — não fechar aqui.
     await auth.signOut()
-    onClose?.()
   }
 
   const handleDeleteAccount = async () => {
@@ -208,8 +206,8 @@ function ContaTab({ onClose }: { onClose?: () => void; planId?: LunaPlanId }) {
       const result = await deleteLunarAccount()
       if (result.ok) {
         showToast('Conta excluída.', 'info', 5000)
+        // signOutUser abre o gate de login — não fechar aqui.
         await auth.signOut()
-        onClose?.()
       } else {
         showToast(result.error ?? 'Não foi possível excluir a conta.', 'error', 6000)
         setDeleteConfirm(false)
@@ -277,16 +275,6 @@ function ContaTab({ onClose }: { onClose?: () => void; planId?: LunaPlanId }) {
 
       {/* Ações */}
       <div className="flex flex-col gap-2">
-        {signedIn && !cloudActive ? (
-          <button type="button" className="luna-btn-primary w-full px-4 py-2.5" onClick={() => auth.setUsageModeCloud()}>
-            {t('lunarAccount.profile.enableCloud')}
-          </button>
-        ) : null}
-        {cloudActive ? (
-          <button type="button" className="luna-btn-secondary w-full px-3 py-2 text-ui" onClick={() => { auth.continueOffline(); onClose?.() }}>
-            {t('lunarAccount.profile.offlineMode')}
-          </button>
-        ) : null}
         {signedIn ? (
           <button type="button" className="luna-btn-secondary w-full px-3 py-2 text-ui text-danger" onClick={() => void handleSignOut()}>
             {t('lunarAccount.profile.signOut')}
@@ -340,12 +328,26 @@ function UsageTab({
   uid: string | undefined
 }) {
   const auth = useLunaAuth()
-  const history = useLunaUsageHistory(3)
   const [packBusy, setPackBusy] = useState(false)
-  const { used, limit, effectiveLimit, bonusTurns, pct, resetDays, breakdown, loading } = usage
+  const {
+    windowTokens,
+    windowLimit,
+    windowResetsAtMs,
+    weeklyTokens,
+    weeklyLimit,
+    weeklyResetsAtMs,
+    bonusTurns,
+    isOwner,
+    pct,
+    resetDays,
+    loading,
+  } = usage
   const isByok = planId === 'byok'
   const onTrial = auth.billing?.status === 'trial'
   const trialDaysLeft = daysUntilDate(auth.billing?.trialEndsAt)
+
+  // Helper declarado antes de qualquer `return` antecipado (isOwner, isByok).
+  const fmtTokens = (n: number) => n.toLocaleString('pt-BR')
 
   const handleCreditPack = async () => {
     if (packBusy) return
@@ -377,7 +379,7 @@ function UsageTab({
           <span className="text-3xl">∞</span>
           <p className="mt-2 text-[13px] font-semibold text-fg">Uso ilimitado</p>
           <p className="mt-1 text-[12px] text-fg-muted">
-            Você traz sua própria API — sem cotas mensais na Luna.
+            Você traz sua própria API — sem cotas na Luna.
           </p>
         </div>
 
@@ -396,110 +398,60 @@ function UsageTab({
     )
   }
 
-  const displayLimit = effectiveLimit ?? limit
-
-  const COMPLEXITY_ITEMS = [
-    { label: 'Baixo', value: breakdown.baixo, bg: 'bg-success/10', text: 'text-success', desc: '8B' },
-    { label: 'Moderado', value: breakdown.moderado, bg: 'bg-accent/10', text: 'text-accent', desc: '32B' },
-    { label: 'Alto', value: breakdown.alto, bg: 'bg-warning/10', text: 'text-warning', desc: '70B' },
-    { label: 'Profundo', value: breakdown.profundo, bg: 'bg-danger/10', text: 'text-danger', desc: '405B' },
-  ]
-
-  return (
-    <div className="flex flex-col gap-6">
-      <SectionLabel>Uso este mês</SectionLabel>
-
-      {loading ? (
-        <>
-          <UsageMeterSkeleton />
-          <div>
-            <SectionLabel>Por complexidade</SectionLabel>
-            <div className="grid grid-cols-4 gap-2">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <Skeleton key={i} className="h-[72px] rounded-xl" />
-              ))}
+  // Conta marcada como owner — sem teto de tokens, independente do plano.
+  if (isOwner) {
+    return (
+      <div className="flex flex-col gap-6">
+        {/* Header card com badge */}
+        <div className="flex items-center justify-between rounded-xl border border-accent/25 bg-accent/10 px-4 py-3">
+          <div className="flex items-center gap-2.5">
+            <span className="flex size-7 items-center justify-center rounded-lg bg-accent/20 text-accent">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <path d="M12 2l2.4 7.4H22l-6.2 4.5L18.2 22 12 17.5 5.8 22l2.4-8.1L2 9.4h7.6z" />
+              </svg>
+            </span>
+            <div>
+              <p className="text-[12px] font-semibold text-fg">Conta owner</p>
+              <p className="text-[10px] text-fg-muted">Uso ilimitado · sem teto de janela nem semanal</p>
             </div>
           </div>
-        </>
-      ) : (
-        <>
-      {onTrial && trialDaysLeft !== null ? (
-        <p className="rounded-xl border border-accent/25 bg-accent/10 px-4 py-2.5 text-[12px] text-accent">
-          Trial Pro — {trialDaysLeft} dia{trialDaysLeft === 1 ? '' : 's'} restante{trialDaysLeft === 1 ? '' : 's'}.
-          Depois volta ao plano Free.
-        </p>
-      ) : null}
-
-      {/* Main progress bar */}
-      <div className="-mt-3">
-        <div className="mb-2 flex items-baseline justify-between">
-          <span className="text-[22px] font-bold tabular-nums text-fg">
-            {used}
-            <span className="ml-1 text-[13px] font-normal text-fg-muted">
-              {displayLimit !== null
-                ? `/ ${displayLimit.toLocaleString('pt-BR')} turns`
-                : 'turns'}
-            </span>
+          <span className="rounded-full bg-accent px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent-fg">
+            ∞
           </span>
-          <div className="flex items-baseline gap-2.5">
-            <span className="text-[11px] text-fg-muted">
-              {onTrial && trialDaysLeft !== null
-                ? `Trial expira em ${trialDaysLeft}d`
-                : `Renova em ${resetDays} dias`}
-            </span>
-            <span className={`text-[13px] font-semibold ${pctTextColor(pct)}`}>{pct}%</span>
+        </div>
+
+        {/* Stats grid — só pra você ver o quanto gastou */}
+        <div>
+          <SectionLabel>Uso registrado</SectionLabel>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="rounded-xl border border-line-subtle bg-canvas px-3 py-3">
+              <p className="text-[10px] font-medium uppercase tracking-wide text-fg-muted">Janela 5h</p>
+              <p className="mt-1 text-[16px] font-bold tabular-nums text-fg">
+                {loading ? '—' : fmtTokens(windowTokens)}
+              </p>
+              <p className="text-[10px] text-fg-muted">tokens</p>
+            </div>
+            <div className="rounded-xl border border-line-subtle bg-canvas px-3 py-3">
+              <p className="text-[10px] font-medium uppercase tracking-wide text-fg-muted">Esta semana</p>
+              <p className="mt-1 text-[16px] font-bold tabular-nums text-fg">
+                {loading ? '—' : fmtTokens(weeklyTokens)}
+              </p>
+              <p className="text-[10px] text-fg-muted">tokens</p>
+            </div>
           </div>
         </div>
+
+        {/* Bonus turns (se tiver) */}
         {bonusTurns > 0 ? (
-          <p className="mb-2 text-[10px] text-fg-muted">
-            Inclui +{bonusTurns.toLocaleString('pt-BR')} turns de pack avulso este mês.
-          </p>
+          <div className="rounded-xl border border-line-subtle bg-canvas px-4 py-3">
+            <p className="text-[12px] text-fg">
+              +{bonusTurns.toLocaleString('pt-BR')}{' '}
+              <span className="text-fg-muted">turns extras este mês</span>
+            </p>
+          </div>
         ) : null}
-        <div className="h-2.5 w-full overflow-hidden rounded-full bg-raised">
-          <div
-            className={`h-full rounded-full transition-all ${pctColor(pct)}`}
-            style={{ width: `${pct}%` }}
-          />
-        </div>
-        {pct >= 80 ? (
-          <p className="mt-2 text-[11px] text-warning">
-            Você está próximo do limite. Considere fazer upgrade ou adicionar créditos.
-          </p>
-        ) : null}
-      </div>
 
-      {/* Complexity breakdown */}
-      <div>
-        <SectionLabel>Por complexidade</SectionLabel>
-        <div className="grid grid-cols-4 gap-2">
-          {COMPLEXITY_ITEMS.map((c) => (
-            <div key={c.label} className={`rounded-xl ${c.bg} px-2 py-3 text-center`}>
-              <p className="text-[18px] font-bold tabular-nums text-fg">{c.value}</p>
-              <p className={`mt-0.5 text-[9px] font-semibold uppercase tracking-wide ${c.text}`}>
-                {c.label}
-              </p>
-              <p className="mt-1 text-[9px] text-fg-muted">{c.desc}</p>
-            </div>
-          ))}
-        </div>
-        <p className="mt-2 text-[10px] text-fg-muted">
-          O TálamoPipeline roteia cada turn pelo modelo ideal automaticamente.
-        </p>
-      </div>
-        </>
-      )}
-
-      {/* Add credits / upgrade CTA — visível após carregar */}
-      {!loading ? (
-        planId === 'free' ? (
-        <button
-          type="button"
-          className="luna-btn-primary w-full px-4 py-2.5 text-[13px]"
-          onClick={() => onNavigate('planos')}
-        >
-          Fazer upgrade para mais turns
-        </button>
-      ) : (
+        {/* Pack CTA — ainda disponível pra owner que queira dar de presente */}
         <div className="flex items-center justify-between rounded-xl border border-line bg-canvas px-4 py-3">
           <div>
             <p className="text-[12px] font-semibold text-fg">Pack de créditos</p>
@@ -514,47 +466,152 @@ function UsageTab({
             {packBusy ? '…' : 'Comprar'}
           </button>
         </div>
-      )
+      </div>
+    )
+  }
+
+  const windowPct = windowLimit ? Math.min(100, (windowTokens / windowLimit) * 100) : 0
+  const weeklyPct = weeklyLimit ? Math.min(100, (weeklyTokens / weeklyLimit) * 100) : 0
+
+  const fmtReset = (ms: number | null) => {
+    if (!ms) return '—'
+    const diff = ms - Date.now()
+    if (diff <= 0) return 'agora'
+    const min = Math.ceil(diff / 60_000)
+    if (min < 60) return `${min}m`
+    const hr = Math.floor(min / 60)
+    const rem = min % 60
+    return rem > 0 ? `${hr}h${rem}m` : `${hr}h`
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      {onTrial && trialDaysLeft !== null ? (
+        <p className="rounded-xl border border-accent/25 bg-accent/10 px-4 py-2.5 text-[12px] text-accent">
+          Trial Pro — {trialDaysLeft} dia{trialDaysLeft === 1 ? '' : 's'} restante{trialDaysLeft === 1 ? '' : 's'}.
+          Depois volta ao plano Free.
+        </p>
       ) : null}
 
-      {/* Histórico real (últimos 3 meses) */}
-      {!loading ? (
-      <div>
-        <SectionLabel>Histórico</SectionLabel>
-        {history.loading ? (
-          <div className="space-y-3">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <Skeleton key={i} className="h-8 rounded-lg" />
-            ))}
-          </div>
-        ) : (
+      {loading ? (
         <div className="space-y-3">
-          {history.items.map((h) => {
-            const monthLimit = (limit ?? 0) + h.bonusTurns
-            const hPct = monthLimit > 0
-              ? Math.min(100, Math.floor((h.used / monthLimit) * 100))
-              : 0
-            return (
-              <div key={h.monthKey}>
-                <div className="mb-1.5 flex items-center justify-between text-[11px]">
-                  <span className="text-fg-dim">{h.monthLabel}</span>
-                  <span className="text-fg-muted">
-                    {h.used.toLocaleString('pt-BR')} / {monthLimit.toLocaleString('pt-BR')}
-                    {h.bonusTurns > 0 ? ` (+${h.bonusTurns} pack)` : ''}
-                  </span>
-                </div>
-                <div className="h-1.5 w-full overflow-hidden rounded-full bg-raised">
-                  <div
-                    className={`h-full rounded-full ${hPct >= 90 ? 'bg-danger/60' : 'bg-accent/50'}`}
-                    style={{ width: `${hPct}%` }}
-                  />
-                </div>
-              </div>
-            )
-          })}
+          <UsageMeterSkeleton />
+          <UsageMeterSkeleton />
         </div>
-        )}
-      </div>
+      ) : (
+        <>
+          {/* Janela rolling 5h */}
+          <div>
+            <div className="mb-1.5 flex items-center justify-between">
+              <span className="text-[11px] font-medium text-fg-dim">Janela 5h</span>
+              <span className="text-[11px] text-fg-muted">
+                reseta em {fmtReset(windowResetsAtMs)}
+              </span>
+            </div>
+            <div className="mb-1 flex items-baseline justify-between">
+              <span className="text-[18px] font-bold tabular-nums text-fg">
+                {fmtTokens(windowTokens)}
+                {windowLimit !== null && (
+                  <span className="ml-1 text-[11px] font-normal text-fg-muted">
+                    / {fmtTokens(windowLimit)}
+                  </span>
+                )}
+                <span className="ml-1 text-[10px] font-normal text-fg-muted">tokens</span>
+              </span>
+              <span className={`text-[12px] font-semibold ${pctTextColor(windowPct)}`}>
+                {windowPct.toFixed(1)}%
+              </span>
+            </div>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-raised">
+              <div
+                className={`h-full rounded-full transition-all ${pctColor(windowPct)}`}
+                style={{ width: `${windowPct}%` }}
+              />
+            </div>
+          </div>
+
+          {/* Janela semanal */}
+          <div>
+            <div className="mb-1.5 flex items-center justify-between">
+              <span className="text-[11px] font-medium text-fg-dim">Esta semana</span>
+              <span className="text-[11px] text-fg-muted">
+                reseta em {fmtReset(weeklyResetsAtMs)}
+              </span>
+            </div>
+            <div className="mb-1 flex items-baseline justify-between">
+              <span className="text-[18px] font-bold tabular-nums text-fg">
+                {fmtTokens(weeklyTokens)}
+                {weeklyLimit !== null && (
+                  <span className="ml-1 text-[11px] font-normal text-fg-muted">
+                    / {fmtTokens(weeklyLimit)}
+                  </span>
+                )}
+                <span className="ml-1 text-[10px] font-normal text-fg-muted">tokens</span>
+              </span>
+              <span className={`text-[12px] font-semibold ${pctTextColor(weeklyPct)}`}>
+                {weeklyPct.toFixed(1)}%
+              </span>
+            </div>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-raised">
+              <div
+                className={`h-full rounded-full transition-all ${pctColor(weeklyPct)}`}
+                style={{ width: `${weeklyPct}%` }}
+              />
+            </div>
+          </div>
+
+          {/* Bonus turns */}
+          {bonusTurns > 0 ? (
+            <div className="rounded-xl border border-line-subtle bg-canvas px-4 py-3">
+              <p className="text-[12px] text-fg">
+                +{bonusTurns.toLocaleString('pt-BR')}{' '}
+                <span className="text-fg-muted">turns extras este mês</span>
+              </p>
+            </div>
+          ) : null}
+
+          {/* Warning */}
+          {pct >= 80 ? (
+            <p className="rounded-xl border border-warning/20 bg-warning/10 px-4 py-2.5 text-[12px] text-warning">
+              Você está próximo do limite. Considere fazer upgrade ou adicionar créditos.
+            </p>
+          ) : null}
+        </>
+      )}
+
+      {/* Reset info */}
+      {!loading && (
+        <p className="text-[11px] text-fg-muted">
+          Renova mensalmente em {resetDays} dia{resetDays === 1 ? '' : 's'}.
+        </p>
+      )}
+
+      {/* CTA */}
+      {!loading ? (
+        planId === 'free' ? (
+          <button
+            type="button"
+            className="luna-btn-primary w-full px-4 py-2.5 text-[13px]"
+            onClick={() => onNavigate('planos')}
+          >
+            Fazer upgrade para mais tokens
+          </button>
+        ) : (
+          <div className="flex items-center justify-between rounded-xl border border-line bg-canvas px-4 py-3">
+            <div>
+              <p className="text-[12px] font-semibold text-fg">Pack de créditos</p>
+              <p className="mt-0.5 text-[11px] text-fg-muted">+500 turns por R$9 · válido por 30 dias</p>
+            </div>
+            <button
+              type="button"
+              disabled={packBusy}
+              onClick={() => void handleCreditPack()}
+              className="rounded-lg bg-accent px-3 py-1.5 text-[11px] font-semibold text-white disabled:opacity-60"
+            >
+              {packBusy ? '…' : 'Comprar'}
+            </button>
+          </div>
+        )
       ) : null}
     </div>
   )
@@ -567,8 +624,7 @@ function PlanosTab({ currentPlanId, usage }: { currentPlanId: LunaPlanId; usage:
   const [period, setPeriod] = useState<'monthly' | 'annual'>('monthly')
   const [checkoutBusy, setCheckoutBusy] = useState(false)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const { used, limit, effectiveLimit, pct, loading } = usage
-  const displayLimit = effectiveLimit ?? limit
+  const { windowTokens, windowLimit, weeklyTokens, weeklyLimit, loading } = usage
   const onTrial = auth.billing?.status === 'trial'
 
   useEffect(() => {
@@ -631,7 +687,7 @@ function PlanosTab({ currentPlanId, usage }: { currentPlanId: LunaPlanId; usage:
         </p>
       ) : null}
 
-      {currentPlanId !== 'byok' && displayLimit !== null ? (
+      {currentPlanId !== 'byok' && windowLimit !== null ? (
         loading ? (
           <div className="rounded-xl border border-line-subtle bg-canvas px-4 py-3">
             <Skeleton className="h-4 w-full" />
@@ -642,13 +698,13 @@ function PlanosTab({ currentPlanId, usage }: { currentPlanId: LunaPlanId; usage:
             <p className="text-[12px] text-fg-dim">
               Seu plano atual: <span className="font-semibold text-fg">{PLAN_DISPLAY_LABELS[currentPlanId]}</span>
             </p>
-            <span className={`text-[11px] font-semibold ${pctTextColor(pct)}`}>
-              {used} / {displayLimit.toLocaleString('pt-BR')} turns
+            <span className={`text-[11px] font-semibold ${pctTextColor(usage.pct)}`}>
+              {windowTokens.toLocaleString('pt-BR')} / {windowLimit.toLocaleString('pt-BR')} tokens
             </span>
           </div>
-          {pct >= 70 ? (
+          {usage.pct >= 70 ? (
             <p className="mt-1 text-[11px] text-warning">
-              Uso elevado este mês — um upgrade garante mais headroom.
+              Uso elevado — um upgrade garante mais headroom.
             </p>
           ) : null}
         </div>
@@ -712,22 +768,15 @@ function PlanosTab({ currentPlanId, usage }: { currentPlanId: LunaPlanId; usage:
 
 // ── Tab: Cloud ─────────────────────────────────────────────────────────────
 
-const SYNC_TOGGLE_ITEMS: {
-  key: 'conversations' | 'memory' | 'folders' | 'modelPrefs' | 'plugins'
-  label: string
-  editable: boolean
-}[] = [
-  { key: 'conversations', label: 'Conversas e histórico', editable: true },
-  { key: 'memory', label: 'Memória do usuário', editable: true },
-  { key: 'folders', label: 'Pastas e organização', editable: true },
-  { key: 'modelPrefs', label: 'Preferências de modelo', editable: false },
-  { key: 'plugins', label: 'Plugins instalados', editable: false },
+const SYNCED_ITEMS: { key: string; label: string }[] = [
+  { key: 'conversations', label: 'Conversas e histórico' },
+  { key: 'memory', label: 'Memória do usuário' },
+  { key: 'folders', label: 'Pastas e organização' },
 ]
 
 function CloudTab() {
   const { t, i18n } = useTranslation()
   const auth = useLunaAuth()
-  const { prefs, loading: prefsLoading, setPref } = useSyncPreferences()
   const cloud = useMemo(() => readLunaCloudConfig(), [])
   const cloudActive = auth.isLunarConnected
   const showRemote = cloudActive && cloud.syncEnabled
@@ -794,26 +843,17 @@ function CloudTab() {
         )}
       </div>
 
-      {/* O que é sincronizado */}
+      {/* O que é sincronizado — cloud-first: tudo sync */}
       <div>
         <SectionLabel>O que é sincronizado</SectionLabel>
         <div className="space-y-0 rounded-xl border border-line overflow-hidden">
-          {SYNC_TOGGLE_ITEMS.map((item, i) => (
+          {SYNCED_ITEMS.map((item, i) => (
             <div
               key={item.key}
               className={`flex items-center justify-between gap-3 bg-canvas px-4 py-2.5 ${i > 0 ? 'border-t border-line-subtle' : ''}`}
             >
               <span className="text-[12px] text-fg-dim">{item.label}</span>
-              {item.editable ? (
-                <Switch
-                  checked={prefs[item.key]}
-                  disabled={prefsLoading || !auth.isLunarConnected}
-                  onChange={(on) => void setPref(item.key, on)}
-                  className="shrink-0"
-                />
-              ) : (
-                <span className="text-[10px] font-semibold text-fg-muted">○ Em breve</span>
-              )}
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-accent">✓ Em cloud</span>
             </div>
           ))}
         </div>
@@ -850,12 +890,12 @@ export function LunarGateScreen({ onClose, reason, initialTab = 'conta' }: Props
   const email = auth.user?.email ?? null
 
   const usage = useLunaUsage()
-  const { pct, loading: usageLoading } = usage
+  const { pct, loading: usageLoading, isOwner } = usage
 
   if (!signedIn) {
     return (
       <LunarAccountModal onClose={onClose} size="md">
-        <LunarAccountSignIn onClose={onClose} reason={reason} />
+        <AurasigninScreen onClose={onClose} reason={reason} />
       </LunarAccountModal>
     )
   }
@@ -880,10 +920,21 @@ export function LunarGateScreen({ onClose, reason, initialTab = 'conta' }: Props
             <div className="flex items-center justify-between gap-2">
               <span className="text-[11px] text-fg-muted">Plano</span>
               <div className="flex items-center gap-1.5">
-                <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${PLAN_BADGE_CLASS[planId] ?? 'bg-raised text-fg-muted'}`}>
-                  {PLAN_DISPLAY_LABELS[planId]}
-                </span>
-                {planId === 'free' ? (
+                {isOwner ? (
+                  <>
+                    <span className="rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent">
+                      Owner
+                    </span>
+                    <span className="rounded-full bg-raised px-2 py-0.5 text-[10px] font-semibold text-fg-dim">
+                      {PLAN_DISPLAY_LABELS[planId]}
+                    </span>
+                  </>
+                ) : (
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${PLAN_BADGE_CLASS[planId] ?? 'bg-raised text-fg-muted'}`}>
+                    {PLAN_DISPLAY_LABELS[planId]}
+                  </span>
+                )}
+                {planId === 'free' && !isOwner ? (
                   <button type="button" onClick={() => setActiveTab('planos')} className="text-[10px] font-medium text-accent hover:underline">
                     Upgrade
                   </button>
@@ -892,7 +943,7 @@ export function LunarGateScreen({ onClose, reason, initialTab = 'conta' }: Props
             </div>
 
             {/* Mini usage bar — só se tem limite */}
-            {planId !== 'byok' ? (
+            {planId !== 'byok' && !isOwner ? (
               usageLoading ? (
                 <UsageMeterSkeleton compact />
               ) : (

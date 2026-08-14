@@ -71,9 +71,7 @@ export const StatusBar = memo(function StatusBar({
 
   const lunarLabel = auth?.isLunarConnected
     ? t('statusBar.lunar_connected')
-    : auth?.usageMode === 'offline'
-      ? t('statusBar.lunar_offline')
-      : t('statusBar.lunar_disconnected')
+    : t('statusBar.lunar_disconnected')
 
   return (
     <div
@@ -100,9 +98,7 @@ export const StatusBar = memo(function StatusBar({
           className={
             auth?.isLunarConnected
               ? lunaStatusDotClass('success')
-              : auth?.usageMode === 'offline'
-                ? 'luna-status-dot bg-fg-dim'
-                : lunaStatusDotClass('warning')
+              : lunaStatusDotClass('warning')
           }
           aria-hidden
         />

@@ -41,48 +41,48 @@ export function FinancesDashboard() {
   }
 
   return (
-    <div className="space-y-6 pb-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
+    <div className="space-y-4 pb-6 animate-in fade-in slide-in-from-bottom-2 duration-500 md:space-y-6">
       {/* Top Cards - Premium Gradients & Shadows */}
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-3 md:gap-4">
         <div className="luna-card-vivid">
-          <p className="text-[11px] font-medium uppercase tracking-widest text-white/85">{t('finances.dashboard.consolidatedBalance')}</p>
-          <p className="mt-2 text-3xl font-bold tracking-tight text-white">{formatMoney(total)}</p>
+          <p className="text-[10px] font-medium uppercase tracking-widest text-white/85 md:text-[11px]">{t('finances.dashboard.consolidatedBalance')}</p>
+          <p className="mt-2 truncate text-xl font-bold tracking-tight text-white md:text-3xl" title={formatMoney(total)}>{formatMoney(total)}</p>
         </div>
 
         <StatCard
-          label={t('finances.dashboard.monthIncome')} 
-          value={formatMoney(summary.income)} 
-          colorClass="text-success" 
-          icon="↓" 
+          label={t('finances.dashboard.monthIncome')}
+          value={formatMoney(summary.income)}
+          colorClass="text-success"
+          icon="↓"
         />
-        <StatCard 
-          label={t('finances.dashboard.monthExpense')} 
-          value={formatMoney(summary.expense)} 
-          colorClass="text-danger" 
-          icon="↑" 
+        <StatCard
+          label={t('finances.dashboard.monthExpense')}
+          value={formatMoney(summary.expense)}
+          colorClass="text-danger"
+          icon="↑"
         />
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-2 md:gap-6">
         {/* Left Column */}
         <div className="space-y-6">
           
           {/* Gráfico de Pizza Premium */}
           <div className="luna-card luna-card--hover">
             <h3 className="mb-4 text-sm font-semibold text-fg">{t('finances.dashboard.spendingTitle')}</h3>
-            <div className="flex items-center gap-6">
-              <div className="relative flex h-32 w-32 shrink-0 items-center justify-center">
-                <div 
+            <div className="flex flex-col items-center gap-4 sm:flex-row sm:gap-6">
+              <div className="relative flex h-28 w-28 shrink-0 items-center justify-center md:h-32 md:w-32">
+                <div
                   className="absolute inset-0 rounded-full"
                   style={{ background: `conic-gradient(${conicStops})` }}
                 />
                 <div className="absolute inset-2 rounded-full bg-surface" />
                 <div className="z-10 text-center">
-                  <span className="block text-[10px] text-fg-muted uppercase">{t('finances.dashboard.totalSpent')}</span>
-                  <span className="block text-sm font-bold text-fg">{formatMoney(totalExpense)}</span>
+                  <span className="block text-[9px] text-fg-muted uppercase md:text-[10px]">{t('finances.dashboard.totalSpent')}</span>
+                  <span className="block text-xs font-bold text-fg md:text-sm">{formatMoney(totalExpense)}</span>
                 </div>
               </div>
-              <ul className="flex-1 space-y-3">
+              <ul className="w-full flex-1 space-y-3">
                 {topCats.map((c, i) => (
                   <li key={c.categoryId} className="flex items-center gap-3 text-xs">
                     <div className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: colors[i % colors.length] }} />
@@ -210,11 +210,11 @@ export function FinancesDashboard() {
 function StatCard({ label, value, colorClass = 'text-fg', icon }: { label: string; value: string; colorClass?: string; icon?: string }) {
   return (
     <div className="luna-card luna-card--hover">
-      <div className="flex items-center justify-between">
-        <p className="text-[11px] font-medium uppercase tracking-widest text-fg-muted">{label}</p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="truncate text-[10px] font-medium uppercase tracking-widest text-fg-muted md:text-[11px]">{label}</p>
         {icon && <span className={`text-xs font-bold ${colorClass} bg-current/10 px-1.5 py-0.5 rounded`}>{icon}</span>}
       </div>
-      <p className={`mt-2 text-2xl font-bold tracking-tight ${colorClass}`}>
+      <p className={`mt-2 truncate text-lg font-bold tracking-tight md:text-2xl ${colorClass}`} title={value}>
         {value}
       </p>
     </div>

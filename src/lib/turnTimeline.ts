@@ -113,7 +113,8 @@ function pushReasoningRound(
         m.reasoningInProgress &&
         (m.orchestratorRound === round || !text)),
   )
-  if (!text && !inProgress && !translating && !m.lunaPipelineTrace) return
+  const hasPipelineBody = round === 1 && Boolean(m.lunaPipelineTrace)
+  if (!text && !inProgress && !translating && !hasPipelineBody) return
 
   items.push({
     kind: 'reasoning_round',

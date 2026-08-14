@@ -9,6 +9,10 @@ import type { LunaCoreBillingSnapshot } from '../billing/useLunaCoreBilling'
 import { mapPipelineToBreakdownKey } from '../billing/mapPipelineBreakdown'
 import { recordCloudTurn } from '../billing/recordCloudTurn'
 import { shouldCountCloudTurn } from '../billing/lunaCloudTurnPolicy'
+import {
+  patchAssistantMessage as patchAssistantMsg,
+  upsertReasoningSegment,
+} from './lib/messagePatch'
 
 export function buildLunaPipelineTrace(
   resultado: LunaCoreResultado,
@@ -59,7 +63,105 @@ export type LunaCoreTurnDeps = {
     conv: Conversation | undefined,
   ) => Promise<LunaCorePipelineOptions | undefined>
   turnStatusHint?: string
+  reasoningEnabled?: boolean
   billing?: LunaCoreBillingSnapshot
+}
+
+type LunaCoreBridge = {
+  onChatStatusHint?: (cb: (hint: string) => void) => () => void
+  onChatPipelineTrace?: (
+    cb: (trace: LunaPipelineTrace) => void,
+  ) => () => void
+  onChatReasoningRodada?: (
+    cb: (p: { rodada: number; texto: string; emProgresso: boolean }) => void,
+  ) => () => void
+}
+
+function readLunaCoreBridge(): LunaCoreBridge | undefined {
+  if (typeof window === 'undefined') return undefined
+  return (window as unknown as { lunaCore?: LunaCoreBridge }).lunaCore
+}
+
+function registerChatPipelineListeners(
+  deps: LunaCoreTurnDeps,
+  convId: string,
+  assistantMsgId: string,
+  reasoningOn: boolean,
+): () => void {
+  const bridge = readLunaCoreBridge()
+  if (!bridge) return () => {}
+
+  const cleanups: Array<() => void> = []
+
+  if (typeof bridge.onChatStatusHint === 'function') {
+    cleanups.push(
+      bridge.onChatStatusHint((hint) => {
+        patchAssistantMessage(deps.updateConversation, convId, assistantMsgId, {
+          turnStatusHint: hint,
+        })
+      }),
+    )
+  }
+
+  if (typeof bridge.onChatPipelineTrace === 'function') {
+    cleanups.push(
+      bridge.onChatPipelineTrace((trace) => {
+        patchAssistantMsg(
+          convId,
+          assistantMsgId,
+          deps.updateConversation,
+          (m) => ({
+            ...m,
+            lunaPipelineTrace: trace,
+            orchestratorRound: 1,
+            reasoningInProgress: true,
+            reasoningSegments: upsertReasoningSegment(m.reasoningSegments, {
+              round: 1,
+              text: '',
+              inProgress: true,
+            }),
+          }),
+        )
+      }),
+    )
+  }
+
+  if (reasoningOn && typeof bridge.onChatReasoningRodada === 'function') {
+    cleanups.push(
+      bridge.onChatReasoningRodada(({ rodada, texto, emProgresso }) => {
+        const raw = texto.trim()
+        patchAssistantMsg(
+          convId,
+          assistantMsgId,
+          deps.updateConversation,
+          (m) => ({
+            ...m,
+            orchestratorRound: rodada,
+            reasoningInProgress: emProgresso || Boolean(m.reasoningInProgress),
+            reasoningStreamingActive: emProgresso,
+            turnStatusHint: emProgresso ? 'A pensar…' : m.turnStatusHint,
+            reasoningSegments: upsertReasoningSegment(m.reasoningSegments, {
+              round: rodada,
+              text: raw,
+              inProgress: emProgresso,
+            }),
+            ...(raw && rodada >= 2
+              ? {
+                  reasoningTrace: {
+                    text: raw,
+                    provider: 'luna-core',
+                  },
+                }
+              : {}),
+          }),
+        )
+      }),
+    )
+  }
+
+  return () => {
+    for (const fn of cleanups) fn()
+  }
 }
 
 function buildBillingPipelineOptions(
@@ -138,18 +240,39 @@ export async function runLunaCoreTurn({
   const conv = deps.conversations.find((c) => c.id === convId)
   const sessaoId = conv?.lunaSessaoId ?? convId
   const resolved = (await deps.resolvePipelineOptions?.(userText, conv)) ?? {}
+  const reasoningOn = deps.reasoningEnabled !== false
   const opcoes: LunaCorePipelineOptions = {
     ...resolved,
     ...buildBillingPipelineOptions(deps.billing),
+    reasoningEnabled: reasoningOn,
   }
 
   patchAssistantMessage(deps.updateConversation, convId, assistantMsgId, {
     turnStatusHint: deps.turnStatusHint ?? 'Analisando e consultando memória...',
+    ...(reasoningOn
+      ? {
+          reasoningInProgress: true,
+          orchestratorRound: 1,
+          reasoningSegments: [{ round: 1, text: '', inProgress: true }],
+        }
+      : {}),
   })
 
   if (abortSignal.aborted) throw new DOMException('Aborted', 'AbortError')
 
-  const resultado = await executarLunaCorePipeline(userText, sessaoId, opcoes)
+  const removeListeners = registerChatPipelineListeners(
+    deps,
+    convId,
+    assistantMsgId,
+    reasoningOn,
+  )
+
+  let resultado: LunaCoreResultado
+  try {
+    resultado = await executarLunaCorePipeline(userText, sessaoId, opcoes)
+  } finally {
+    removeListeners()
+  }
 
   if (abortSignal.aborted) throw new DOMException('Aborted', 'AbortError')
 
@@ -172,6 +295,26 @@ export function applyLunaCoreResult(
     resultado.resposta?.texto || 'Resposta gerada internamente sem output.'
   const prefix = billingNotice(resultado)
   const lunaPipelineTrace = buildLunaPipelineTrace(resultado)
+  const narrativaPipeline = resultado.narrativa_pipeline?.trim() ?? ''
+  const raciocinio = resultado.resposta?.raciocinio?.trim() ?? ''
+  const reasoningOn = deps.reasoningEnabled !== false
+
+  const reasoningSegments = reasoningOn
+    ? [
+        ...(narrativaPipeline || lunaPipelineTrace
+          ? [
+              {
+                round: 1,
+                text: narrativaPipeline,
+                inProgress: false,
+              },
+            ]
+          : []),
+        ...(raciocinio
+          ? [{ round: 2, text: raciocinio, inProgress: false as const }]
+          : []),
+      ]
+    : undefined
 
   patchAssistantMessage(deps.updateConversation, convId, assistantMsgId, {
     text: prefix ? `${prefix}${answer}` : answer,
@@ -180,9 +323,21 @@ export function applyLunaCoreResult(
     reasoningInProgress: false,
     reasoningStreamingActive: false,
     reasoningTranslating: false,
-    reasoningSegments: [{ round: 1, text: '', inProgress: false }],
     lunaPipelineTrace,
     llmProvider: 'luna-core',
+    ...(reasoningOn
+      ? {
+          reasoningSegments,
+          ...(raciocinio
+            ? {
+                reasoningTrace: {
+                  text: raciocinio,
+                  provider: 'luna-core',
+                },
+              }
+            : {}),
+        }
+      : {}),
   })
 
   return resultado

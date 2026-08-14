@@ -84,6 +84,7 @@ declare global {
       maximizeToggle: () => Promise<void>
       close: () => Promise<void>
       setWorkbenchLayout?: (mode: 'chat' | 'ide') => Promise<void>
+      setLockSize?: (locked: boolean) => Promise<void>
       googleSignIn?: () => Promise<
         | { ok: true; idToken: string; accessToken?: string }
         | { ok: false; error?: string; cancelled?: boolean }
@@ -241,6 +242,42 @@ declare global {
       listarMemoriaLonga: (limit?: number) => Promise<{
         ok: boolean
         fatos?: import('./hooks/useLunaCoreMemory').LunaCoreMemoryFact[]
+        error?: string
+      }>
+      getLlmRuntimeInfo?: () => Promise<{
+        ok: boolean
+        detectedMode?: 'local' | 'cloud'
+        lunaApiBase?: string
+        modeloMaior?: string
+        modeloMenor?: string
+        ollamaBase?: string
+        groqConfigured?: boolean
+        error?: string
+      }>
+      listLocalModels?: (opts: {
+        baseUrl: string
+        apiKey?: string
+      }) => Promise<{
+        ok: boolean
+        models?: Array<{ id: string; label: string }>
+        error?: string
+      }>
+      testLocalLlm?: (opts: {
+        baseUrl: string
+        apiKey?: string
+        modeloMaior?: string
+      }) => Promise<{
+        ok: boolean
+        latencyMs?: number
+        modelCount?: number
+        error?: string
+      }>
+      applyLocalProfile?: (
+        profile: import('./lib/lunaLocalLlmProfile').LunaLocalLlmProfile,
+      ) => Promise<{
+        ok: boolean
+        coreEnvPath?: string
+        orbitEnvPath?: string
         error?: string
       }>
     }

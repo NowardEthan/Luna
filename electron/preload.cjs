@@ -22,6 +22,8 @@ contextBridge.exposeInMainWorld('electron', {
   close: () => ipcRenderer.invoke('window:close'),
   setWorkbenchLayout: (mode) =>
     ipcRenderer.invoke('window:setWorkbenchLayout', mode),
+  /** Trava/destrava resize da janela (tela de login). */
+  setLockSize: (locked) => ipcRenderer.invoke('window:setLockSize', locked),
   /** OAuth Google no browser do sistema (Electron). */
   googleSignIn: () => ipcRenderer.invoke('auth:googleSignIn'),
 })
@@ -181,6 +183,11 @@ contextBridge.exposeInMainWorld('lunaFiles', {
 contextBridge.exposeInMainWorld('lunaCore', {
   executarPipeline: (mensagem, sessaoId, opcoes) =>
     ipcRenderer.invoke('lunaCore:executarPipeline', mensagem, sessaoId, opcoes),
+  getLlmRuntimeInfo: () => ipcRenderer.invoke('lunaCore:getLlmRuntimeInfo'),
+  listLocalModels: (opts) => ipcRenderer.invoke('lunaCore:listLocalModels', opts),
+  testLocalLlm: (opts) => ipcRenderer.invoke('lunaCore:testLocalLlm', opts),
+  applyLocalProfile: (profile) =>
+    ipcRenderer.invoke('lunaCore:applyLocalProfile', profile),
   executarAgenteIde: (mensagem, opcoes) =>
     ipcRenderer.invoke('lunaCore:executarAgenteIde', mensagem, opcoes),
   prepararSessao: (sessaoId) => ipcRenderer.invoke('lunaCore:prepararSessao', sessaoId),
@@ -201,6 +208,26 @@ contextBridge.exposeInMainWorld('lunaCore', {
     const listener = (_event, passo) => cb(passo)
     ipcRenderer.on('forge:toolCallComplete', listener)
     return () => ipcRenderer.removeListener('forge:toolCallComplete', listener)
+  },
+  onReasoningRodada: (cb) => {
+    const listener = (_event, data) => cb(data)
+    ipcRenderer.on('forge:reasoningRodada', listener)
+    return () => ipcRenderer.removeListener('forge:reasoningRodada', listener)
+  },
+  onChatStatusHint: (cb) => {
+    const listener = (_event, hint) => cb(hint)
+    ipcRenderer.on('chat:statusHint', listener)
+    return () => ipcRenderer.removeListener('chat:statusHint', listener)
+  },
+  onChatPipelineTrace: (cb) => {
+    const listener = (_event, trace) => cb(trace)
+    ipcRenderer.on('chat:pipelineTrace', listener)
+    return () => ipcRenderer.removeListener('chat:pipelineTrace', listener)
+  },
+  onChatReasoningRodada: (cb) => {
+    const listener = (_event, data) => cb(data)
+    ipcRenderer.on('chat:reasoningRodada', listener)
+    return () => ipcRenderer.removeListener('chat:reasoningRodada', listener)
   },
 })
 

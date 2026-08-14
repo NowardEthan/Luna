@@ -7,10 +7,12 @@ import { McpServersSection } from './sections/McpServersSection'
 import { MemorySection } from './sections/MemorySection'
 import { AppearanceSection } from './sections/AppearanceSection'
 import { CloudSection } from './sections/CloudSection'
+import { LlmRuntimeSection } from './sections/LlmRuntimeSection'
 import type { LunaThemeId } from '../../lib/lunaThemes'
 
 export type PreferencesSectionId =
   | 'conversation'
+  | 'llm'
   | 'appearance'
   | 'documents'
   | 'memory'
@@ -24,6 +26,7 @@ export type PreferencesSectionDef = {
 
 export const PREFERENCES_SECTIONS: PreferencesSectionDef[] = [
   { id: 'conversation' },
+  { id: 'llm' },
   { id: 'appearance' },
   { id: 'documents' },
   { id: 'memory' },
@@ -57,6 +60,7 @@ export const PREFERENCES_SECTION_COMPONENTS: Record<
   ComponentType<PreferencesSharedProps>
 > = {
   conversation: ConversationSection,
+  llm: LlmRuntimeSection,
   appearance: AppearanceSection,
   documents: DocumentsSection,
   memory: MemorySection,

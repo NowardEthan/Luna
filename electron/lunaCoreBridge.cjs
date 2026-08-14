@@ -5,14 +5,22 @@ const fs = require('fs')
 const path = require('path')
 const { pathToFileURL } = require('url')
 const { resolvePipelineConfig } = require('./byokHandlers.cjs')
+const {
+  getLlmRuntimeInfo: buildLlmRuntimeInfo,
+  readDotEnv,
+  isProvedorLocalUrl,
+} = require('./llmRuntimeInfo.cjs')
+const { listLocalModels, testLocalLlm, normalizeBaseUrl } = require('./localModelDiscovery.cjs')
+const { applyLocalProfileToEnv } = require('./applyLocalProfile.cjs')
 
 const DEFAULT_LUNA_CORE_PATH = path.join(
   'C:',
   'Users',
   'ethan',
   'Documents',
-  'Core',
+  'Projects',
   'Luna',
+  'core',
   'src',
   'luna-core',
 )
@@ -92,45 +100,6 @@ function normalizeSessaoId(sessaoId) {
   return sessaoId
 }
 
-function readDotEnv(filePath) {
-  if (!fs.existsSync(filePath)) return {}
-  /** @type {Record<string, string>} */
-  const out = {}
-  for (const line of fs.readFileSync(filePath, 'utf8').split('\n')) {
-    const trimmed = line.trim()
-    if (!trimmed || trimmed.startsWith('#')) continue
-    const eq = trimmed.indexOf('=')
-    if (eq <= 0) continue
-    const key = trimmed.slice(0, eq).trim()
-    let val = trimmed.slice(eq + 1).trim()
-    if (
-      (val.startsWith('"') && val.endsWith('"')) ||
-      (val.startsWith("'") && val.endsWith("'"))
-    ) {
-      val = val.slice(1, -1)
-    }
-    out[key] = val
-  }
-  return out
-}
-
-function isProvedorLocalUrl(baseUrl) {
-  if (!baseUrl) return false
-  try {
-    const host = new URL(baseUrl.includes('://') ? baseUrl : `http://${baseUrl}`)
-      .hostname
-      .toLowerCase()
-    return (
-      host === 'localhost' ||
-      host === '127.0.0.1' ||
-      host === '[::1]' ||
-      host.endsWith('.local')
-    )
-  } catch {
-    return /localhost|127\.0\.0\.1/i.test(baseUrl)
-  }
-}
-
 function isLunaCoreLocal(lunaCorePath) {
   const env = readDotEnv(path.join(lunaCorePath, '.env'))
   return isProvedorLocalUrl(env.LUNA_API_BASE || '')
@@ -138,8 +107,29 @@ function isLunaCoreLocal(lunaCorePath) {
 
 /**
  * @param {string} lunaCorePath
- * @returns {import('../../Core/Luna/src/luna-core/dist/providers/tipos').ConfigLuna | null}
+ * @returns {import('../../core/src/luna-core/dist/providers/tipos').ConfigLuna | null}
  */
+function profileToConfigLuna(profile) {
+  if (!profile || typeof profile !== 'object') return null
+  const baseUrl = normalizeBaseUrl(profile.baseUrl || 'http://127.0.0.1:1234/v1')
+  const apiKey = String(profile.apiKey || 'lm-studio').trim() || 'lm-studio'
+  const modeloMaior = String(profile.modeloMaior || profile.modeloMenor || '').trim()
+  const modeloMenor = String(profile.modeloMenor || modeloMaior || '').trim()
+  if (!modeloMenor || !modeloMaior) return null
+  const temp =
+    typeof profile.temperaturaMaior === 'number' && !Number.isNaN(profile.temperaturaMaior)
+      ? profile.temperaturaMaior
+      : 0.85
+  return {
+    apiKey,
+    baseUrl,
+    modeloMenor,
+    modeloMaior,
+    temperaturaMenor: 0,
+    temperaturaMaior: temp,
+  }
+}
+
 function buildLocalFallbackConfig(lunaCorePath) {
   const coreEnv = readDotEnv(path.join(lunaCorePath, '.env'))
   const orbitEnv = readDotEnv(path.join(process.cwd(), '.env'))
@@ -167,6 +157,13 @@ function buildLocalFallbackConfig(lunaCorePath) {
   }
 }
 
+/** Perfil da app (localStorage via renderer) tem precedência sobre .env. */
+function buildConfigFromLocalProfile(lunaCorePath, opcoes) {
+  const fromProfile = profileToConfigLuna(opcoes?.localLlmProfile)
+  if (fromProfile) return fromProfile
+  return buildLocalFallbackConfig(lunaCorePath)
+}
+
 /**
  * @param {{ planId?: string, usedTurns?: number, turnQuota?: number | null } | undefined} billing
  * @param {boolean} isCoreLocal
@@ -190,12 +187,23 @@ function isQuotaExceeded(billing) {
 }
 
 /**
+ * Estado LLM lido do .env (Core + Orbit) — para a secção Definições → Modelos.
+ */
+function getLlmRuntimeInfo() {
+  return buildLlmRuntimeInfo({
+    orbitRoot: process.cwd(),
+    lunaCorePath: resolveLunaCorePath(),
+  })
+}
+
+/**
+ * @param {Electron.IpcMainInvokeEvent | undefined} event
  * @param {string} mensagem
  * @param {string | undefined} sessaoId
- * @param {{ contexto_ide?: string, forceLocal?: boolean, billing?: object } | undefined} opcoes
+ * @param {{ contexto_ide?: string, forceLocal?: boolean, billing?: object, reasoningEnabled?: boolean } | undefined} opcoes
  * @returns {Promise<object>}
  */
-async function executarPipeline(mensagem, sessaoId, opcoes) {
+async function executarPipeline(event, mensagem, sessaoId, opcoes) {
   const trimmed = (mensagem || '').trim()
   if (!trimmed) return { error: 'Mensagem vazia' }
 
@@ -242,6 +250,15 @@ async function executarPipeline(mensagem, sessaoId, opcoes) {
         cross = mod.buscarContextoOutrasSessoes(trimmed, sid)
       }
 
+      const sender = event?.sender
+      const notificar = (canal, payload) => {
+        try {
+          if (sender && !sender.isDestroyed()) sender.send(canal, payload)
+        } catch {
+          /* ignora se janela fechou */
+        }
+      }
+
       /** @type {Record<string, unknown>} */
       const pipelineOpts = {
         sessaoId: sid,
@@ -249,6 +266,11 @@ async function executarPipeline(mensagem, sessaoId, opcoes) {
         // como fallback para chamadas antigas sem `ambiente` explícito.
         ambiente: opcoes?.ambiente ?? (opcoes?.forge ? 'forge' : 'desktop'),
         contexto_cross_sessao: cross,
+        raciocinioAtivo: opcoes?.reasoningEnabled !== false,
+        onStatusHint: (hint) => notificar('chat:statusHint', hint),
+        onPipelineTrace: (trace) => notificar('chat:pipelineTrace', trace),
+        onRaciocinioRodada: (rodada, texto, emProgresso) =>
+          notificar('chat:reasoningRodada', { rodada, texto, emProgresso }),
         ...(opcoes?.detalhe_ambiente
           ? { detalhe_ambiente: opcoes.detalhe_ambiente }
           : {}),
@@ -257,8 +279,8 @@ async function executarPipeline(mensagem, sessaoId, opcoes) {
 
       if (byokConfig) {
         pipelineOpts.config = byokConfig
-      } else if (forceLocal) {
-        const localConfig = buildLocalFallbackConfig(lunaCorePath)
+      } else if (forceLocal || isCoreLocal) {
+        const localConfig = buildConfigFromLocalProfile(lunaCorePath, opcoes)
         if (localConfig) {
           pipelineOpts.config = localConfig
         }
@@ -537,12 +559,15 @@ async function executarAgenteIde(event, mensagem, opcoes, agentTools) {
         onToolCallStart: (nome, args, rodada) =>
           notificar('forge:toolCallStart', { nome, args, rodada }),
         onToolCallComplete: (passo) => notificar('forge:toolCallComplete', passo),
+        raciocinioAtivo: opcoes?.reasoningEnabled !== false,
+        onRaciocinioRodada: (rodada, texto, emProgresso) =>
+          notificar('forge:reasoningRodada', { rodada, texto, emProgresso }),
       }
 
       if (byokConfig) {
         pipelineOpts.config = byokConfig
       } else if (opcoes?.forceLocal || isLunaCoreLocal(lunaCorePath)) {
-        const localConfig = buildLocalFallbackConfig(lunaCorePath)
+        const localConfig = buildConfigFromLocalProfile(lunaCorePath, opcoes)
         if (localConfig) pipelineOpts.config = localConfig
       }
 
@@ -555,9 +580,24 @@ async function executarAgenteIde(event, mensagem, opcoes, agentTools) {
   }
 }
 
+function applyLocalProfile(profile) {
+  try {
+    return applyLocalProfileToEnv(profile, process.cwd())
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+    }
+  }
+}
+
 module.exports = {
   executarPipeline,
   executarAgenteIde,
+  getLlmRuntimeInfo,
+  listLocalModels,
+  testLocalLlm,
+  applyLocalProfile,
   prepararSessao,
   refletirSessao,
   listarMemoriaLonga,
@@ -566,4 +606,6 @@ module.exports = {
   withLunaCore,
   isLunaCoreLocal,
   readDotEnv,
+  buildConfigFromLocalProfile,
+  profileToConfigLuna,
 }

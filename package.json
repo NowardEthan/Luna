@@ -1,7 +1,8 @@
 {
-  "name": "orbit",
+  "name": "orbit-legacy",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.0-legacy",
+  "description": "LEGACY — host visual Luna congelado (jun/2026). Sucessor: Luna Runtime em Projects/Luna.",
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {
@@ -34,11 +35,11 @@
     "firebase:sync-env": "node scripts/sync-firebase-env.cjs",
     "i18n:check": "node scripts/check-i18n-keys.cjs",
     "i18n:scan": "node scripts/find-hardcoded-ui.cjs",
-    "luna-core:build": "npm run build --prefix \"../../Core/Luna/src/luna-core\"",
+    "luna-core:build": "npm run build --prefix \"../core/src/luna-core\"",
     "luna-core:check": "node scripts/check-luna-core-bridge.cjs",
     "luna-core:check:electron": "electron scripts/check-luna-core-electron.cjs",
     "luna-core:check:recall": "node scripts/check-luna-core-recall.cjs",
-    "luna-core:rebuild-electron": "npx electron-rebuild -f -w better-sqlite3 --module-dir \"../../Core/Luna/src/luna-core\"",
+    "luna-core:rebuild-electron": "npx electron-rebuild -f -w better-sqlite3 --module-dir \"../core/src/luna-core\"",
     "luna-env:local": "node scripts/apply-luna-env-profile.cjs local",
     "luna-env:cloud": "node scripts/apply-luna-env-profile.cjs cloud-groq"
   },

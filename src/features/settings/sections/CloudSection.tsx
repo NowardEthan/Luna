@@ -25,16 +25,14 @@ export function CloudSection({ disabled }: PreferencesSharedProps) {
 
   const modeLabel = auth.isLunarConnected
     ? t('settings.cloud_mode_active')
-    : auth.usageMode === 'offline'
-      ? t('settings.cloud_mode_offline')
-      : t('settings.cloud_mode_no_session')
+    : t('settings.cloud_mode_no_session')
 
   return (
     <div className="space-y-6">
       <header className="mb-6">
         <h2 className="text-2xl font-bold tracking-tight text-fg">{t('settings.section_cloud_label', 'Conta Lunar')}</h2>
         <p className="mt-1 text-xs text-fg-muted">
-          {t('settings.cloud_hint', 'Modelos online hospedados pela Luna, sincronização entre dispositivos e loja remota. Modo offline: Ollama, IDE e RAG local neste computador.')}
+          {t('settings.cloud_hint', 'Modelos online hospedados pela Luna, sincronização entre dispositivos e loja remota.')}
         </p>
       </header>
 
@@ -62,25 +60,6 @@ export function CloudSection({ disabled }: PreferencesSharedProps) {
               </button>
             </>
           ) : null}
-          {auth.usageMode !== 'offline' ? (
-            <button
-              type="button"
-              className="luna-btn-secondary px-3 py-1.5"
-              disabled={disabled}
-              onClick={() => auth.continueOffline()}
-            >
-              {t('settings.cloud_go_offline')}
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="luna-btn-secondary px-3 py-1.5"
-              disabled={disabled}
-              onClick={() => auth.setUsageModeCloud()}
-            >
-              {t('settings.cloud_prefer_cloud')}
-            </button>
-          )}
           {auth.isLunarConnected ? (
             <button
               type="button"

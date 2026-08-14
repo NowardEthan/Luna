@@ -8,8 +8,6 @@ import { requestConfirm } from '../../lib/confirm'
 import type { ChatFolder, Conversation } from '../../types/chat'
 import type { FolderTreeNode as FolderNode } from './folderTree'
 import { HistoryOverflowMenu, type HistoryMenuItem } from './HistoryOverflowMenu'
-import { CloudSyncToggleButton } from './CloudSyncToggleButton'
-import { isCloudSyncEnabled } from '../../types/cloudSync'
 import {
   FolderIconView,
   folderIconChipClass,
@@ -38,8 +36,6 @@ type Props = {
   onOpenSettings: () => void
   onNewConversation: (folderId: string) => void
   onDeleteFolder: (id: string) => void
-  cloudSyncAvailable?: boolean
-  onSetFolderCloudEnabled?: (id: string, enabled: boolean) => void
   folders?: ChatFolder[]
   conversations?: Conversation[]
   dragEnabled: boolean
@@ -61,8 +57,6 @@ export function FolderTreeNodeView({
   onOpenSettings,
   onNewConversation,
   onDeleteFolder,
-  cloudSyncAvailable = false,
-  onSetFolderCloudEnabled,
   folders = [],
   conversations = [],
   dragEnabled,
@@ -111,20 +105,7 @@ export function FolderTreeNodeView({
     })()
   }
 
-  const cloudEnabled = isCloudSyncEnabled(folder.cloudSync)
-
   const menuItems: HistoryMenuItem[] = [
-    ...(cloudSyncAvailable && onSetFolderCloudEnabled
-      ? [
-          {
-            id: 'cloud',
-            label: cloudEnabled
-              ? t('history.folderRemoveFromCloud')
-              : t('history.folderSaveToCloud'),
-            onClick: () => onSetFolderCloudEnabled(folder.id, !cloudEnabled),
-          },
-        ]
-      : []),
     { id: 'settings', label: t('history.folderSettings'), onClick: onOpenSettings },
     {
       id: 'new-chat',
@@ -213,17 +194,6 @@ export function FolderTreeNodeView({
             </span>
           </button>
 
-          <CloudSyncToggleButton
-            id={folder.id}
-            meta={folder.cloudSync}
-            available={Boolean(cloudSyncAvailable && onSetFolderCloudEnabled)}
-            itemLabel={folder.name}
-            itemKind="folder"
-            folders={folders}
-            conversations={conversations}
-            surface={onVividShell ? 'vivid' : 'neutral'}
-            onToggle={(enabled) => onSetFolderCloudEnabled!(folder.id, enabled)}
-          />
           <HistoryOverflowMenu
             items={menuItems}
             ariaLabel={t('history.folderActionsAria', { name: folder.name })}

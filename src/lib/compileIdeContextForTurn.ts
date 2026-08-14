@@ -1,6 +1,8 @@
 import type { Conversation } from '../types/chat'
 import type { IdeAttachedContext } from './ideMentions'
 import type { LunaCorePipelineOptions } from '../types/lunaCorePipeline'
+import { shouldForceLocalInPipeline } from './lunaLlmRuntimeMode'
+import { readLocalLlmProfile } from './lunaLocalLlmProfile'
 import { compileIdeContextBlock } from './ideContextCompiler'
 import { buildForgeCoreInterpreterBlock } from '../features/ide/forgeAgentInterpreter'
 import { readForgeComposerMode } from './forgeComposerMode'
@@ -45,7 +47,12 @@ export async function compileIdeContextForTurn(
  * superfície de origem.
  */
 export function compileChatPipelineOptions(): LunaCorePipelineOptions {
-  return { ambiente: 'desktop' }
+  const profile = readLocalLlmProfile()
+  return {
+    ambiente: 'desktop',
+    ...(shouldForceLocalInPipeline() ? { forceLocal: true } : {}),
+    localLlmProfile: profile,
+  }
 }
 
 /** Detalhe legível do workspace activo, para enriquecer a presença no Forge. */
@@ -64,8 +71,11 @@ export async function compileIdePipelineOptions(
   const contexto_ide = await compileIdeContextForTurn(userQuery, ragEnabled, mentions)
   const forge = buildForgePipelineMeta()
   const detalhe_ambiente = detalheWorkspace(conv)
+  const profile = readLocalLlmProfile()
   return {
     ambiente: 'forge',
+    ...(shouldForceLocalInPipeline() ? { forceLocal: true } : {}),
+    localLlmProfile: profile,
     ...(detalhe_ambiente ? { detalhe_ambiente } : {}),
     ...(contexto_ide ? { contexto_ide } : {}),
     ...(forge ? { forge } : {}),
